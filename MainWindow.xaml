@@ -26,15 +26,14 @@
         </ContextMenu>
     </Window.Resources>
 
-    <Grid>
+    <Grid Background="Transparent">
         <Border x:Name="FrameBorder"
                 Margin="0,22,4,24"
                 BorderBrush="#CCFFD84D"
                 BorderThickness="1"
                 CornerRadius="4"
                 Background="Transparent"
-                Visibility="Collapsed"
-                IsHitTestVisible="False">
+                Visibility="Collapsed">
             <Grid>
                 <Border x:Name="ResultPanel"
                         Margin="0"
@@ -44,8 +43,7 @@
                         ClipToBounds="True"
                         SnapsToDevicePixels="True"
                         Visibility="Collapsed"
-                        SizeChanged="ResultPanel_SizeChanged"
-                        IsHitTestVisible="False">
+                        SizeChanged="ResultPanel_SizeChanged">
                     <Grid>
                         <Image x:Name="ResultImage"
                                Stretch="Fill"
@@ -250,8 +248,7 @@
                 VerticalAlignment="Top"
                 Background="#DDFDD84D"
                 CornerRadius="3"
-                Visibility="Collapsed"
-                IsHitTestVisible="False">
+                Visibility="Collapsed">
             <TextBlock x:Name="StatusText"
                        VerticalAlignment="Center"
                        Foreground="#FF0B0B0B"
