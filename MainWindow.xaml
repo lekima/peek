@@ -148,11 +148,8 @@
                 <Grid Width="10"
                       Height="10">
                     <Path x:Name="TranslateIcon"
-                          Stroke="#CC161616"
-                          StrokeThickness="1.6"
-                          StrokeStartLineCap="Round"
-                          StrokeEndLineCap="Round"
-                          Data="M 2 2 L 8 2 M 5 2 L 5 8" />
+                          Fill="#CC161616"
+                          Data="M 3 2 L 8 5 L 3 8 Z" />
                     <Grid x:Name="TranslateSpinner"
                           Width="8"
                           Height="8"
