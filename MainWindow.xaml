@@ -145,11 +145,14 @@
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Button.Template>
-                <Grid Width="11"
-                      Height="11">
+                <Grid Width="10"
+                      Height="10">
                     <Path x:Name="TranslateIcon"
-                          Fill="#CC161616"
-                          Data="M 3 1.5 L 9 5.5 L 3 9.5 Z" />
+                          Stroke="#CC161616"
+                          StrokeThickness="1.6"
+                          StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round"
+                          Data="M 2 2 L 8 2 M 5 2 L 5 8" />
                     <Grid x:Name="TranslateSpinner"
                           Width="8"
                           Height="8"
