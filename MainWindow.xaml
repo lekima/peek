@@ -28,7 +28,7 @@
 
     <Grid Background="Transparent">
         <Border x:Name="FrameBorder"
-                Margin="0,22,4,24"
+                Margin="0,22,4,22"
                 BorderBrush="#CCFFD84D"
                 BorderThickness="1"
                 CornerRadius="4"
