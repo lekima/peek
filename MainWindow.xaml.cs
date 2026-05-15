@@ -67,6 +67,15 @@ public partial class MainWindow : Window
     private void InitializeTrayIcon()
     {
         var trayMenu = new Forms.ContextMenuStrip();
+        var startupItem = new Forms.ToolStripMenuItem("Run on startup")
+        {
+            CheckOnClick = true
+        };
+        startupItem.Click += (_, _) => Dispatcher.Invoke(() => ToggleStartupFromTray(startupItem));
+        trayMenu.Opening += (_, _) => startupItem.Checked = StartupService.IsEnabled();
+
+        trayMenu.Items.Add(startupItem);
+        trayMenu.Items.Add(new Forms.ToolStripSeparator());
         trayMenu.Items.Add("Settings", null, (_, _) => Dispatcher.Invoke(OpenSettings));
         trayMenu.Items.Add("Quit", null, (_, _) => Dispatcher.Invoke(Close));
 
@@ -83,6 +92,19 @@ public partial class MainWindow : Window
             Show();
             Activate();
         });
+    }
+
+    private void ToggleStartupFromTray(Forms.ToolStripMenuItem item)
+    {
+        try
+        {
+            StartupService.SetEnabled(item.Checked);
+        }
+        catch (Exception ex)
+        {
+            item.Checked = StartupService.IsEnabled();
+            MessageBox.Show(this, ex.Message, "Startup setting", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private Drawing.Icon CreateTrayIcon()
