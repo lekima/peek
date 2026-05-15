@@ -663,6 +663,7 @@ public partial class MainWindow : Window
             stopwatch.Stop();
             AppLogger.Error("Translate failed.", ex);
             var shortError = ToShortUserError(ex);
+            SetResultText(shortError);
             AppLogger.Info($"operation={operationId} user_error={shortError}");
             TrackUsage(
                 operationId,
