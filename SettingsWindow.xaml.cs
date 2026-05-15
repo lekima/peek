@@ -15,7 +15,7 @@ public partial class SettingsWindow : Window
         ApiKeyBox.Password = config.ApiKey;
         PopulateModels(config.Model);
         FromLanguageBox.Text = string.IsNullOrWhiteSpace(config.FromLanguage) ? "Chinese" : config.FromLanguage;
-        ToLanguageBox.Text = string.IsNullOrWhiteSpace(config.ToLanguage) ? "English" : config.ToLanguage;
+        ToLanguageBox.Text = string.IsNullOrWhiteSpace(config.ToLanguage) ? "Vietnamese" : config.ToLanguage;
         StartupBox.IsChecked = StartupService.IsEnabled();
     }
 
@@ -49,7 +49,7 @@ public partial class SettingsWindow : Window
             ? "Chinese"
             : FromLanguageBox.Text.Trim();
         _config.ToLanguage = string.IsNullOrWhiteSpace(ToLanguageBox.Text)
-            ? "English"
+            ? "Vietnamese"
             : ToLanguageBox.Text.Trim();
         StartupService.SetEnabled(StartupBox.IsChecked == true);
 

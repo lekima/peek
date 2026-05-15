@@ -19,6 +19,7 @@ The zip is self-contained for Windows x64, so it should not require a separate .
 Right-click the floating window and choose `Settings`.
 
 - Model: `google/gemini-3.1-flash-lite-preview`
+- Default languages: Chinese to Vietnamese
 - The app uses vision-to-text translation, so it does not generate edited image output.
 - API key storage: encrypted for the current Windows user with DPAPI
 - Run on startup: optional per-user Windows startup entry
