@@ -145,7 +145,10 @@ public partial class MainWindow : Window
     private void Window_SourceInitialized(object sender, EventArgs e)
     {
         var handle = new WindowInteropHelper(this).Handle;
-        Win32.SetWindowDisplayAffinity(handle, Win32.WdaExcludeFromCapture);
+        if (!Win32.SetWindowDisplayAffinity(handle, Win32.WdaExcludeFromCapture))
+        {
+            AppLogger.Info($"SetWindowDisplayAffinity failed error={Win32.GetLastError()}");
+        }
 
         if (HwndSource.FromHwnd(handle) is { } source)
         {

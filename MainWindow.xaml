@@ -33,7 +33,6 @@
                 BorderThickness="1"
                 CornerRadius="4"
                 Background="Transparent"
-                ContextMenu="{StaticResource WindowMenu}"
                 Visibility="Collapsed"
                 IsHitTestVisible="False">
             <Grid>

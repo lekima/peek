@@ -17,7 +17,7 @@ The zip is self-contained for Windows x64, so it should not require a separate .
 
 ## Settings
 
-Right-click the floating window and choose `Settings`.
+Right-click the move button or the notification-area icon, then choose `Settings`.
 
 - Result format: `Text` or `Image`
 - Default languages: Chinese to English
