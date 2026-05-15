@@ -12,8 +12,8 @@ public sealed class AppConfig
     public const string DefaultModel = Gemini31FlashLiteModel;
     public static readonly ModelOption[] ModelOptions =
     [
-        new("Gemini 3.1 Flash Lite Preview", Gemini31FlashLiteModel),
-        new("Gemini 3.1 Flash Image Preview", Gemini31FlashImageModel)
+        new("Text", "Gemini 3.1 Flash Lite Preview", Gemini31FlashLiteModel),
+        new("Image", "Gemini 3.1 Flash Image Preview", Gemini31FlashImageModel)
     ];
 
     public string ApiKey { get; set; } = string.Empty;
@@ -26,7 +26,7 @@ public sealed class AppConfig
         string.Equals(model, Gemini31FlashImageModel, StringComparison.OrdinalIgnoreCase);
 }
 
-public sealed record ModelOption(string Name, string Id);
+public sealed record ModelOption(string Mode, string Name, string Id);
 
 public sealed class StoredAppConfig
 {

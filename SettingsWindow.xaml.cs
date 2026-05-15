@@ -29,7 +29,7 @@ public partial class SettingsWindow : Window
         {
             var item = new ComboBoxItem
             {
-                Content = option.Name,
+                Content = $"{option.Mode} - {option.Name}",
                 Tag = option.Id
             };
 
