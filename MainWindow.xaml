@@ -257,7 +257,7 @@
                 IsHitTestVisible="False">
             <TextBlock x:Name="StatusText"
                        VerticalAlignment="Center"
-                       Foreground="#CC161616"
+                       Foreground="#FF0B0B0B"
                        FontSize="11"
                        FontWeight="SemiBold"
                        TextTrimming="CharacterEllipsis" />

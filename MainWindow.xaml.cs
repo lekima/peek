@@ -614,7 +614,7 @@ public partial class MainWindow : Window
         {
             AppLogger.Info($"operation={operationId} translate.start bounds=({Left:0},{Top:0},{FrameBorder.ActualWidth:0}x{FrameBorder.ActualHeight:0}) model={_config.Model}");
             SetBusy(true);
-            SetStatus("Translating...");
+            ClearStatus();
 
             using var bitmap = _screenCapture.CaptureVisualBounds(this, FrameBorder);
             captureWidth = bitmap.Width;
@@ -659,7 +659,7 @@ public partial class MainWindow : Window
         {
             stopwatch.Stop();
             AppLogger.Info($"operation={operationId} translate.cancelled");
-            SetStatus("Cancelled.");
+            SetStatus("Cancelled");
         }
         catch (Exception ex)
         {
@@ -896,32 +896,32 @@ public partial class MainWindow : Window
 
         if (message.Contains("API key", StringComparison.OrdinalIgnoreCase))
         {
-            return "API key required.";
+            return "API key required";
         }
 
         if (message.Contains("401", StringComparison.OrdinalIgnoreCase) ||
             message.Contains("403", StringComparison.OrdinalIgnoreCase))
         {
-            return "API key rejected.";
+            return "API key rejected";
         }
 
         if (message.Contains("429", StringComparison.OrdinalIgnoreCase))
         {
-            return "Rate limited.";
+            return "Rate limited";
         }
 
         if (message.Contains("400", StringComparison.OrdinalIgnoreCase) ||
             message.Contains("invalid", StringComparison.OrdinalIgnoreCase))
         {
-            return "Request failed.";
+            return "Request failed";
         }
 
         if (message.Contains("No translation", StringComparison.OrdinalIgnoreCase))
         {
-            return "No translation.";
+            return "No translation";
         }
 
-        return "Translation failed.";
+        return "Translation failed";
     }
 
     private void FitResultText()
