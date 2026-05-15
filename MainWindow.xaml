@@ -63,7 +63,6 @@
                     Height="17"
                     Margin="0,0,4,0"
                     Padding="0"
-                    ToolTip="Move"
                     ContextMenu="{StaticResource WindowMenu}"
                     PreviewMouseLeftButtonDown="DragButton_MouseLeftButtonDown"
                     PreviewMouseMove="DragButton_MouseMove"
@@ -121,7 +120,6 @@
                     Height="17"
                     Margin="0,0,4,0"
                     Padding="0"
-                    ToolTip="Translate"
                     Click="TranslateButton_Click">
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
@@ -169,7 +167,6 @@
                     Height="17"
                     Margin="0,0,4,0"
                     Padding="0"
-                    ToolTip="Clear"
                     Click="ClearButton_Click">
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
@@ -204,7 +201,6 @@
                     Width="17"
                     Height="17"
                     Padding="0"
-                    ToolTip="Resize"
                     PreviewMouseLeftButtonDown="ResizeButton_MouseLeftButtonDown"
                     PreviewMouseMove="ResizeButton_MouseMove"
                     PreviewMouseLeftButtonUp="ResizeButton_MouseLeftButtonUp">
@@ -245,7 +241,6 @@
                 Padding="0"
                 HorizontalAlignment="Right"
                 VerticalAlignment="Bottom"
-                ToolTip="Resize"
                 Visibility="Collapsed"
                 PreviewMouseLeftButtonDown="ResizeButton_MouseLeftButtonDown"
                 PreviewMouseMove="ResizeButton_MouseMove"
