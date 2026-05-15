@@ -21,6 +21,7 @@ Right-click the floating window and choose `Settings`.
 - Model: `google/gemini-3.1-flash-lite-preview`
 - The app uses vision-to-text translation, so it does not generate edited image output.
 - API key storage: encrypted for the current Windows user with DPAPI
+- Run on startup: optional per-user Windows startup entry
 - Log: `%LOCALAPPDATA%\Peek\peek.log.jsonl`
 - Cost tracking: cumulative total is stored locally, and each request is written as a structured `usage` event in the log
 

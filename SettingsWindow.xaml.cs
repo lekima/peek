@@ -16,6 +16,7 @@ public partial class SettingsWindow : Window
         PopulateModels(config.Model);
         FromLanguageBox.Text = string.IsNullOrWhiteSpace(config.FromLanguage) ? "Chinese" : config.FromLanguage;
         ToLanguageBox.Text = string.IsNullOrWhiteSpace(config.ToLanguage) ? "English" : config.ToLanguage;
+        StartupBox.IsChecked = StartupService.IsEnabled();
     }
 
     private void PopulateModels(string selectedModel)
@@ -50,6 +51,7 @@ public partial class SettingsWindow : Window
         _config.ToLanguage = string.IsNullOrWhiteSpace(ToLanguageBox.Text)
             ? "English"
             : ToLanguageBox.Text.Trim();
+        StartupService.SetEnabled(StartupBox.IsChecked == true);
 
         DialogResult = true;
         Close();

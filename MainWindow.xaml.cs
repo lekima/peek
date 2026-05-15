@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Controls;
 using System.Windows.Threading;
 
 namespace Peek;
@@ -445,6 +446,32 @@ public partial class MainWindow : Window
     private void SettingsMenu_Click(object sender, RoutedEventArgs e)
     {
         OpenSettings();
+    }
+
+    private void StartupMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem item)
+        {
+            StartupService.SetEnabled(item.IsChecked);
+        }
+    }
+
+    private void WindowMenu_Opened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ContextMenu menu)
+        {
+            return;
+        }
+
+        foreach (var item in menu.Items.OfType<MenuItem>())
+        {
+            if (item.Header is string header &&
+                string.Equals(header, "Run on startup", StringComparison.Ordinal))
+            {
+                item.IsChecked = StartupService.IsEnabled();
+                return;
+            }
+        }
     }
 
     private void QuitMenu_Click(object sender, RoutedEventArgs e)

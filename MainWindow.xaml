@@ -16,10 +16,15 @@
         Background="Transparent"
         Topmost="True"
         ShowInTaskbar="False"
+        WindowStartupLocation="CenterScreen"
         SourceInitialized="Window_SourceInitialized"
         Loaded="Window_Loaded">
     <Window.Resources>
-        <ContextMenu x:Key="WindowMenu">
+        <ContextMenu x:Key="WindowMenu" Opened="WindowMenu_Opened">
+            <MenuItem Header="Run on startup"
+                      IsCheckable="True"
+                      Click="StartupMenu_Click" />
+            <Separator />
             <MenuItem Header="Settings" Click="SettingsMenu_Click" />
             <MenuItem Header="Quit" Click="QuitMenu_Click" />
         </ContextMenu>
