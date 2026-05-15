@@ -577,7 +577,7 @@ internal sealed partial class MainWindow : Window
         ResultImage.Visibility = Visibility.Collapsed;
         ResultText.Text = text;
         ResultText.Visibility = Visibility.Visible;
-        ResultPanel.Padding = new Thickness(12, 10, 12, 10);
+        ResultPanel.Padding = new Thickness(16, 12, 16, 12);
         ResultPanel.Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xE8, 0x11, 0x11, 0x11));
         ResultPanel.Visibility = Visibility.Visible;
         UpdateResultPanelClip();

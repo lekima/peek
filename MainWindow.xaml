@@ -36,7 +36,7 @@
             <Grid>
                 <Border x:Name="ResultPanel"
                         Margin="0"
-                        Padding="12,10"
+                        Padding="16,12"
                         Background="#E8111111"
                         CornerRadius="3"
                         ClipToBounds="True"
