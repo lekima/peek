@@ -42,7 +42,9 @@ public partial class MainWindow : Window
     private bool _resizeExpandedDuringInteraction;
     private bool _isTranslating;
     private Forms.NotifyIcon? _trayIcon;
+    private Forms.ContextMenuStrip? _trayMenu;
     private Drawing.Icon? _trayIconImage;
+    private SettingsWindow? _settingsWindow;
     private readonly DispatcherTimer _lockedDragTimer = new()
     {
         Interval = TimeSpan.FromMilliseconds(16)
@@ -66,24 +68,24 @@ public partial class MainWindow : Window
 
     private void InitializeTrayIcon()
     {
-        var trayMenu = new Forms.ContextMenuStrip();
+        _trayMenu = new Forms.ContextMenuStrip();
         var startupItem = new Forms.ToolStripMenuItem("Run on startup")
         {
             CheckOnClick = true
         };
         startupItem.Click += (_, _) => Dispatcher.Invoke(() => ToggleStartupFromTray(startupItem));
-        trayMenu.Opening += (_, _) => startupItem.Checked = StartupService.IsEnabled();
+        _trayMenu.Opening += (_, _) => startupItem.Checked = StartupService.IsEnabled();
 
-        trayMenu.Items.Add(startupItem);
-        trayMenu.Items.Add(new Forms.ToolStripSeparator());
-        trayMenu.Items.Add("Settings", null, (_, _) => Dispatcher.Invoke(OpenSettings));
-        trayMenu.Items.Add("Quit", null, (_, _) => Dispatcher.Invoke(Close));
+        _trayMenu.Items.Add(startupItem);
+        _trayMenu.Items.Add(new Forms.ToolStripSeparator());
+        _trayMenu.Items.Add("Settings", null, (_, _) => Dispatcher.Invoke(OpenSettings));
+        _trayMenu.Items.Add("Quit", null, (_, _) => Dispatcher.Invoke(Close));
 
         _trayIcon = new Forms.NotifyIcon
         {
             Text = "Peek",
             Icon = CreateTrayIcon(),
-            ContextMenuStrip = trayMenu,
+            ContextMenuStrip = _trayMenu,
             Visible = true
         };
 
@@ -673,10 +675,14 @@ public partial class MainWindow : Window
         _lockedResizeTimer.Stop();
         if (_trayIcon is not null)
         {
+            _trayIcon.ContextMenuStrip = null;
             _trayIcon.Visible = false;
             _trayIcon.Dispose();
             _trayIcon = null;
         }
+
+        _trayMenu?.Dispose();
+        _trayMenu = null;
 
         _trayIconImage?.Dispose();
         _trayIconImage = null;
@@ -686,21 +692,34 @@ public partial class MainWindow : Window
 
     private void OpenSettings()
     {
-        var settings = new SettingsWindow(_config)
+        if (_settingsWindow is not null)
+        {
+            _settingsWindow.Activate();
+            return;
+        }
+
+        _settingsWindow = new SettingsWindow(_config)
         {
             Owner = this
         };
 
-        if (settings.ShowDialog() == true)
+        try
         {
-            try
+            if (_settingsWindow.ShowDialog() == true)
             {
-                AppConfigStore.Save(_config);
+                try
+                {
+                    AppConfigStore.Save(_config);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, ex.Message, "Settings", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
             }
-            catch (Exception ex)
-            {
-                MessageBox.Show(this, ex.Message, "Settings", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
+        }
+        finally
+        {
+            _settingsWindow = null;
         }
     }
 
