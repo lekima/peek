@@ -10,22 +10,16 @@ public sealed class AppConfig
 {
     public const string Gemini31FlashLiteModel = "google/gemini-3.1-flash-lite-preview";
     public const string Gemini31FlashImageModel = "google/gemini-3.1-flash-image-preview";
-    public const string DefaultModel = Gemini31FlashLiteModel;
 
     public string ApiKey { get; set; } = string.Empty;
-    public string Model { get; set; } = DefaultModel;
     public string FromLanguage { get; set; } = "Chinese";
     public string ToLanguage { get; set; } = "English";
     public decimal TotalCostUsd { get; set; }
-
-    public static bool IsImageEditModel(string model) =>
-        string.Equals(model, Gemini31FlashImageModel, StringComparison.OrdinalIgnoreCase);
 }
 
 public sealed class StoredAppConfig
 {
     public string EncryptedApiKey { get; set; } = string.Empty;
-    public string Model { get; set; } = AppConfig.DefaultModel;
     public string FromLanguage { get; set; } = "Chinese";
     public string ToLanguage { get; set; } = "English";
     public decimal TotalCostUsd { get; set; }
@@ -54,7 +48,6 @@ public static class AppConfigStore
             return new AppConfig
             {
                 ApiKey = Unprotect(stored.EncryptedApiKey),
-                Model = NormalizeModel(stored.Model),
                 FromLanguage = string.IsNullOrWhiteSpace(stored.FromLanguage) ? "Chinese" : stored.FromLanguage,
                 ToLanguage = string.IsNullOrWhiteSpace(stored.ToLanguage) ? "English" : stored.ToLanguage,
                 TotalCostUsd = stored.TotalCostUsd
@@ -95,7 +88,6 @@ public static class AppConfigStore
         var stored = new StoredAppConfig
         {
             EncryptedApiKey = Protect(config.ApiKey),
-            Model = string.IsNullOrWhiteSpace(config.Model) ? AppConfig.DefaultModel : config.Model,
             FromLanguage = string.IsNullOrWhiteSpace(config.FromLanguage) ? "Chinese" : config.FromLanguage,
             ToLanguage = string.IsNullOrWhiteSpace(config.ToLanguage) ? "English" : config.ToLanguage,
             TotalCostUsd = config.TotalCostUsd
@@ -126,19 +118,6 @@ public static class AppConfigStore
         var bytes = Encoding.UTF8.GetBytes(value);
         var encrypted = ProtectedData.Protect(bytes, null, DataProtectionScope.CurrentUser);
         return Convert.ToBase64String(encrypted);
-    }
-
-    private static string NormalizeModel(string model)
-    {
-        if (string.IsNullOrWhiteSpace(model))
-        {
-            return AppConfig.DefaultModel;
-        }
-
-        return string.Equals(model, AppConfig.Gemini31FlashLiteModel, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(model, AppConfig.Gemini31FlashImageModel, StringComparison.OrdinalIgnoreCase)
-            ? model
-            : AppConfig.DefaultModel;
     }
 
     private static string Unprotect(string value)

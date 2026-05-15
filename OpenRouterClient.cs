@@ -21,6 +21,7 @@ public static class OpenRouterClient
     public static async Task<TextTranslationResult> TranslateImageToTextAsync(
         Bitmap bitmap,
         AppConfig config,
+        string model,
         string operationId,
         CancellationToken cancellationToken)
     {
@@ -37,7 +38,7 @@ public static class OpenRouterClient
         var imageDataUrl = ToPngDataUrl(bitmap);
         var payload = new Dictionary<string, object?>
         {
-            ["model"] = config.Model,
+            ["model"] = model,
             ["messages"] = new object[]
             {
                 new
@@ -63,7 +64,7 @@ public static class OpenRouterClient
             }
         };
 
-        AppLogger.Info($"operation={operationId} openrouter.request model={config.Model} from={fromLanguage} to={toLanguage} capture={bitmap.Width}x{bitmap.Height}");
+        AppLogger.Info($"operation={operationId} openrouter.request model={model} from={fromLanguage} to={toLanguage} capture={bitmap.Width}x{bitmap.Height}");
 
         var (statusCode, body) = await SendCompletionAsync(config, payload, cancellationToken).ConfigureAwait(false);
         var root = ParseSuccessfulResponse(statusCode, body, operationId);
@@ -85,6 +86,7 @@ public static class OpenRouterClient
     public static async Task<ImageTranslationResult> TranslateImageToEditedImageAsync(
         Bitmap bitmap,
         AppConfig config,
+        string model,
         string operationId,
         CancellationToken cancellationToken)
     {
@@ -101,7 +103,7 @@ public static class OpenRouterClient
         var imageDataUrl = ToPngDataUrl(bitmap);
         var payload = new Dictionary<string, object?>
         {
-            ["model"] = config.Model,
+            ["model"] = model,
             ["modalities"] = new[] { "image", "text" },
             ["messages"] = new object[]
             {
@@ -128,7 +130,7 @@ public static class OpenRouterClient
             }
         };
 
-        AppLogger.Info($"operation={operationId} openrouter.request mode=image_edit model={config.Model} from={fromLanguage} to={toLanguage} capture={bitmap.Width}x{bitmap.Height}");
+        AppLogger.Info($"operation={operationId} openrouter.request mode=image_edit model={model} from={fromLanguage} to={toLanguage} capture={bitmap.Width}x{bitmap.Height}");
 
         var (statusCode, body) = await SendCompletionAsync(config, payload, cancellationToken).ConfigureAwait(false);
         var root = ParseSuccessfulResponse(statusCode, body, operationId);
