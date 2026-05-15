@@ -5,6 +5,7 @@ using System.Net.Http.Json;
 using System.Net;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Globalization;
 using System.Text.Json;
 
 namespace Peek;
@@ -242,7 +243,7 @@ public sealed class OpenRouterClient
         return costElement.ValueKind switch
         {
             JsonValueKind.Number when costElement.TryGetDecimal(out var cost) => cost,
-            JsonValueKind.String when decimal.TryParse(costElement.GetString(), out var cost) => cost,
+            JsonValueKind.String when decimal.TryParse(costElement.GetString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var cost) => cost,
             _ => 0
         };
     }
@@ -270,7 +271,7 @@ public sealed class OpenRouterClient
         return value.ValueKind switch
         {
             JsonValueKind.Number when value.TryGetInt32(out var number) => number,
-            JsonValueKind.String when int.TryParse(value.GetString(), out var number) => number,
+            JsonValueKind.String when int.TryParse(value.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var number) => number,
             _ => 0
         };
     }
@@ -349,7 +350,7 @@ public sealed class OpenRouterClient
 
     public static string FormatCost(decimal cost)
     {
-        return cost <= 0 ? "$0.00000000" : $"${cost:0.00000000}";
+        return cost <= 0 ? "$0.00000000" : string.Create(CultureInfo.InvariantCulture, $"${cost:0.00000000}");
     }
 
     private static string TrimForDisplay(string value)

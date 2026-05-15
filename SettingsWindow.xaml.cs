@@ -62,7 +62,14 @@ public partial class SettingsWindow : Window
     private void OpenLog_Click(object sender, RoutedEventArgs e)
     {
         AppLogger.Info("Log opened from settings.");
-        OpenFile(AppLogger.LogPath);
+        try
+        {
+            OpenFile(AppLogger.LogPath);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Log", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private static void OpenFile(string path)
