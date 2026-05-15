@@ -49,7 +49,7 @@ public static class OpenRouterClient
                         new
                         {
                             type = "text",
-                            text = $"Read the visible game UI text in this image and translate it from {fromLanguage} to {toLanguage}. Preserve names, numbers, item names, skill names, currencies, punctuation, and UI labels where appropriate. Return only the translated text. Keep line breaks when useful."
+                            text = $"Read the visible text in this image. Translate {fromLanguage} text to natural {toLanguage}. Preserve names, numbers, symbols, punctuation, and useful line breaks where appropriate. Leave text that is already in {toLanguage} unchanged. Do not guess unreadable text. Return only the translated text."
                         },
                         new
                         {
@@ -115,7 +115,7 @@ public static class OpenRouterClient
                         new
                         {
                             type = "text",
-                            text = $"Edit this game UI screenshot by replacing visible {fromLanguage} text with natural {toLanguage}. Preserve the original UI, background, icons, layout, colors, proportions, and game art. Only change the text. Return the edited image."
+                            text = $"Edit this image so visible {fromLanguage} text appears in natural {toLanguage}. Leave text that is already in {toLanguage} unchanged. Preserve the rest of the image, including layout, colors, style, and non-text content. Do not guess unreadable text. Return only the edited image."
                         },
                         new
                         {
