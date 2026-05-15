@@ -17,17 +17,22 @@ public static class StartupService
 
     public static void SetEnabled(bool enabled)
     {
-        using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, true) ??
-                        Registry.CurrentUser.CreateSubKey(RunKeyPath, true);
-
         if (enabled)
         {
+            using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, true) ??
+                            Registry.CurrentUser.CreateSubKey(RunKeyPath, true);
             key.SetValue(AppName, GetStartupCommand(), RegistryValueKind.String);
             AppLogger.Info("Windows startup enabled.");
             return;
         }
 
-        key.DeleteValue(AppName, false);
+        using var existingKey = Registry.CurrentUser.OpenSubKey(RunKeyPath, true);
+        if (existingKey is null)
+        {
+            return;
+        }
+
+        existingKey.DeleteValue(AppName, false);
         AppLogger.Info("Windows startup disabled.");
     }
 

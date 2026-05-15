@@ -22,7 +22,7 @@ Right-click the floating window and choose `Settings`.
 - Default languages: Chinese to Vietnamese
 - The app uses vision-to-text translation, so it does not generate edited image output.
 - API key storage: encrypted for the current Windows user with DPAPI
-- Run on startup: optional per-user Windows startup entry
+- Run on startup: optional per-user Windows startup entry; disabling it removes Peek's startup entry
 - Log: `%LOCALAPPDATA%\Peek\peek.log.jsonl`
 - Cost tracking: cumulative total is stored locally, and each request is written as a structured `usage` event in the log
 
