@@ -152,7 +152,8 @@
                           StrokeThickness="1.6"
                           StrokeStartLineCap="Round"
                           StrokeEndLineCap="Round"
-                          Data="M 2 2 L 8 2 M 5 2 L 5 8" />
+                          StrokeLineJoin="Round"
+                          Data="M 3 2 L 8 5 L 3 8 Z" />
                     <Grid x:Name="TranslateSpinner"
                           Width="8"
                           Height="8"
