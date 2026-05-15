@@ -1,4 +1,5 @@
 using System.IO;
+using System.Security;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -64,6 +65,10 @@ public static class AppConfigStore
             return new AppConfig();
         }
         catch (UnauthorizedAccessException)
+        {
+            return new AppConfig();
+        }
+        catch (SecurityException)
         {
             return new AppConfig();
         }

@@ -326,8 +326,8 @@ public static class OpenRouterClient
         {
             foreach (var image in images.EnumerateArray())
             {
-                if (TryExtractImageUrl(image, "image_url", out var url) ||
-                    TryExtractImageUrl(image, "imageUrl", out url))
+                if (TryExtractImageDataUrl(image, "image_url", out var url) ||
+                    TryExtractImageDataUrl(image, "imageUrl", out url))
                 {
                     return url;
                 }
@@ -353,8 +353,8 @@ public static class OpenRouterClient
                 continue;
             }
 
-            if (TryExtractImageUrl(part, "image_url", out var url) ||
-                TryExtractImageUrl(part, "imageUrl", out url))
+            if (TryExtractImageDataUrl(part, "image_url", out var url) ||
+                TryExtractImageDataUrl(part, "imageUrl", out url))
             {
                 return url;
             }
@@ -370,19 +370,23 @@ public static class OpenRouterClient
         return string.Empty;
     }
 
-    private static bool TryExtractImageUrl(JsonElement image, string propertyName, out string url)
+    private static bool TryExtractImageDataUrl(JsonElement image, string propertyName, out string url)
     {
         url = string.Empty;
-        if (!image.TryGetProperty(propertyName, out var imageUrl) ||
-            imageUrl.ValueKind != JsonValueKind.Object ||
-            !imageUrl.TryGetProperty("url", out var urlElement) ||
-            urlElement.ValueKind != JsonValueKind.String)
+        if (!image.TryGetProperty(propertyName, out var imageUrl))
         {
             return false;
         }
 
-        url = urlElement.GetString() ?? string.Empty;
-        return !string.IsNullOrWhiteSpace(url);
+        if (imageUrl.ValueKind == JsonValueKind.String)
+        {
+            return IsImageDataUrl(imageUrl.GetString(), out url);
+        }
+
+        return imageUrl.ValueKind == JsonValueKind.Object &&
+            imageUrl.TryGetProperty("url", out var urlElement) &&
+            urlElement.ValueKind == JsonValueKind.String &&
+            IsImageDataUrl(urlElement.GetString(), out url);
     }
 
     private static bool IsImageDataUrl(string? value, out string url)

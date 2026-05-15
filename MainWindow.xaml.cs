@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Security;
 using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Input;
@@ -337,6 +338,11 @@ public partial class MainWindow : Window
 
     private void ClearButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_isTranslating)
+        {
+            _translationCancellation?.Cancel();
+        }
+
         ClearResult();
     }
 
@@ -399,6 +405,7 @@ public partial class MainWindow : Window
             {
                 var imageResult = await OpenRouterClient.TranslateImageToEditedImageAsync(bitmap, _config, operationId, cancellationToken).ConfigureAwait(true);
                 stopwatch.Stop();
+                cancellationToken.ThrowIfCancellationRequested();
                 SetResultImage(imageResult.ImageData);
                 TrackUsage(
                     operationId,
@@ -416,6 +423,7 @@ public partial class MainWindow : Window
 
             var result = await OpenRouterClient.TranslateImageToTextAsync(bitmap, _config, operationId, cancellationToken).ConfigureAwait(true);
             stopwatch.Stop();
+            cancellationToken.ThrowIfCancellationRequested();
             SetResultText(result.Text);
             ClearStatus();
             TrackUsage(
@@ -509,7 +517,7 @@ public partial class MainWindow : Window
                 {
                     AppConfigStore.Save(_config);
                 }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException)
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or CryptographicException)
                 {
                     MessageBox.Show(this, ex.Message, "Settings", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
@@ -628,7 +636,7 @@ public partial class MainWindow : Window
             {
                 AppConfigStore.Save(_config);
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or CryptographicException)
             {
                 AppLogger.Error("Could not save total cost.", ex);
             }

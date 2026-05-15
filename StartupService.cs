@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.IO;
+using System.Security;
 using Microsoft.Win32;
 
 namespace Peek;
@@ -10,9 +12,17 @@ public static class StartupService
 
     public static bool IsEnabled()
     {
-        using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, false);
-        return key?.GetValue(AppName) is string value &&
-               !string.IsNullOrWhiteSpace(value);
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, false);
+            return key?.GetValue(AppName) is string value &&
+                   !string.IsNullOrWhiteSpace(value);
+        }
+        catch (Exception ex) when (ex is IOException or SecurityException or UnauthorizedAccessException)
+        {
+            AppLogger.Error("Could not read Windows startup setting.", ex);
+            return false;
+        }
     }
 
     public static void SetEnabled(bool enabled)
@@ -21,6 +31,11 @@ public static class StartupService
         {
             using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, true) ??
                             Registry.CurrentUser.CreateSubKey(RunKeyPath, true);
+            if (key is null)
+            {
+                throw new InvalidOperationException("Could not open Windows startup registry key.");
+            }
+
             key.SetValue(AppName, GetStartupCommand(), RegistryValueKind.String);
             AppLogger.Info("Windows startup enabled.");
             return;

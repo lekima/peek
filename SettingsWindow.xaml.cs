@@ -37,6 +37,7 @@ public partial class SettingsWindow : Window
         var toLanguage = string.IsNullOrWhiteSpace(ToLanguageBox.Text)
             ? "English"
             : ToLanguageBox.Text.Trim();
+        Exception? startupException = null;
 
         try
         {
@@ -44,14 +45,23 @@ public partial class SettingsWindow : Window
         }
         catch (Exception ex) when (ex is IOException or SecurityException or UnauthorizedAccessException or InvalidOperationException)
         {
-            MessageBox.Show(this, ex.Message, "Startup setting", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
+            startupException = ex;
         }
 
         _config.ApiKey = apiKey;
         _config.Model = model;
         _config.FromLanguage = fromLanguage;
         _config.ToLanguage = toLanguage;
+
+        if (startupException is not null)
+        {
+            MessageBox.Show(
+                this,
+                $"Startup setting was not saved. Other settings will still be saved.\n\n{startupException.Message}",
+                "Startup setting",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
 
         DialogResult = true;
         Close();
@@ -70,7 +80,7 @@ public partial class SettingsWindow : Window
         {
             OpenFile(AppLogger.LogPath);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or Win32Exception)
+        catch (Exception ex) when (ex is IOException or SecurityException or UnauthorizedAccessException or Win32Exception or InvalidOperationException)
         {
             MessageBox.Show(this, ex.Message, "Log", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
