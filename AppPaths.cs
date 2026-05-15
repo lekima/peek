@@ -3,7 +3,7 @@ using System.IO;
 
 namespace Peek;
 
-public static class AppPaths
+internal static class AppPaths
 {
     public static string AppDirectory
     {

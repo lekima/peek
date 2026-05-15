@@ -5,7 +5,7 @@ using Microsoft.Win32;
 
 namespace Peek;
 
-public static class StartupService
+internal static class StartupService
 {
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string AppName = "Peek";

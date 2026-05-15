@@ -6,7 +6,7 @@ using System.Text.Json;
 
 namespace Peek;
 
-public sealed class AppConfig
+internal sealed class AppConfig
 {
     public const string Gemini31FlashLiteModel = "google/gemini-3.1-flash-lite";
     public const string Gemini31FlashImageModel = "google/gemini-3.1-flash-image-preview";
@@ -17,16 +17,16 @@ public sealed class AppConfig
     public decimal TotalCostUsd { get; set; }
 }
 
-public sealed class StoredAppConfig
+internal static class AppConfigStore
 {
-    public string EncryptedApiKey { get; set; } = string.Empty;
-    public string FromLanguage { get; set; } = "Chinese";
-    public string ToLanguage { get; set; } = "English";
-    public decimal TotalCostUsd { get; set; }
-}
+    private sealed class StoredAppConfig
+    {
+        public string EncryptedApiKey { get; set; } = string.Empty;
+        public string FromLanguage { get; set; } = "Chinese";
+        public string ToLanguage { get; set; } = "English";
+        public decimal TotalCostUsd { get; set; }
+    }
 
-public static class AppConfigStore
-{
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true

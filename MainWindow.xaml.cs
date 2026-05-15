@@ -20,7 +20,8 @@ using Size = System.Windows.Size;
 namespace Peek;
 
 [SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable", Justification = "WPF Window lifetime cleanup is performed in OnClosed.")]
-public partial class MainWindow : Window
+[SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "Instantiated by WPF from App.xaml StartupUri.")]
+internal sealed partial class MainWindow : Window
 {
     private enum TranslationOutputMode
     {

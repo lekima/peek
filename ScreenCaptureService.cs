@@ -5,7 +5,7 @@ using Point = System.Windows.Point;
 
 namespace Peek;
 
-public static class ScreenCaptureService
+internal static class ScreenCaptureService
 {
     public static Bitmap CaptureVisualBounds(Window window, FrameworkElement visual)
     {

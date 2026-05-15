@@ -7,7 +7,7 @@ using MessageBox = System.Windows.MessageBox;
 
 namespace Peek;
 
-public partial class SettingsWindow : Window
+internal sealed partial class SettingsWindow : Window
 {
     private readonly AppConfig _config;
 

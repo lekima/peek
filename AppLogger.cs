@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace Peek;
 
-public static class AppLogger
+internal static class AppLogger
 {
     private const long MaxLogBytes = 5 * 1024 * 1024;
     private static readonly object Lock = new();
@@ -105,7 +105,7 @@ public static class AppLogger
     }
 }
 
-public sealed record UsageLogEntry(
+internal sealed record UsageLogEntry(
     DateTimeOffset Timestamp,
     string OperationId,
     string? ProviderRequestId,

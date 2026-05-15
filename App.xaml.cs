@@ -3,7 +3,7 @@ using Application = System.Windows.Application;
 
 namespace Peek;
 
-public partial class App : Application
+internal sealed partial class App : Application
 {
 }
 

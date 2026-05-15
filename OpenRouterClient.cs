@@ -10,7 +10,7 @@ using System.Text.Json;
 
 namespace Peek;
 
-public static class OpenRouterClient
+internal static class OpenRouterClient
 {
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(90);
     private static readonly HttpClient HttpClient = new()
@@ -69,7 +69,7 @@ public static class OpenRouterClient
         var (statusCode, body) = await SendCompletionAsync(config, payload, cancellationToken).ConfigureAwait(false);
         var root = ParseSuccessfulResponse(statusCode, body, operationId);
         var message = ExtractFirstChoiceMessage(root);
-        var translation = ExtractContent(message);
+        var translation = ExtractTextContent(message);
         var providerRequestId = ExtractString(root, "id");
         var cost = ExtractCost(root);
         var usage = ExtractTokenUsage(root);
@@ -135,18 +135,18 @@ public static class OpenRouterClient
         var (statusCode, body) = await SendCompletionAsync(config, payload, cancellationToken).ConfigureAwait(false);
         var root = ParseSuccessfulResponse(statusCode, body, operationId);
         var message = ExtractFirstChoiceMessage(root);
-        var imageUrl = ExtractFirstImageDataUrl(message);
+        var editedImageDataUrl = ExtractFirstImageDataUrl(message);
         var providerRequestId = ExtractString(root, "id");
         var cost = ExtractCost(root);
         var usage = ExtractTokenUsage(root);
         LogUsage(operationId, providerRequestId, cost, usage);
 
-        if (string.IsNullOrWhiteSpace(imageUrl))
+        if (string.IsNullOrWhiteSpace(editedImageDataUrl))
         {
             throw new InvalidOperationException("No edited image returned. See log.");
         }
 
-        return new ImageTranslationResult(imageUrl, cost, usage, providerRequestId);
+        return new ImageTranslationResult(editedImageDataUrl, cost, usage, providerRequestId);
     }
 
     private static JsonElement ParseSuccessfulResponse(HttpStatusCode statusCode, string body, string operationId)
@@ -214,41 +214,15 @@ public static class OpenRouterClient
         return "data:image/png;base64," + Convert.ToBase64String(stream.ToArray());
     }
 
-    private static string ExtractContent(JsonElement message)
+    private static string ExtractTextContent(JsonElement message)
     {
-        if (!message.TryGetProperty("content", out var contentElement))
+        if (!message.TryGetProperty("content", out var contentElement) ||
+            contentElement.ValueKind != JsonValueKind.String)
         {
             return string.Empty;
         }
 
-        if (contentElement.ValueKind == JsonValueKind.String)
-        {
-            return contentElement.GetString() ?? string.Empty;
-        }
-
-        if (contentElement.ValueKind != JsonValueKind.Array)
-        {
-            return contentElement.ToString();
-        }
-
-        var parts = new List<string>();
-        foreach (var item in contentElement.EnumerateArray())
-        {
-            if (item.ValueKind == JsonValueKind.String)
-            {
-                parts.Add(item.GetString() ?? string.Empty);
-                continue;
-            }
-
-            if (item.ValueKind == JsonValueKind.Object &&
-                item.TryGetProperty("text", out var textElement) &&
-                textElement.ValueKind == JsonValueKind.String)
-            {
-                parts.Add(textElement.GetString() ?? string.Empty);
-            }
-        }
-
-        return string.Join(Environment.NewLine, parts);
+        return contentElement.GetString() ?? string.Empty;
     }
 
     private static JsonElement ExtractFirstChoiceMessage(JsonElement root)
@@ -328,67 +302,19 @@ public static class OpenRouterClient
         {
             foreach (var image in images.EnumerateArray())
             {
-                if (TryExtractImageDataUrl(image, "image_url", out var url) ||
-                    TryExtractImageDataUrl(image, "imageUrl", out url))
+                if (image.ValueKind == JsonValueKind.Object &&
+                    image.TryGetProperty("image_url", out var imageObject) &&
+                    imageObject.ValueKind == JsonValueKind.Object &&
+                    imageObject.TryGetProperty("url", out var urlElement) &&
+                    urlElement.ValueKind == JsonValueKind.String &&
+                    IsImageDataUrl(urlElement.GetString(), out var url))
                 {
                     return url;
                 }
             }
         }
 
-        if (!message.TryGetProperty("content", out var content) ||
-            content.ValueKind != JsonValueKind.Array)
-        {
-            return string.Empty;
-        }
-
-        foreach (var part in content.EnumerateArray())
-        {
-            if (part.ValueKind == JsonValueKind.String &&
-                IsImageDataUrl(part.GetString(), out var stringUrl))
-            {
-                return stringUrl;
-            }
-
-            if (part.ValueKind != JsonValueKind.Object)
-            {
-                continue;
-            }
-
-            if (TryExtractImageDataUrl(part, "image_url", out var url) ||
-                TryExtractImageDataUrl(part, "imageUrl", out url))
-            {
-                return url;
-            }
-
-            if (part.TryGetProperty("url", out var urlElement) &&
-                urlElement.ValueKind == JsonValueKind.String &&
-                IsImageDataUrl(urlElement.GetString(), out url))
-            {
-                return url;
-            }
-        }
-
         return string.Empty;
-    }
-
-    private static bool TryExtractImageDataUrl(JsonElement image, string propertyName, out string url)
-    {
-        url = string.Empty;
-        if (!image.TryGetProperty(propertyName, out var imageUrl))
-        {
-            return false;
-        }
-
-        if (imageUrl.ValueKind == JsonValueKind.String)
-        {
-            return IsImageDataUrl(imageUrl.GetString(), out url);
-        }
-
-        return imageUrl.ValueKind == JsonValueKind.Object &&
-            imageUrl.TryGetProperty("url", out var urlElement) &&
-            urlElement.ValueKind == JsonValueKind.String &&
-            IsImageDataUrl(urlElement.GetString(), out url);
     }
 
     private static bool IsImageDataUrl(string? value, out string url)
@@ -440,15 +366,15 @@ public static class OpenRouterClient
 
 }
 
-public sealed record TokenUsage(int PromptTokens, int CompletionTokens, int TotalTokens);
+internal sealed record TokenUsage(int PromptTokens, int CompletionTokens, int TotalTokens);
 
-public sealed record TextTranslationResult(
+internal sealed record TextTranslationResult(
     string Text,
     decimal CostUsd,
     TokenUsage Usage,
     string? ProviderRequestId);
 
-public sealed record ImageTranslationResult(
+internal sealed record ImageTranslationResult(
     string ImageData,
     decimal CostUsd,
     TokenUsage Usage,
