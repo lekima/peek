@@ -5,10 +5,13 @@ using Point = System.Windows.Point;
 
 namespace Peek;
 
-public sealed class ScreenCaptureService
+public static class ScreenCaptureService
 {
-    public Bitmap CaptureVisualBounds(Window window, FrameworkElement visual)
+    public static Bitmap CaptureVisualBounds(Window window, FrameworkElement visual)
     {
+        ArgumentNullException.ThrowIfNull(window);
+        ArgumentNullException.ThrowIfNull(visual);
+
         var source = PresentationSource.FromVisual(window);
         if (source?.CompositionTarget is null)
         {

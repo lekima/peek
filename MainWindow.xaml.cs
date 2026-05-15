@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
@@ -16,6 +18,7 @@ using Size = System.Windows.Size;
 
 namespace Peek;
 
+[SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable", Justification = "WPF Window lifetime cleanup is performed in OnClosed.")]
 public partial class MainWindow : Window
 {
     private const double CollapsedWidth = 84;
@@ -27,33 +30,20 @@ public partial class MainWindow : Window
     private const nint HtClient = 1;
     private const nint HtTransparent = -1;
 
-    private readonly ScreenCaptureService _screenCapture = new();
-    private readonly OpenRouterClient _openRouter = new();
     private AppConfig _config = AppConfigStore.Load();
     private CancellationTokenSource? _translationCancellation;
-    private Point? _dragButtonPressPoint;
     private Point? _dragStartCursor;
-    private Point? _lockedDragOffset;
+    private Point? _dragStartWindowPosition;
     private Point? _resizeStartCursor;
-    private Vector _resizeCursorToBottomRightOffset;
+    private Size _resizeStartWindowSize;
     private bool _dragButtonDragged;
     private bool _resizeButtonDragged;
-    private bool _isDragLocked;
-    private bool _isResizeLocked;
     private bool _resizeExpandedDuringInteraction;
     private bool _isTranslating;
     private Forms.NotifyIcon? _trayIcon;
     private Forms.ContextMenuStrip? _trayMenu;
     private Drawing.Icon? _trayIconImage;
     private SettingsWindow? _settingsWindow;
-    private readonly DispatcherTimer _lockedDragTimer = new()
-    {
-        Interval = TimeSpan.FromMilliseconds(16)
-    };
-    private readonly DispatcherTimer _lockedResizeTimer = new()
-    {
-        Interval = TimeSpan.FromMilliseconds(16)
-    };
     private readonly DoubleAnimation _spinnerAnimation = new(0, 360, TimeSpan.FromMilliseconds(700))
     {
         RepeatBehavior = RepeatBehavior.Forever
@@ -62,11 +52,10 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        _lockedDragTimer.Tick += (_, _) => UpdateLockedDragPosition();
-        _lockedResizeTimer.Tick += (_, _) => UpdateLockedResize();
         InitializeTrayIcon();
     }
 
+    [SuppressMessage("Globalization", "CA1303:Do not pass literals as localized parameters", Justification = "Peek is the product name shown in the tray.")]
     private void InitializeTrayIcon()
     {
         _trayMenu = new Forms.ContextMenuStrip();
@@ -222,133 +211,93 @@ public partial class MainWindow : Window
 
     private void DragButton_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (_isDragLocked)
-        {
-            StopLockedDrag();
-            e.Handled = true;
-            return;
-        }
-
-        _dragButtonPressPoint = e.GetPosition(this);
-        _dragStartCursor = GetCursorDipPoint();
-        _lockedDragOffset = _dragButtonPressPoint;
+        _dragStartCursor = GetScreenDipPoint(e.GetPosition(this));
+        _dragStartWindowPosition = new Point(Left, Top);
         _dragButtonDragged = false;
         DragButton.CaptureMouse();
-        _lockedDragTimer.Start();
         e.Handled = true;
     }
 
     private void DragButton_MouseMove(object sender, MouseEventArgs e)
     {
-        if (_isDragLocked)
-        {
-            UpdateLockedDragPosition();
-            e.Handled = true;
-            return;
-        }
-
-        if (_dragButtonPressPoint is null || e.LeftButton != MouseButtonState.Pressed)
+        if (_dragStartCursor is null ||
+            _dragStartWindowPosition is null ||
+            e.LeftButton != MouseButtonState.Pressed)
         {
             return;
         }
 
-        UpdateLockedDragPosition();
+        var cursor = GetScreenDipPoint(e.GetPosition(this));
+        var delta = cursor - _dragStartCursor.Value;
+        if (!_dragButtonDragged &&
+            Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        _dragButtonDragged = true;
+        Left = _dragStartWindowPosition.Value.X + delta.X;
+        Top = _dragStartWindowPosition.Value.Y + delta.Y;
         e.Handled = true;
     }
 
     private void DragButton_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        if (_dragButtonPressPoint is null)
+        if (_dragStartCursor is null)
         {
-            return;
-        }
-
-        if (!_dragButtonDragged)
-        {
-            StartLockedDrag(_dragButtonPressPoint.Value);
-            _dragButtonPressPoint = null;
-            e.Handled = true;
             return;
         }
 
         DragButton.ReleaseMouseCapture();
-        _dragButtonPressPoint = null;
         _dragStartCursor = null;
-        _lockedDragOffset = null;
+        _dragStartWindowPosition = null;
         _dragButtonDragged = false;
-        _lockedDragTimer.Stop();
         e.Handled = true;
-    }
-
-    private void StartLockedDrag(Point offset)
-    {
-        _lockedDragOffset = offset;
-        _dragButtonDragged = false;
-        _isDragLocked = true;
-        DragButton.CaptureMouse();
-        _lockedDragTimer.Start();
-    }
-
-    private void StopLockedDrag()
-    {
-        _isDragLocked = false;
-        _lockedDragOffset = null;
-        _dragButtonPressPoint = null;
-        _dragStartCursor = null;
-        _dragButtonDragged = false;
-        DragButton.ReleaseMouseCapture();
-        _lockedDragTimer.Stop();
     }
 
     private void ResizeButton_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (_isResizeLocked)
-        {
-            StopLockedResize();
-            e.Handled = true;
-            return;
-        }
-
         if (sender == ResizeRowButton)
         {
             ResizeRowButton.Visibility = Visibility.Collapsed;
             ResizeCornerButton.Visibility = Visibility.Visible;
-            StartCursorAnchoredResize();
+            StartCursorAnchoredResize(e);
             e.Handled = true;
             return;
         }
 
-        StartCursorAnchoredResize();
+        StartCursorAnchoredResize(e);
         e.Handled = true;
     }
 
-    private void StartCursorAnchoredResize()
+    private void StartCursorAnchoredResize(MouseButtonEventArgs e)
     {
-        _resizeStartCursor = GetCursorDipPoint();
-        _resizeCursorToBottomRightOffset = new Vector(
-            Width - (_resizeStartCursor.Value.X - Left),
-            Height - (_resizeStartCursor.Value.Y - Top));
+        _resizeStartCursor = GetScreenDipPoint(e.GetPosition(this));
+        _resizeStartWindowSize = new Size(Width, Height);
         _resizeExpandedDuringInteraction = FrameBorder.Visibility == Visibility.Visible;
         _resizeButtonDragged = false;
         ResizeCornerButton.CaptureMouse();
-        _lockedResizeTimer.Start();
     }
 
     private void ResizeButton_MouseMove(object sender, MouseEventArgs e)
     {
-        if (_isResizeLocked)
-        {
-            UpdateLockedResize();
-            e.Handled = true;
-            return;
-        }
-
         if (_resizeStartCursor is null || e.LeftButton != MouseButtonState.Pressed)
         {
             return;
         }
 
-        UpdateLockedResize();
+        var cursor = GetScreenDipPoint(e.GetPosition(this));
+        var delta = cursor - _resizeStartCursor.Value;
+        if (!_resizeButtonDragged &&
+            Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        _resizeButtonDragged = true;
+        ApplyResizeDelta(delta);
         e.Handled = true;
     }
 
@@ -359,76 +308,20 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (!_resizeButtonDragged)
-        {
-            StartLockedResize();
-            e.Handled = true;
-            return;
-        }
-
-        ResizeCornerButton.ReleaseMouseCapture();
-        if (!_resizeExpandedDuringInteraction)
+        var wasExpanded = _resizeExpandedDuringInteraction;
+        FinishResizeInteraction();
+        if (!wasExpanded)
         {
             CollapseFrame();
         }
 
-        _resizeStartCursor = null;
-        _resizeButtonDragged = false;
-        _lockedResizeTimer.Stop();
         e.Handled = true;
     }
 
-    private void StartLockedResize()
+    private void ApplyResizeDelta(Vector delta)
     {
-        _isResizeLocked = true;
-        _resizeButtonDragged = false;
-        ResizeCornerButton.CaptureMouse();
-        _lockedResizeTimer.Start();
-    }
-
-    private void StopLockedResize()
-    {
-        _isResizeLocked = false;
-        _resizeStartCursor = null;
-        _resizeButtonDragged = false;
-        ResizeCornerButton.ReleaseMouseCapture();
-        _lockedResizeTimer.Stop();
-
-        if (FrameBorder.Visibility != Visibility.Visible)
-        {
-            CollapseFrame();
-        }
-    }
-
-    private void UpdateLockedResize()
-    {
-        if (_resizeStartCursor is null)
-        {
-            return;
-        }
-
-        var cursor = GetCursorDipPoint();
-        var delta = cursor - _resizeStartCursor.Value;
-
-        if (!_isResizeLocked)
-        {
-            if (!_resizeButtonDragged &&
-                Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance &&
-                Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance)
-            {
-                return;
-            }
-
-            _resizeButtonDragged = true;
-        }
-
-        ApplyResizeToCursor(cursor);
-    }
-
-    private void ApplyResizeToCursor(Point cursor)
-    {
-        var nextWidth = Math.Max(MinWidth, cursor.X - Left + _resizeCursorToBottomRightOffset.X);
-        var nextHeight = Math.Max(MinHeight, cursor.Y - Top + _resizeCursorToBottomRightOffset.Y);
+        var nextWidth = Math.Max(MinWidth, _resizeStartWindowSize.Width + delta.X);
+        var nextHeight = Math.Max(MinHeight, _resizeStartWindowSize.Height + delta.Y);
 
         if (nextHeight <= FrameRevealHeight)
         {
@@ -462,11 +355,9 @@ public partial class MainWindow : Window
 
     private void FinishResizeInteraction()
     {
-        _isResizeLocked = false;
         _resizeStartCursor = null;
         _resizeButtonDragged = false;
         _resizeExpandedDuringInteraction = false;
-        _lockedResizeTimer.Stop();
 
         if (ResizeRowButton.IsMouseCaptured)
         {
@@ -479,48 +370,20 @@ public partial class MainWindow : Window
         }
     }
 
-    private void UpdateLockedDragPosition()
+    private Point GetScreenDipPoint(Point windowPoint)
     {
-        if (_lockedDragOffset is null ||
-            !Win32.GetCursorPos(out var cursorPosition) ||
-            PresentationSource.FromVisual(this)?.CompositionTarget is not { } compositionTarget)
+        var screenPoint = PointToScreen(windowPoint);
+        if (PresentationSource.FromVisual(this)?.CompositionTarget is not { } compositionTarget)
         {
-            return;
+            return screenPoint;
         }
 
-        var screenPoint = compositionTarget.TransformFromDevice.Transform(new Point(cursorPosition.X, cursorPosition.Y));
-
-        if (!_isDragLocked && _dragStartCursor is not null)
-        {
-            var delta = screenPoint - _dragStartCursor.Value;
-            if (!_dragButtonDragged &&
-                Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance &&
-                Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance)
-            {
-                return;
-            }
-
-            _dragButtonDragged = true;
-        }
-
-        Left = screenPoint.X - _lockedDragOffset.Value.X;
-        Top = screenPoint.Y - _lockedDragOffset.Value.Y;
-    }
-
-    private Point GetCursorDipPoint()
-    {
-        if (!Win32.GetCursorPos(out var cursorPosition) ||
-            PresentationSource.FromVisual(this)?.CompositionTarget is not { } compositionTarget)
-        {
-            return new Point(Left, Top);
-        }
-
-        return compositionTarget.TransformFromDevice.Transform(new Point(cursorPosition.X, cursorPosition.Y));
+        return compositionTarget.TransformFromDevice.Transform(screenPoint);
     }
 
     private async void TranslateButton_Click(object sender, RoutedEventArgs e)
     {
-        await TranslateCurrentAreaAsync();
+        await TranslateCurrentAreaAsync().ConfigureAwait(true);
     }
 
     private void ClearButton_Click(object sender, RoutedEventArgs e)
@@ -538,6 +401,7 @@ public partial class MainWindow : Window
         Close();
     }
 
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "This is the UI operation boundary; failures are logged and shown as a short status.")]
     private async Task TranslateCurrentAreaAsync()
     {
         if (_isTranslating)
@@ -578,15 +442,15 @@ public partial class MainWindow : Window
             SetBusy(true);
             ClearStatus();
 
-            using var bitmap = _screenCapture.CaptureVisualBounds(this, FrameBorder);
+            using var bitmap = ScreenCaptureService.CaptureVisualBounds(this, FrameBorder);
             captureWidth = bitmap.Width;
             captureHeight = bitmap.Height;
 
             if (AppConfig.IsImageEditModel(_config.Model))
             {
-                var imageResult = await _openRouter.TranslateImageToEditedImageAsync(bitmap, _config, operationId, cancellationToken);
+                var imageResult = await OpenRouterClient.TranslateImageToEditedImageAsync(bitmap, _config, operationId, cancellationToken).ConfigureAwait(true);
                 stopwatch.Stop();
-                SetResultImage(imageResult.ImageDataUrl);
+                SetResultImage(imageResult.ImageData);
                 TrackUsage(
                     operationId,
                     imageResult.ProviderRequestId,
@@ -601,7 +465,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var result = await _openRouter.TranslateImageToTextAsync(bitmap, _config, operationId, cancellationToken);
+            var result = await OpenRouterClient.TranslateImageToTextAsync(bitmap, _config, operationId, cancellationToken).ConfigureAwait(true);
             stopwatch.Stop();
             SetResultText(result.Text);
             ClearStatus();
@@ -658,8 +522,6 @@ public partial class MainWindow : Window
         _translationCancellation?.Cancel();
         _translationCancellation?.Dispose();
         _translationCancellation = null;
-        _lockedDragTimer.Stop();
-        _lockedResizeTimer.Stop();
         if (_trayIcon is not null)
         {
             _trayIcon.ContextMenuStrip = null;
@@ -698,7 +560,7 @@ public partial class MainWindow : Window
                 {
                     AppConfigStore.Save(_config);
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException)
                 {
                     MessageBox.Show(this, ex.Message, "Settings", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
@@ -781,7 +643,7 @@ public partial class MainWindow : Window
 
     private static BitmapImage LoadImageDataUrl(string dataUrl)
     {
-        var commaIndex = dataUrl.IndexOf(',');
+        var commaIndex = dataUrl.IndexOf(',', StringComparison.Ordinal);
         if (commaIndex < 0)
         {
             throw new InvalidOperationException("Image response was not a data URL.");
@@ -817,7 +679,7 @@ public partial class MainWindow : Window
             {
                 AppConfigStore.Save(_config);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException)
             {
                 AppLogger.Error("Could not save total cost.", ex);
             }
@@ -872,6 +734,12 @@ public partial class MainWindow : Window
         if (message.Contains("429", StringComparison.OrdinalIgnoreCase))
         {
             return "Rate limited";
+        }
+
+        if (exception is TimeoutException ||
+            message.Contains("timed out", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Timed out";
         }
 
         if (message.Contains("400", StringComparison.OrdinalIgnoreCase) ||

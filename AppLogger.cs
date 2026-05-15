@@ -1,4 +1,5 @@
 using System.IO;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
 namespace Peek;
@@ -42,6 +43,8 @@ public static class AppLogger
 
     public static void Usage(UsageLogEntry entry)
     {
+        ArgumentNullException.ThrowIfNull(entry);
+
         WriteJson(new
         {
             timestamp = entry.Timestamp,
@@ -66,6 +69,7 @@ public static class AppLogger
         });
     }
 
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Logging must never interrupt the overlay or translation flow.")]
     private static void WriteJson<T>(T entry)
     {
         try

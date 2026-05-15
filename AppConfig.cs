@@ -59,7 +59,23 @@ public static class AppConfigStore
                 TotalCostUsd = stored.TotalCostUsd
             };
         }
-        catch
+        catch (IOException)
+        {
+            return new AppConfig();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return new AppConfig();
+        }
+        catch (JsonException)
+        {
+            return new AppConfig();
+        }
+        catch (CryptographicException)
+        {
+            return new AppConfig();
+        }
+        catch (FormatException)
         {
             return new AppConfig();
         }
@@ -67,6 +83,8 @@ public static class AppConfigStore
 
     public static void Save(AppConfig config)
     {
+        ArgumentNullException.ThrowIfNull(config);
+
         Directory.CreateDirectory(Path.GetDirectoryName(ConfigPath)!);
 
         var stored = new StoredAppConfig
@@ -78,7 +96,19 @@ public static class AppConfigStore
             TotalCostUsd = config.TotalCostUsd
         };
 
-        File.WriteAllText(ConfigPath, JsonSerializer.Serialize(stored, JsonOptions));
+        var tempPath = ConfigPath + ".tmp";
+        try
+        {
+            File.WriteAllText(tempPath, JsonSerializer.Serialize(stored, JsonOptions));
+            File.Move(tempPath, ConfigPath, true);
+        }
+        finally
+        {
+            if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+            }
+        }
     }
 
     private static string Protect(string value)

@@ -10,19 +10,23 @@ using System.Text.Json;
 
 namespace Peek;
 
-public sealed class OpenRouterClient
+public static class OpenRouterClient
 {
+    private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(90);
     private static readonly HttpClient HttpClient = new()
     {
         BaseAddress = new Uri("https://openrouter.ai/")
     };
 
-    public async Task<TextTranslationResult> TranslateImageToTextAsync(
+    public static async Task<TextTranslationResult> TranslateImageToTextAsync(
         Bitmap bitmap,
         AppConfig config,
         string operationId,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(bitmap);
+        ArgumentNullException.ThrowIfNull(config);
+
         if (string.IsNullOrWhiteSpace(config.ApiKey))
         {
             throw new InvalidOperationException("OpenRouter API key is missing.");
@@ -61,9 +65,9 @@ public sealed class OpenRouterClient
 
         AppLogger.Info($"operation={operationId} openrouter.request model={config.Model} from={fromLanguage} to={toLanguage} capture={bitmap.Width}x{bitmap.Height}");
 
-        var (statusCode, body) = await SendCompletionAsync(config, payload, cancellationToken);
+        var (statusCode, body) = await SendCompletionAsync(config, payload, cancellationToken).ConfigureAwait(false);
         var root = ParseSuccessfulResponse(statusCode, body, operationId);
-        var message = root.GetProperty("choices")[0].GetProperty("message");
+        var message = ExtractFirstChoiceMessage(root);
         var translation = ExtractContent(message);
         var providerRequestId = ExtractString(root, "id");
         var cost = ExtractCost(root);
@@ -78,12 +82,15 @@ public sealed class OpenRouterClient
         return new TextTranslationResult(translation.Trim(), cost, usage, providerRequestId);
     }
 
-    public async Task<ImageTranslationResult> TranslateImageToEditedImageAsync(
+    public static async Task<ImageTranslationResult> TranslateImageToEditedImageAsync(
         Bitmap bitmap,
         AppConfig config,
         string operationId,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(bitmap);
+        ArgumentNullException.ThrowIfNull(config);
+
         if (string.IsNullOrWhiteSpace(config.ApiKey))
         {
             throw new InvalidOperationException("OpenRouter API key is missing.");
@@ -123,9 +130,9 @@ public sealed class OpenRouterClient
 
         AppLogger.Info($"operation={operationId} openrouter.request mode=image_edit model={config.Model} from={fromLanguage} to={toLanguage} capture={bitmap.Width}x{bitmap.Height}");
 
-        var (statusCode, body) = await SendCompletionAsync(config, payload, cancellationToken);
+        var (statusCode, body) = await SendCompletionAsync(config, payload, cancellationToken).ConfigureAwait(false);
         var root = ParseSuccessfulResponse(statusCode, body, operationId);
-        var message = root.GetProperty("choices")[0].GetProperty("message");
+        var message = ExtractFirstChoiceMessage(root);
         var imageUrl = ExtractFirstImageDataUrl(message);
         var providerRequestId = ExtractString(root, "id");
         var cost = ExtractCost(root);
@@ -184,8 +191,18 @@ public sealed class OpenRouterClient
         request.Headers.TryAddWithoutValidation("X-Title", "Peek");
         request.Content = JsonContent.Create(payload);
 
-        using var response = await HttpClient.SendAsync(request, cancellationToken);
-        return (response.StatusCode, await response.Content.ReadAsStringAsync(cancellationToken));
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(RequestTimeout);
+
+        try
+        {
+            using var response = await HttpClient.SendAsync(request, timeoutSource.Token).ConfigureAwait(false);
+            return (response.StatusCode, await response.Content.ReadAsStringAsync(timeoutSource.Token).ConfigureAwait(false));
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException($"OpenRouter request timed out after {RequestTimeout.TotalSeconds:0} seconds.");
+        }
     }
 
     private static string ToPngDataUrl(Bitmap bitmap)
@@ -230,6 +247,25 @@ public sealed class OpenRouterClient
         }
 
         return string.Join(Environment.NewLine, parts);
+    }
+
+    private static JsonElement ExtractFirstChoiceMessage(JsonElement root)
+    {
+        if (!root.TryGetProperty("choices", out var choices) ||
+            choices.ValueKind != JsonValueKind.Array ||
+            choices.GetArrayLength() == 0)
+        {
+            throw new InvalidOperationException("OpenRouter response did not include any choices.");
+        }
+
+        var firstChoice = choices[0];
+        if (!firstChoice.TryGetProperty("message", out var message) ||
+            message.ValueKind != JsonValueKind.Object)
+        {
+            throw new InvalidOperationException("OpenRouter response did not include a message.");
+        }
+
+        return message;
     }
 
     private static decimal ExtractCost(JsonElement root)
@@ -285,16 +321,47 @@ public sealed class OpenRouterClient
 
     private static string ExtractFirstImageDataUrl(JsonElement message)
     {
-        if (!message.TryGetProperty("images", out var images) ||
-            images.ValueKind != JsonValueKind.Array)
+        if (message.TryGetProperty("images", out var images) &&
+            images.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var image in images.EnumerateArray())
+            {
+                if (TryExtractImageUrl(image, "image_url", out var url) ||
+                    TryExtractImageUrl(image, "imageUrl", out url))
+                {
+                    return url;
+                }
+            }
+        }
+
+        if (!message.TryGetProperty("content", out var content) ||
+            content.ValueKind != JsonValueKind.Array)
         {
             return string.Empty;
         }
 
-        foreach (var image in images.EnumerateArray())
+        foreach (var part in content.EnumerateArray())
         {
-            if (TryExtractImageUrl(image, "image_url", out var url) ||
-                TryExtractImageUrl(image, "imageUrl", out url))
+            if (part.ValueKind == JsonValueKind.String &&
+                IsImageDataUrl(part.GetString(), out var stringUrl))
+            {
+                return stringUrl;
+            }
+
+            if (part.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            if (TryExtractImageUrl(part, "image_url", out var url) ||
+                TryExtractImageUrl(part, "imageUrl", out url))
+            {
+                return url;
+            }
+
+            if (part.TryGetProperty("url", out var urlElement) &&
+                urlElement.ValueKind == JsonValueKind.String &&
+                IsImageDataUrl(urlElement.GetString(), out url))
             {
                 return url;
             }
@@ -316,6 +383,12 @@ public sealed class OpenRouterClient
 
         url = urlElement.GetString() ?? string.Empty;
         return !string.IsNullOrWhiteSpace(url);
+    }
+
+    private static bool IsImageDataUrl(string? value, out string url)
+    {
+        url = value?.Trim() ?? string.Empty;
+        return url.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? ExtractProviderError(string body)
@@ -370,7 +443,7 @@ public sealed record TextTranslationResult(
     string? ProviderRequestId);
 
 public sealed record ImageTranslationResult(
-    string ImageDataUrl,
+    string ImageData,
     decimal CostUsd,
     TokenUsage Usage,
     string? ProviderRequestId);

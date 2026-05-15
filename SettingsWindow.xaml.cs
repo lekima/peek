@@ -1,5 +1,7 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Security;
 using System.Windows;
 using MessageBox = System.Windows.MessageBox;
 
@@ -12,6 +14,8 @@ public partial class SettingsWindow : Window
     public SettingsWindow(AppConfig config)
     {
         InitializeComponent();
+        ArgumentNullException.ThrowIfNull(config);
+
         _config = config;
         ApiKeyBox.Password = config.ApiKey;
         TextFormatButton.IsChecked = !AppConfig.IsImageEditModel(config.Model);
@@ -38,7 +42,7 @@ public partial class SettingsWindow : Window
         {
             StartupService.SetEnabled(StartupBox.IsChecked == true);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or SecurityException or UnauthorizedAccessException or InvalidOperationException)
         {
             MessageBox.Show(this, ex.Message, "Startup setting", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
@@ -66,7 +70,7 @@ public partial class SettingsWindow : Window
         {
             OpenFile(AppLogger.LogPath);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or Win32Exception)
         {
             MessageBox.Show(this, ex.Message, "Log", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
