@@ -27,7 +27,7 @@
     <Grid Background="Transparent">
         <Border x:Name="FrameBorder"
                 Margin="0,22,4,22"
-                BorderBrush="#CCFFD84D"
+                BorderBrush="#CCFFC65F"
                 BorderThickness="1"
                 CornerRadius="4"
                 Background="Transparent"
@@ -49,7 +49,7 @@
                                Visibility="Collapsed"
                                RenderOptions.BitmapScalingMode="HighQuality" />
                         <TextBlock x:Name="ResultText"
-                                   Foreground="#FFFFF266"
+                                   Foreground="#FFFFC65F"
                                    FontSize="12"
                                    FontWeight="SemiBold"
                                    TextWrapping="Wrap"
@@ -75,7 +75,7 @@
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Circle"
-                                Background="#DDFDD84D"
+                                Background="#DDFFC65F"
                                 BorderThickness="0"
                                 CornerRadius="3">
                             <ContentPresenter HorizontalAlignment="Center"
@@ -83,10 +83,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Circle" Property="Background" Value="#FFFFEA73" />
+                                <Setter TargetName="Circle" Property="Background" Value="#FFFFC65F" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Circle" Property="Background" Value="#FFFFC300" />
+                                <Setter TargetName="Circle" Property="Background" Value="#FFFFC65F" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -129,7 +129,7 @@
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Circle"
-                                Background="#DDFDD84D"
+                                Background="#DDFFC65F"
                                 BorderThickness="0"
                                 CornerRadius="3">
                             <ContentPresenter HorizontalAlignment="Center"
@@ -137,10 +137,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Circle" Property="Background" Value="#FFFFEA73" />
+                                <Setter TargetName="Circle" Property="Background" Value="#FFFFC65F" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Circle" Property="Background" Value="#FFFFC300" />
+                                <Setter TargetName="Circle" Property="Background" Value="#FFFFC65F" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -179,7 +179,7 @@
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Circle"
-                                Background="#DDFDD84D"
+                                Background="#DDFFC65F"
                                 BorderThickness="0"
                                 CornerRadius="3">
                             <ContentPresenter HorizontalAlignment="Center"
@@ -187,10 +187,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Circle" Property="Background" Value="#FFFFEA73" />
+                                <Setter TargetName="Circle" Property="Background" Value="#FFFFC65F" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Circle" Property="Background" Value="#FFFFC300" />
+                                <Setter TargetName="Circle" Property="Background" Value="#FFFFC65F" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -215,7 +215,7 @@
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Circle"
-                                Background="#DDFDD84D"
+                                Background="#DDFFC65F"
                                 BorderThickness="0"
                                 CornerRadius="3">
                             <ContentPresenter HorizontalAlignment="Center"
@@ -223,10 +223,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Circle" Property="Background" Value="#FFFFEA73" />
+                                <Setter TargetName="Circle" Property="Background" Value="#FFFFC65F" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Circle" Property="Background" Value="#FFFFC300" />
+                                <Setter TargetName="Circle" Property="Background" Value="#FFFFC65F" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -248,7 +248,7 @@
                 MinHeight="18"
                 HorizontalAlignment="Right"
                 VerticalAlignment="Top"
-                Background="#DDFDD84D"
+                Background="#DDFFC65F"
                 CornerRadius="3"
                 Visibility="Collapsed"
                 IsHitTestVisible="False">
@@ -274,7 +274,7 @@
             <Button.Template>
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="Circle"
-                            Background="#DDFDD84D"
+                            Background="#DDFFC65F"
                             BorderThickness="0"
                             CornerRadius="3">
                         <ContentPresenter HorizontalAlignment="Center"
@@ -282,10 +282,10 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Circle" Property="Background" Value="#FFFFEA73" />
+                            <Setter TargetName="Circle" Property="Background" Value="#FFFFC65F" />
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Circle" Property="Background" Value="#FFFFC300" />
+                            <Setter TargetName="Circle" Property="Background" Value="#FFFFC65F" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

@@ -60,8 +60,8 @@
             <Setter Property="MinWidth" Value="68" />
             <Setter Property="Padding" Value="10,0" />
             <Setter Property="Foreground" Value="#FF161616" />
-            <Setter Property="Background" Value="#FFFFD84D" />
-            <Setter Property="BorderBrush" Value="#FFFFD84D" />
+            <Setter Property="Background" Value="#FFFFC65F" />
+            <Setter Property="BorderBrush" Value="#FFFFC65F" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Cursor" Value="Hand" />
@@ -78,12 +78,12 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#FFFFE47A" />
-                                <Setter TargetName="Root" Property="BorderBrush" Value="#FFFFE47A" />
+                                <Setter TargetName="Root" Property="Background" Value="#FFFFC65F" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#FFFFC65F" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#FFE6BE32" />
-                                <Setter TargetName="Root" Property="BorderBrush" Value="#FFE6BE32" />
+                                <Setter TargetName="Root" Property="Background" Value="#FFFFC65F" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#FFFFC65F" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -116,7 +116,7 @@
                                 <Setter TargetName="Root" Property="BorderBrush" Value="#FF555555" />
                             </Trigger>
                             <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                                <Setter TargetName="Root" Property="BorderBrush" Value="#FFFFD84D" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#FFFFC65F" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -149,7 +149,7 @@
                                 <Setter TargetName="Root" Property="BorderBrush" Value="#FF555555" />
                             </Trigger>
                             <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                                <Setter TargetName="Root" Property="BorderBrush" Value="#FFFFD84D" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#FFFFC65F" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -182,8 +182,8 @@
                                 <Setter TargetName="Root" Property="BorderBrush" Value="#FF555555" />
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#FFFFD84D" />
-                                <Setter TargetName="Root" Property="BorderBrush" Value="#FFFFD84D" />
+                                <Setter TargetName="Root" Property="Background" Value="#FFFFC65F" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#FFFFC65F" />
                                 <Setter Property="Foreground" Value="#FF161616" />
                                 <Setter Property="FontWeight" Value="SemiBold" />
                             </Trigger>
@@ -230,8 +230,8 @@
                                 <Setter TargetName="Box" Property="BorderBrush" Value="#FF555555" />
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Box" Property="Background" Value="#FFFFD84D" />
-                                <Setter TargetName="Box" Property="BorderBrush" Value="#FFFFD84D" />
+                                <Setter TargetName="Box" Property="Background" Value="#FFFFC65F" />
+                                <Setter TargetName="Box" Property="BorderBrush" Value="#FFFFC65F" />
                                 <Setter TargetName="Check" Property="Visibility" Value="Visible" />
                             </Trigger>
                         </ControlTemplate.Triggers>
