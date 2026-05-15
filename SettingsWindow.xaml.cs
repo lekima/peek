@@ -17,7 +17,7 @@ public partial class SettingsWindow : Window
         TextFormatButton.IsChecked = !AppConfig.IsImageEditModel(config.Model);
         ImageFormatButton.IsChecked = AppConfig.IsImageEditModel(config.Model);
         FromLanguageBox.Text = string.IsNullOrWhiteSpace(config.FromLanguage) ? "Chinese" : config.FromLanguage;
-        ToLanguageBox.Text = string.IsNullOrWhiteSpace(config.ToLanguage) ? "Vietnamese" : config.ToLanguage;
+        ToLanguageBox.Text = string.IsNullOrWhiteSpace(config.ToLanguage) ? "English" : config.ToLanguage;
         StartupBox.IsChecked = StartupService.IsEnabled();
     }
 
@@ -31,7 +31,7 @@ public partial class SettingsWindow : Window
             ? "Chinese"
             : FromLanguageBox.Text.Trim();
         var toLanguage = string.IsNullOrWhiteSpace(ToLanguageBox.Text)
-            ? "Vietnamese"
+            ? "English"
             : ToLanguageBox.Text.Trim();
 
         try

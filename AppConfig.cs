@@ -14,7 +14,7 @@ public sealed class AppConfig
     public string ApiKey { get; set; } = string.Empty;
     public string Model { get; set; } = DefaultModel;
     public string FromLanguage { get; set; } = "Chinese";
-    public string ToLanguage { get; set; } = "Vietnamese";
+    public string ToLanguage { get; set; } = "English";
     public decimal TotalCostUsd { get; set; }
 
     public static bool IsImageEditModel(string model) =>
@@ -26,7 +26,7 @@ public sealed class StoredAppConfig
     public string EncryptedApiKey { get; set; } = string.Empty;
     public string Model { get; set; } = AppConfig.DefaultModel;
     public string FromLanguage { get; set; } = "Chinese";
-    public string ToLanguage { get; set; } = "Vietnamese";
+    public string ToLanguage { get; set; } = "English";
     public decimal TotalCostUsd { get; set; }
 }
 
@@ -55,7 +55,7 @@ public static class AppConfigStore
                 ApiKey = Unprotect(stored.EncryptedApiKey),
                 Model = NormalizeModel(stored.Model),
                 FromLanguage = string.IsNullOrWhiteSpace(stored.FromLanguage) ? "Chinese" : stored.FromLanguage,
-                ToLanguage = string.IsNullOrWhiteSpace(stored.ToLanguage) ? "Vietnamese" : stored.ToLanguage,
+                ToLanguage = string.IsNullOrWhiteSpace(stored.ToLanguage) ? "English" : stored.ToLanguage,
                 TotalCostUsd = stored.TotalCostUsd
             };
         }
@@ -74,7 +74,7 @@ public static class AppConfigStore
             EncryptedApiKey = Protect(config.ApiKey),
             Model = string.IsNullOrWhiteSpace(config.Model) ? AppConfig.DefaultModel : config.Model,
             FromLanguage = string.IsNullOrWhiteSpace(config.FromLanguage) ? "Chinese" : config.FromLanguage,
-            ToLanguage = string.IsNullOrWhiteSpace(config.ToLanguage) ? "Vietnamese" : config.ToLanguage,
+            ToLanguage = string.IsNullOrWhiteSpace(config.ToLanguage) ? "English" : config.ToLanguage,
             TotalCostUsd = config.TotalCostUsd
         };
 

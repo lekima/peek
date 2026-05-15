@@ -29,7 +29,7 @@ public sealed class OpenRouterClient
         }
 
         var fromLanguage = string.IsNullOrWhiteSpace(config.FromLanguage) ? "Chinese" : config.FromLanguage.Trim();
-        var toLanguage = string.IsNullOrWhiteSpace(config.ToLanguage) ? "Vietnamese" : config.ToLanguage.Trim();
+        var toLanguage = string.IsNullOrWhiteSpace(config.ToLanguage) ? "English" : config.ToLanguage.Trim();
         var imageDataUrl = ToPngDataUrl(bitmap);
         var payload = new Dictionary<string, object?>
         {
@@ -90,7 +90,7 @@ public sealed class OpenRouterClient
         }
 
         var fromLanguage = string.IsNullOrWhiteSpace(config.FromLanguage) ? "Chinese" : config.FromLanguage.Trim();
-        var toLanguage = string.IsNullOrWhiteSpace(config.ToLanguage) ? "Vietnamese" : config.ToLanguage.Trim();
+        var toLanguage = string.IsNullOrWhiteSpace(config.ToLanguage) ? "English" : config.ToLanguage.Trim();
         var imageDataUrl = ToPngDataUrl(bitmap);
         var payload = new Dictionary<string, object?>
         {
