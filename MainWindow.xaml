@@ -49,12 +49,18 @@
                         Visibility="Collapsed"
                         SizeChanged="ResultPanel_SizeChanged"
                         IsHitTestVisible="False">
-                    <TextBlock x:Name="ResultText"
-                               Foreground="#FFFFF266"
-                               FontSize="12"
-                               FontWeight="SemiBold"
-                               TextWrapping="Wrap"
-                               TextTrimming="CharacterEllipsis" />
+                    <Grid>
+                        <Image x:Name="ResultImage"
+                               Stretch="Fill"
+                               Visibility="Collapsed"
+                               RenderOptions.BitmapScalingMode="HighQuality" />
+                        <TextBlock x:Name="ResultText"
+                                   Foreground="#FFFFF266"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap"
+                                   TextTrimming="CharacterEllipsis" />
+                    </Grid>
                 </Border>
             </Grid>
         </Border>

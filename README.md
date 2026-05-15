@@ -20,8 +20,9 @@ The zip is self-contained for Windows x64, so it should not require a separate .
 Right-click the floating window and choose `Settings`.
 
 - Model: `google/gemini-3.1-flash-lite-preview`
+- Image edit model: `google/gemini-3.1-flash-image-preview`
 - Default languages: Chinese to Vietnamese
-- The app uses vision-to-text translation, so it does not generate edited image output.
+- Flash Lite returns translated text inside the frame; Flash Image returns an edited translated image inside the frame.
 - API key storage: encrypted for the current Windows user with DPAPI in `data/settings.json`
 - Run on startup: optional per-user Windows startup entry; disabling it removes Peek's startup entry
 - Log: `data/peek.log.jsonl`

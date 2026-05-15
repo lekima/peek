@@ -4,8 +4,10 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging;
 using System.Windows.Controls;
 using System.Windows.Threading;
+using System.IO;
 using Drawing = System.Drawing;
 using Forms = System.Windows.Forms;
 using MessageBox = System.Windows.MessageBox;
@@ -617,6 +619,25 @@ public partial class MainWindow : Window
             captureWidth = bitmap.Width;
             captureHeight = bitmap.Height;
 
+            if (AppConfig.IsImageEditModel(_config.Model))
+            {
+                var imageResult = await _openRouter.TranslateImageToEditedImageAsync(bitmap, _config, operationId, cancellationToken);
+                stopwatch.Stop();
+                SetResultImage(imageResult.ImageDataUrl);
+                TrackUsage(
+                    operationId,
+                    imageResult.ProviderRequestId,
+                    true,
+                    imageResult.CostUsd,
+                    captureWidth,
+                    captureHeight,
+                    stopwatch.ElapsedMilliseconds,
+                    imageResult.Usage,
+                    null,
+                    null);
+                return;
+            }
+
             var result = await _openRouter.TranslateImageToTextAsync(bitmap, _config, operationId, cancellationToken);
             stopwatch.Stop();
             SetResultText(result.Text);
@@ -743,18 +764,56 @@ public partial class MainWindow : Window
 
     private void SetResultText(string text)
     {
+        ResultImage.Source = null;
+        ResultImage.Visibility = Visibility.Collapsed;
         ResultText.Text = text;
+        ResultText.Visibility = Visibility.Visible;
+        ResultPanel.Padding = new Thickness(7, 5, 7, 5);
+        ResultPanel.Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xE8, 0x11, 0x11, 0x11));
         ResultPanel.Visibility = Visibility.Visible;
         FitResultText();
         Dispatcher.BeginInvoke(FitResultText, DispatcherPriority.Loaded);
+    }
+
+    private void SetResultImage(string imageDataUrl)
+    {
+        ResultText.Text = string.Empty;
+        ResultText.Visibility = Visibility.Collapsed;
+        ResultImage.Source = LoadImageDataUrl(imageDataUrl);
+        ResultImage.Visibility = Visibility.Visible;
+        ResultPanel.Padding = new Thickness(0);
+        ResultPanel.Background = System.Windows.Media.Brushes.Transparent;
+        ResultPanel.Visibility = Visibility.Visible;
     }
 
     private void ClearResult()
     {
         ResultText.Text = string.Empty;
         ResultText.FontSize = MaxResultFontSize;
+        ResultText.Visibility = Visibility.Visible;
+        ResultImage.Source = null;
+        ResultImage.Visibility = Visibility.Collapsed;
         ResultPanel.Visibility = Visibility.Collapsed;
         CollapseFrame();
+    }
+
+    private static BitmapImage LoadImageDataUrl(string dataUrl)
+    {
+        var commaIndex = dataUrl.IndexOf(',');
+        if (commaIndex < 0)
+        {
+            throw new InvalidOperationException("Image response was not a data URL.");
+        }
+
+        var bytes = Convert.FromBase64String(dataUrl[(commaIndex + 1)..]);
+        using var stream = new MemoryStream(bytes);
+        var image = new BitmapImage();
+        image.BeginInit();
+        image.CacheOption = BitmapCacheOption.OnLoad;
+        image.StreamSource = stream;
+        image.EndInit();
+        image.Freeze();
+        return image;
     }
 
     private void TrackUsage(
@@ -850,6 +909,7 @@ public partial class MainWindow : Window
     private void FitResultText()
     {
         if (!ResultPanel.IsVisible ||
+            ResultImage.Visibility == Visibility.Visible ||
             string.IsNullOrWhiteSpace(ResultText.Text) ||
             ResultPanel.ActualWidth <= 0 ||
             ResultPanel.ActualHeight <= 0)

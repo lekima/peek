@@ -61,6 +61,86 @@ public sealed class OpenRouterClient
         AppLogger.Info($"operation={operationId} openrouter.request model={config.Model} from={fromLanguage} to={toLanguage} capture={bitmap.Width}x{bitmap.Height}");
 
         var (statusCode, body) = await SendCompletionAsync(config, payload, cancellationToken);
+        var root = ParseSuccessfulResponse(statusCode, body, operationId);
+        var message = root.GetProperty("choices")[0].GetProperty("message");
+        var translation = ExtractContent(message);
+        var providerRequestId = ExtractString(root, "id");
+        var cost = ExtractCost(root);
+        var usage = ExtractTokenUsage(root);
+        LogUsage(operationId, providerRequestId, cost, usage);
+
+        if (string.IsNullOrWhiteSpace(translation))
+        {
+            throw new InvalidOperationException("No translation returned. See log.");
+        }
+
+        return new TextTranslationResult(translation.Trim(), cost, usage, providerRequestId);
+    }
+
+    public async Task<ImageTranslationResult> TranslateImageToEditedImageAsync(
+        Bitmap bitmap,
+        AppConfig config,
+        string operationId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(config.ApiKey))
+        {
+            throw new InvalidOperationException("OpenRouter API key is missing.");
+        }
+
+        var fromLanguage = string.IsNullOrWhiteSpace(config.FromLanguage) ? "Chinese" : config.FromLanguage.Trim();
+        var toLanguage = string.IsNullOrWhiteSpace(config.ToLanguage) ? "Vietnamese" : config.ToLanguage.Trim();
+        var imageDataUrl = ToPngDataUrl(bitmap);
+        var payload = new Dictionary<string, object?>
+        {
+            ["model"] = config.Model,
+            ["modalities"] = new[] { "image", "text" },
+            ["messages"] = new object[]
+            {
+                new
+                {
+                    role = "user",
+                    content = new object[]
+                    {
+                        new
+                        {
+                            type = "text",
+                            text = $"Edit this game UI screenshot by replacing visible {fromLanguage} text with natural {toLanguage}. Preserve the original UI, background, icons, layout, colors, proportions, and game art. Only change the text. Return the edited image."
+                        },
+                        new
+                        {
+                            type = "image_url",
+                            image_url = new
+                            {
+                                url = imageDataUrl
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        AppLogger.Info($"operation={operationId} openrouter.request mode=image_edit model={config.Model} from={fromLanguage} to={toLanguage} capture={bitmap.Width}x{bitmap.Height}");
+
+        var (statusCode, body) = await SendCompletionAsync(config, payload, cancellationToken);
+        var root = ParseSuccessfulResponse(statusCode, body, operationId);
+        var message = root.GetProperty("choices")[0].GetProperty("message");
+        var imageUrl = ExtractFirstImageDataUrl(message);
+        var providerRequestId = ExtractString(root, "id");
+        var cost = ExtractCost(root);
+        var usage = ExtractTokenUsage(root);
+        LogUsage(operationId, providerRequestId, cost, usage);
+
+        if (string.IsNullOrWhiteSpace(imageUrl))
+        {
+            throw new InvalidOperationException("No edited image returned. See log.");
+        }
+
+        return new ImageTranslationResult(imageUrl, cost, usage, providerRequestId);
+    }
+
+    private static JsonElement ParseSuccessfulResponse(HttpStatusCode statusCode, string body, string operationId)
+    {
         var providerError = (int)statusCode >= 200 && (int)statusCode < 300
             ? null
             : ExtractProviderError(body);
@@ -79,12 +159,11 @@ public sealed class OpenRouterClient
         }
 
         using var document = JsonDocument.Parse(body);
-        var choice = document.RootElement.GetProperty("choices")[0];
-        var message = choice.GetProperty("message");
-        var translation = ExtractContent(message);
-        var providerRequestId = ExtractString(document.RootElement, "id");
-        var cost = ExtractCost(document.RootElement);
-        var usage = ExtractTokenUsage(document.RootElement);
+        return document.RootElement.Clone();
+    }
+
+    private static void LogUsage(string operationId, string? providerRequestId, decimal cost, TokenUsage usage)
+    {
         AppLogger.Info(
             $"operation={operationId} openrouter.usage " +
             $"provider_request_id={providerRequestId ?? "-"} " +
@@ -92,13 +171,6 @@ public sealed class OpenRouterClient
             $"prompt_tokens={usage.PromptTokens} " +
             $"completion_tokens={usage.CompletionTokens} " +
             $"total_tokens={usage.TotalTokens}");
-
-        if (string.IsNullOrWhiteSpace(translation))
-        {
-            throw new InvalidOperationException("No translation returned. See log.");
-        }
-
-        return new TextTranslationResult(translation.Trim(), cost, usage, providerRequestId);
     }
 
     private static async Task<(HttpStatusCode StatusCode, string Body)> SendCompletionAsync(
@@ -210,6 +282,41 @@ public sealed class OpenRouterClient
             : null;
     }
 
+    private static string ExtractFirstImageDataUrl(JsonElement message)
+    {
+        if (!message.TryGetProperty("images", out var images) ||
+            images.ValueKind != JsonValueKind.Array)
+        {
+            return string.Empty;
+        }
+
+        foreach (var image in images.EnumerateArray())
+        {
+            if (TryExtractImageUrl(image, "image_url", out var url) ||
+                TryExtractImageUrl(image, "imageUrl", out url))
+            {
+                return url;
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private static bool TryExtractImageUrl(JsonElement image, string propertyName, out string url)
+    {
+        url = string.Empty;
+        if (!image.TryGetProperty(propertyName, out var imageUrl) ||
+            imageUrl.ValueKind != JsonValueKind.Object ||
+            !imageUrl.TryGetProperty("url", out var urlElement) ||
+            urlElement.ValueKind != JsonValueKind.String)
+        {
+            return false;
+        }
+
+        url = urlElement.GetString() ?? string.Empty;
+        return !string.IsNullOrWhiteSpace(url);
+    }
+
     private static string? ExtractProviderError(string body)
     {
         try
@@ -257,6 +364,12 @@ public sealed record TokenUsage(int PromptTokens, int CompletionTokens, int Tota
 
 public sealed record TextTranslationResult(
     string Text,
+    decimal CostUsd,
+    TokenUsage Usage,
+    string? ProviderRequestId);
+
+public sealed record ImageTranslationResult(
+    string ImageDataUrl,
     decimal CostUsd,
     TokenUsage Usage,
     string? ProviderRequestId);
