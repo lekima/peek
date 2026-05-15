@@ -152,8 +152,7 @@
                           StrokeThickness="1.6"
                           StrokeStartLineCap="Round"
                           StrokeEndLineCap="Round"
-                          StrokeLineJoin="Round"
-                          Data="M 3 2 L 8 5 L 3 8 Z" />
+                          Data="M 2 2 L 8 2 M 5 2 L 5 8" />
                     <Grid x:Name="TranslateSpinner"
                           Width="8"
                           Height="8"
@@ -238,8 +237,7 @@
                           StrokeThickness="1.6"
                           StrokeStartLineCap="Round"
                           StrokeEndLineCap="Round"
-                          StrokeLineJoin="Round"
-                          Data="M 4 8 L 8 8 L 8 4 Z" />
+                          Data="M 2 8 L 8 8 L 8 2" />
                 </Grid>
             </Button>
         </StackPanel>
@@ -298,8 +296,7 @@
                       StrokeThickness="1.6"
                       StrokeStartLineCap="Round"
                       StrokeEndLineCap="Round"
-                      StrokeLineJoin="Round"
-                      Data="M 4 8 L 8 8 L 8 4 Z" />
+                      Data="M 2 8 L 8 8 L 8 2" />
             </Grid>
         </Button>
 
