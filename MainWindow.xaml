@@ -33,7 +33,8 @@
                 BorderThickness="1"
                 CornerRadius="4"
                 Background="Transparent"
-                Visibility="Collapsed">
+                Visibility="Collapsed"
+                IsHitTestVisible="False">
             <Grid>
                 <Border x:Name="ResultPanel"
                         Margin="0"
@@ -312,7 +313,8 @@
                 VerticalAlignment="Top"
                 Background="#DDFDD84D"
                 CornerRadius="3"
-                Visibility="Collapsed">
+                Visibility="Collapsed"
+                IsHitTestVisible="False">
             <TextBlock x:Name="StatusText"
                        VerticalAlignment="Center"
                        Foreground="#FF0B0B0B"

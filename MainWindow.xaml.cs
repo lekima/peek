@@ -33,6 +33,9 @@ public partial class MainWindow : Window
     private const double FrameRevealHeight = 48;
     private const double MaxResultFontSize = 24;
     private const double MinResultFontSize = 8;
+    private const int WmNcHitTest = 0x0084;
+    private const nint HtClient = 1;
+    private const nint HtTransparent = -1;
 
     private AppConfig _config = AppConfigStore.Load();
     private CancellationTokenSource? _translationCancellation;
@@ -142,6 +145,55 @@ public partial class MainWindow : Window
         {
             AppLogger.Info($"SetWindowDisplayAffinity failed error={Win32.GetLastError()}");
         }
+
+        if (HwndSource.FromHwnd(handle) is { } source)
+        {
+            source.AddHook(WindowMessageHook);
+        }
+    }
+
+    private nint WindowMessageHook(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)
+    {
+        if (msg != WmNcHitTest)
+        {
+            return 0;
+        }
+
+        var screenPoint = GetScreenPoint(lParam);
+        var windowPoint = PointFromScreen(screenPoint);
+        handled = true;
+
+        return IsInteractivePoint(windowPoint) ? HtClient : HtTransparent;
+    }
+
+    private bool IsInteractivePoint(Point windowPoint)
+    {
+        return IsPointInside(DragButton, windowPoint) ||
+            IsPointInside(TranslateTextButton, windowPoint) ||
+            IsPointInside(TranslateImageButton, windowPoint) ||
+            IsPointInside(ClearButton, windowPoint) ||
+            IsPointInside(ResizeRowButton, windowPoint) ||
+            IsPointInside(ResizeCornerButton, windowPoint);
+    }
+
+    private bool IsPointInside(FrameworkElement element, Point windowPoint)
+    {
+        if (!element.IsVisible || element.ActualWidth <= 0 || element.ActualHeight <= 0)
+        {
+            return false;
+        }
+
+        var bounds = element.TransformToAncestor(this)
+            .TransformBounds(new Rect(0, 0, element.ActualWidth, element.ActualHeight));
+        return bounds.Contains(windowPoint);
+    }
+
+    private static Point GetScreenPoint(nint lParam)
+    {
+        var value = lParam.ToInt64();
+        var x = (short)(value & 0xFFFF);
+        var y = (short)((value >> 16) & 0xFFFF);
+        return new Point(x, y);
     }
 
     private void ResultPanel_SizeChanged(object sender, SizeChangedEventArgs e)
