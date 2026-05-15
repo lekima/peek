@@ -614,6 +614,7 @@ public partial class MainWindow : Window
         {
             AppLogger.Info($"operation={operationId} translate.start bounds=({Left:0},{Top:0},{FrameBorder.ActualWidth:0}x{FrameBorder.ActualHeight:0}) model={_config.Model}");
             SetBusy(true);
+            SetStatus("Translating...");
 
             using var bitmap = _screenCapture.CaptureVisualBounds(this, FrameBorder);
             captureWidth = bitmap.Width;
@@ -641,6 +642,7 @@ public partial class MainWindow : Window
             var result = await _openRouter.TranslateImageToTextAsync(bitmap, _config, operationId, cancellationToken);
             stopwatch.Stop();
             SetResultText(result.Text);
+            ClearStatus();
             TrackUsage(
                 operationId,
                 result.ProviderRequestId,
@@ -657,13 +659,14 @@ public partial class MainWindow : Window
         {
             stopwatch.Stop();
             AppLogger.Info($"operation={operationId} translate.cancelled");
+            SetStatus("Cancelled.");
         }
         catch (Exception ex)
         {
             stopwatch.Stop();
             AppLogger.Error("Translate failed.", ex);
             var shortError = ToShortUserError(ex);
-            SetResultText(shortError);
+            SetStatus(shortError);
             AppLogger.Info($"operation={operationId} user_error={shortError}");
             TrackUsage(
                 operationId,
@@ -776,6 +779,18 @@ public partial class MainWindow : Window
         Dispatcher.BeginInvoke(FitResultText, DispatcherPriority.Loaded);
     }
 
+    private void SetStatus(string text)
+    {
+        StatusText.Text = text;
+        StatusLabel.Visibility = Visibility.Visible;
+    }
+
+    private void ClearStatus()
+    {
+        StatusText.Text = string.Empty;
+        StatusLabel.Visibility = Visibility.Collapsed;
+    }
+
     private void SetResultImage(string imageDataUrl)
     {
         ResultText.Text = string.Empty;
@@ -785,6 +800,7 @@ public partial class MainWindow : Window
         ResultPanel.Padding = new Thickness(0);
         ResultPanel.Background = System.Windows.Media.Brushes.Transparent;
         ResultPanel.Visibility = Visibility.Visible;
+        ClearStatus();
     }
 
     private void ClearResult()
@@ -794,6 +810,7 @@ public partial class MainWindow : Window
         ResultText.Visibility = Visibility.Visible;
         ResultImage.Source = null;
         ResultImage.Visibility = Visibility.Collapsed;
+        ClearStatus();
         ResultPanel.Visibility = Visibility.Collapsed;
         CollapseFrame();
     }

@@ -245,6 +245,24 @@
             </Button>
         </StackPanel>
 
+        <Border x:Name="StatusLabel"
+                Margin="0,2,4,0"
+                Padding="6,0"
+                MinHeight="17"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                Background="#DDFDD84D"
+                CornerRadius="3"
+                Visibility="Collapsed"
+                IsHitTestVisible="False">
+            <TextBlock x:Name="StatusText"
+                       VerticalAlignment="Center"
+                       Foreground="#CC161616"
+                       FontSize="11"
+                       FontWeight="SemiBold"
+                       TextTrimming="CharacterEllipsis" />
+        </Border>
+
         <Button x:Name="ResizeCornerButton"
                 Width="17"
                 Height="17"
