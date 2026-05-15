@@ -6,15 +6,25 @@ using System.Text.Json;
 
 namespace Peek;
 
+internal enum ResultFormat
+{
+    Text,
+    Image
+}
+
 internal sealed class AppConfig
 {
     public const string Gemini31FlashLiteModel = "google/gemini-3.1-flash-lite";
     public const string Gemini31FlashImageModel = "google/gemini-3.1-flash-image-preview";
 
     public string ApiKey { get; set; } = string.Empty;
+    public ResultFormat ResultFormat { get; set; } = ResultFormat.Text;
     public string FromLanguage { get; set; } = "Chinese";
     public string ToLanguage { get; set; } = "English";
     public decimal TotalCostUsd { get; set; }
+
+    public static string GetModel(ResultFormat resultFormat) =>
+        resultFormat == ResultFormat.Image ? Gemini31FlashImageModel : Gemini31FlashLiteModel;
 }
 
 internal static class AppConfigStore
@@ -22,6 +32,7 @@ internal static class AppConfigStore
     private sealed class StoredAppConfig
     {
         public string EncryptedApiKey { get; set; } = string.Empty;
+        public string ResultFormat { get; set; } = nameof(Peek.ResultFormat.Text);
         public string FromLanguage { get; set; } = "Chinese";
         public string ToLanguage { get; set; } = "English";
         public decimal TotalCostUsd { get; set; }
@@ -48,6 +59,7 @@ internal static class AppConfigStore
             return new AppConfig
             {
                 ApiKey = Unprotect(stored.EncryptedApiKey),
+                ResultFormat = NormalizeResultFormat(stored.ResultFormat),
                 FromLanguage = string.IsNullOrWhiteSpace(stored.FromLanguage) ? "Chinese" : stored.FromLanguage,
                 ToLanguage = string.IsNullOrWhiteSpace(stored.ToLanguage) ? "English" : stored.ToLanguage,
                 TotalCostUsd = stored.TotalCostUsd
@@ -88,6 +100,7 @@ internal static class AppConfigStore
         var stored = new StoredAppConfig
         {
             EncryptedApiKey = Protect(config.ApiKey),
+            ResultFormat = config.ResultFormat.ToString(),
             FromLanguage = string.IsNullOrWhiteSpace(config.FromLanguage) ? "Chinese" : config.FromLanguage,
             ToLanguage = string.IsNullOrWhiteSpace(config.ToLanguage) ? "English" : config.ToLanguage,
             TotalCostUsd = config.TotalCostUsd
@@ -118,6 +131,13 @@ internal static class AppConfigStore
         var bytes = Encoding.UTF8.GetBytes(value);
         var encrypted = ProtectedData.Protect(bytes, null, DataProtectionScope.CurrentUser);
         return Convert.ToBase64String(encrypted);
+    }
+
+    private static ResultFormat NormalizeResultFormat(string value)
+    {
+        return Enum.TryParse<ResultFormat>(value, true, out var resultFormat)
+            ? resultFormat
+            : ResultFormat.Text;
     }
 
     private static string Unprotect(string value)

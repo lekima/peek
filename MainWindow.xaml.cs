@@ -23,13 +23,7 @@ namespace Peek;
 [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "Instantiated by WPF from App.xaml StartupUri.")]
 internal sealed partial class MainWindow : Window
 {
-    private enum TranslationOutputMode
-    {
-        Text,
-        Image
-    }
-
-    private const double CollapsedWidth = 106;
+    private const double CollapsedWidth = 84;
     private const double CollapsedHeight = 24;
     private const double FrameRevealHeight = 48;
     private const double MaxResultFontSize = 24;
@@ -138,8 +132,7 @@ internal sealed partial class MainWindow : Window
     private bool IsInteractivePoint(Point windowPoint)
     {
         return IsPointInside(DragButton, windowPoint) ||
-            IsPointInside(TranslateTextButton, windowPoint) ||
-            IsPointInside(TranslateImageButton, windowPoint) ||
+            IsPointInside(TranslateButton, windowPoint) ||
             IsPointInside(ClearButton, windowPoint) ||
             IsPointInside(ResizeRowButton, windowPoint) ||
             IsPointInside(ResizeCornerButton, windowPoint);
@@ -358,14 +351,9 @@ internal sealed partial class MainWindow : Window
         return compositionTarget.TransformFromDevice.Transform(screenPoint);
     }
 
-    private async void TranslateTextButton_Click(object sender, RoutedEventArgs e)
+    private async void TranslateButton_Click(object sender, RoutedEventArgs e)
     {
-        await TranslateCurrentAreaAsync(TranslationOutputMode.Text).ConfigureAwait(true);
-    }
-
-    private async void TranslateImageButton_Click(object sender, RoutedEventArgs e)
-    {
-        await TranslateCurrentAreaAsync(TranslationOutputMode.Image).ConfigureAwait(true);
+        await TranslateCurrentAreaAsync().ConfigureAwait(true);
     }
 
     private void ClearButton_Click(object sender, RoutedEventArgs e)
@@ -389,7 +377,7 @@ internal sealed partial class MainWindow : Window
     }
 
     [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "This is the UI operation boundary; failures are logged and shown as a short status.")]
-    private async Task TranslateCurrentAreaAsync(TranslationOutputMode mode)
+    private async Task TranslateCurrentAreaAsync()
     {
         if (_isTranslating)
         {
@@ -422,21 +410,20 @@ internal sealed partial class MainWindow : Window
         var stopwatch = Stopwatch.StartNew();
         var captureWidth = 0;
         var captureHeight = 0;
-        var model = mode == TranslationOutputMode.Image
-            ? AppConfig.Gemini31FlashImageModel
-            : AppConfig.Gemini31FlashLiteModel;
+        var resultFormat = _config.ResultFormat;
+        var model = AppConfig.GetModel(resultFormat);
 
         try
         {
             AppLogger.Info($"operation={operationId} translate.start bounds=({Left:0},{Top:0},{FrameBorder.ActualWidth:0}x{FrameBorder.ActualHeight:0}) model={model}");
-            SetBusy(true, mode);
+            SetBusy(true);
             ClearStatus();
 
             using var bitmap = ScreenCaptureService.CaptureVisualBounds(this, FrameBorder);
             captureWidth = bitmap.Width;
             captureHeight = bitmap.Height;
 
-            if (mode == TranslationOutputMode.Image)
+            if (resultFormat == ResultFormat.Image)
             {
                 var imageResult = await OpenRouterClient.TranslateImageToEditedImageAsync(bitmap, _config, model, operationId, cancellationToken).ConfigureAwait(true);
                 stopwatch.Stop();
@@ -502,7 +489,7 @@ internal sealed partial class MainWindow : Window
         }
         finally
         {
-            SetBusy(false, mode);
+            SetBusy(false);
             if (ReferenceEquals(_translationCancellation, cancellationSource))
             {
                 _translationCancellation.Dispose();
@@ -566,29 +553,21 @@ internal sealed partial class MainWindow : Window
         }
     }
 
-    private void SetBusy(bool busy, TranslationOutputMode mode)
+    private void SetBusy(bool busy)
     {
         _isTranslating = busy;
-        TranslateTextButton.IsEnabled = !busy;
-        TranslateImageButton.IsEnabled = !busy;
-        TranslateTextSpinner.Visibility = busy && mode == TranslationOutputMode.Text ? Visibility.Visible : Visibility.Collapsed;
-        TranslateTextIcon.Visibility = busy && mode == TranslationOutputMode.Text ? Visibility.Collapsed : Visibility.Visible;
-        TranslateImageSpinner.Visibility = busy && mode == TranslationOutputMode.Image ? Visibility.Visible : Visibility.Collapsed;
-        TranslateImageIcon.Visibility = busy && mode == TranslationOutputMode.Image ? Visibility.Collapsed : Visibility.Visible;
+        TranslateButton.IsEnabled = !busy;
+        TranslateSpinner.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
+        TranslateIcon.Visibility = busy ? Visibility.Collapsed : Visibility.Visible;
 
         if (busy)
         {
-            var spinner = mode == TranslationOutputMode.Image
-                ? TranslateImageSpinnerRotate
-                : TranslateTextSpinnerRotate;
-            spinner.BeginAnimation(RotateTransform.AngleProperty, _spinnerAnimation);
+            TranslateSpinnerRotate.BeginAnimation(RotateTransform.AngleProperty, _spinnerAnimation);
         }
         else
         {
-            TranslateTextSpinnerRotate.BeginAnimation(RotateTransform.AngleProperty, null);
-            TranslateTextSpinnerRotate.Angle = 0;
-            TranslateImageSpinnerRotate.BeginAnimation(RotateTransform.AngleProperty, null);
-            TranslateImageSpinnerRotate.Angle = 0;
+            TranslateSpinnerRotate.BeginAnimation(RotateTransform.AngleProperty, null);
+            TranslateSpinnerRotate.Angle = 0;
         }
     }
 

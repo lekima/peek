@@ -10,7 +10,7 @@ The zip is self-contained for Windows x64, so it should not require a separate .
 
 ## How it works
 
-- Use the five-button strip to move, translate to text, translate to image, clear, and resize.
+- Use the four-button strip to move, translate, clear, and resize.
 - Drag the resize button downward to reveal the capture frame.
 - The app captures only the framed area underneath, sends the image to OpenRouter, then shows either translated text or an edited translated image inside the frame.
 - Peek stays available from the Windows notification area while running, using the same yellow move-button icon.
@@ -20,7 +20,8 @@ The zip is self-contained for Windows x64, so it should not require a separate .
 Right-click the move button or the notification-area icon, then choose `Settings`.
 
 - Default languages: Chinese to English
-- The `T` button returns translated text inside the frame; the image button returns an edited translated image inside the frame.
+- Result format: Text or Image
+- The translate button follows the selected result format: translated text inside the frame, or an edited translated image inside the frame.
 - API key storage: encrypted for the current Windows user with DPAPI in `data/settings.json`
 - Run on startup: optional per-user Windows startup entry; disabling it removes Peek's startup entry
 - Log: `data/peek.log.jsonl`

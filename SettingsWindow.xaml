@@ -157,6 +157,42 @@
             </Setter>
         </Style>
 
+        <Style x:Key="SegmentButton" TargetType="RadioButton">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Foreground" Value="#FFEDEDED" />
+            <Setter Property="Background" Value="#FF202020" />
+            <Setter Property="BorderBrush" Value="#FF3C3C3C" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#FF252525" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#FF555555" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#FFFFD84D" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#FFFFD84D" />
+                                <Setter Property="Foreground" Value="#FF161616" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style TargetType="CheckBox">
             <Setter Property="Foreground" Value="#FFE6E6E6" />
             <Setter Property="FontSize" Value="13" />
@@ -237,6 +273,23 @@
             <PasswordBox x:Name="ApiKeyBox"
                          Margin="0,6,0,0"
                          PasswordChar="*" />
+
+            <TextBlock Margin="0,16,0,0"
+                       Text="Result format"
+                       Style="{StaticResource MutedText}" />
+            <UniformGrid Margin="0,6,0,0"
+                         Columns="2">
+                <RadioButton x:Name="TextFormatButton"
+                             Margin="0,0,4,0"
+                             Content="Text"
+                             GroupName="ResultFormat"
+                             Style="{StaticResource SegmentButton}" />
+                <RadioButton x:Name="ImageFormatButton"
+                             Margin="4,0,0,0"
+                             Content="Image"
+                             GroupName="ResultFormat"
+                             Style="{StaticResource SegmentButton}" />
+            </UniformGrid>
 
             <Grid Margin="0,16,0,0">
                 <Grid.ColumnDefinitions>
