@@ -21,9 +21,10 @@ Right-click the floating window and choose `Settings`.
 - Model: `google/gemini-3.1-flash-lite-preview`
 - Default languages: Chinese to Vietnamese
 - The app uses vision-to-text translation, so it does not generate edited image output.
-- API key storage: encrypted for the current Windows user with DPAPI
+- API key storage: encrypted for the current Windows user with DPAPI in `data/settings.json`
 - Run on startup: optional per-user Windows startup entry; disabling it removes Peek's startup entry
-- Log: `%LOCALAPPDATA%\Peek\peek.log.jsonl`
+- Log: `data/peek.log.jsonl`
+- Local data cleanup: delete the `data` folder next to `Peek.exe`
 - Cost tracking: cumulative total is stored locally, and each request is written as a structured `usage` event in the log
 
 ## Run

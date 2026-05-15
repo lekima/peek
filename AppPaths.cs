@@ -1,0 +1,29 @@
+using System.Diagnostics;
+using System.IO;
+
+namespace Peek;
+
+public static class AppPaths
+{
+    public static string AppDirectory
+    {
+        get
+        {
+            var processPath = Environment.ProcessPath;
+            if (string.IsNullOrWhiteSpace(processPath))
+            {
+                processPath = Process.GetCurrentProcess().MainModule?.FileName;
+            }
+
+            var directory = string.IsNullOrWhiteSpace(processPath)
+                ? AppContext.BaseDirectory
+                : Path.GetDirectoryName(processPath);
+
+            return string.IsNullOrWhiteSpace(directory)
+                ? Directory.GetCurrentDirectory()
+                : directory;
+        }
+    }
+
+    public static string DataDirectory => Path.Combine(AppDirectory, "data");
+}

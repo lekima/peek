@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+
 namespace Peek;
 
 public partial class SettingsWindow : Window
@@ -43,15 +44,29 @@ public partial class SettingsWindow : Window
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
-        _config.ApiKey = ApiKeyBox.Password.Trim();
-        _config.Model = (ModelBox.SelectedItem as ComboBoxItem)?.Tag as string ?? AppConfig.DefaultModel;
-        _config.FromLanguage = string.IsNullOrWhiteSpace(FromLanguageBox.Text)
+        var apiKey = ApiKeyBox.Password.Trim();
+        var model = (ModelBox.SelectedItem as ComboBoxItem)?.Tag as string ?? AppConfig.DefaultModel;
+        var fromLanguage = string.IsNullOrWhiteSpace(FromLanguageBox.Text)
             ? "Chinese"
             : FromLanguageBox.Text.Trim();
-        _config.ToLanguage = string.IsNullOrWhiteSpace(ToLanguageBox.Text)
+        var toLanguage = string.IsNullOrWhiteSpace(ToLanguageBox.Text)
             ? "Vietnamese"
             : ToLanguageBox.Text.Trim();
-        StartupService.SetEnabled(StartupBox.IsChecked == true);
+
+        try
+        {
+            StartupService.SetEnabled(StartupBox.IsChecked == true);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Startup setting", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        _config.ApiKey = apiKey;
+        _config.Model = model;
+        _config.FromLanguage = fromLanguage;
+        _config.ToLanguage = toLanguage;
 
         DialogResult = true;
         Close();

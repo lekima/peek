@@ -1,5 +1,6 @@
 bin/
 obj/
+data/
 releases/*
 !releases/Peek-win-x64.zip
 .vs/

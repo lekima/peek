@@ -18,7 +18,6 @@ public sealed class AppConfig
     public string Model { get; set; } = DefaultModel;
     public string FromLanguage { get; set; } = "Chinese";
     public string ToLanguage { get; set; } = "Vietnamese";
-    public double PopupOpacity { get; set; } = 0.2;
     public decimal TotalCostUsd { get; set; }
 }
 
@@ -30,7 +29,6 @@ public sealed class StoredAppConfig
     public string Model { get; set; } = AppConfig.DefaultModel;
     public string FromLanguage { get; set; } = "Chinese";
     public string ToLanguage { get; set; } = "Vietnamese";
-    public double PopupOpacity { get; set; } = 0.2;
     public decimal TotalCostUsd { get; set; }
 }
 
@@ -42,20 +40,17 @@ public static class AppConfigStore
     };
 
     private static string ConfigPath =>
-        Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Peek",
-            "settings.json");
+        Path.Combine(AppPaths.DataDirectory, "settings.json");
 
     public static AppConfig Load()
     {
-        if (!File.Exists(ConfigPath))
-        {
-            return new AppConfig();
-        }
-
         try
         {
+            if (!File.Exists(ConfigPath))
+            {
+                return new AppConfig();
+            }
+
             var stored = JsonSerializer.Deserialize<StoredAppConfig>(File.ReadAllText(ConfigPath)) ?? new StoredAppConfig();
             return new AppConfig
             {
@@ -63,7 +58,6 @@ public static class AppConfigStore
                 Model = NormalizeModel(stored.Model),
                 FromLanguage = string.IsNullOrWhiteSpace(stored.FromLanguage) ? "Chinese" : stored.FromLanguage,
                 ToLanguage = string.IsNullOrWhiteSpace(stored.ToLanguage) ? "Vietnamese" : stored.ToLanguage,
-                PopupOpacity = stored.PopupOpacity,
                 TotalCostUsd = stored.TotalCostUsd
             };
         }
@@ -83,7 +77,6 @@ public static class AppConfigStore
             Model = string.IsNullOrWhiteSpace(config.Model) ? AppConfig.DefaultModel : config.Model,
             FromLanguage = string.IsNullOrWhiteSpace(config.FromLanguage) ? "Chinese" : config.FromLanguage,
             ToLanguage = string.IsNullOrWhiteSpace(config.ToLanguage) ? "Vietnamese" : config.ToLanguage,
-            PopupOpacity = config.PopupOpacity,
             TotalCostUsd = config.TotalCostUsd
         };
 

@@ -13,9 +13,7 @@ public static class AppLogger
     };
 
     public static string LogDirectory =>
-        Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Peek");
+        AppPaths.DataDirectory;
 
     public static string LogPath => Path.Combine(LogDirectory, "peek.log.jsonl");
 
@@ -70,11 +68,18 @@ public static class AppLogger
 
     private static void WriteJson<T>(T entry)
     {
-        lock (Lock)
+        try
         {
-            Directory.CreateDirectory(LogDirectory);
-            RotateLogIfNeeded();
-            File.AppendAllText(LogPath, JsonSerializer.Serialize(entry, JsonOptions) + Environment.NewLine);
+            lock (Lock)
+            {
+                Directory.CreateDirectory(LogDirectory);
+                RotateLogIfNeeded();
+                File.AppendAllText(LogPath, JsonSerializer.Serialize(entry, JsonOptions) + Environment.NewLine);
+            }
+        }
+        catch
+        {
+            // Logging must never interrupt the overlay or a translation result.
         }
     }
 

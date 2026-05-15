@@ -12,7 +12,7 @@ public static class StartupService
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, false);
         return key?.GetValue(AppName) is string value &&
-               string.Equals(value, GetStartupCommand(), StringComparison.OrdinalIgnoreCase);
+               !string.IsNullOrWhiteSpace(value);
     }
 
     public static void SetEnabled(bool enabled)

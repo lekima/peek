@@ -61,14 +61,21 @@ public sealed class OpenRouterClient
         AppLogger.Info($"operation={operationId} openrouter.request model={config.Model} from={fromLanguage} to={toLanguage} capture={bitmap.Width}x{bitmap.Height}");
 
         var (statusCode, body) = await SendCompletionAsync(config, payload, cancellationToken);
+        var providerError = (int)statusCode >= 200 && (int)statusCode < 300
+            ? null
+            : ExtractProviderError(body);
+
         AppLogger.Info(
-            (int)statusCode >= 200 && (int)statusCode < 300
+            providerError is null
                 ? $"operation={operationId} openrouter.response status={(int)statusCode}"
-                : $"operation={operationId} openrouter.response status={(int)statusCode} body={TrimForDebug(body)}");
+                : $"operation={operationId} openrouter.response status={(int)statusCode} provider_error={providerError}");
 
         if ((int)statusCode < 200 || (int)statusCode >= 300)
         {
-            throw new InvalidOperationException($"OpenRouter error {(int)statusCode}: {TrimForDisplay(body)}");
+            throw new InvalidOperationException(
+                providerError is null
+                    ? $"OpenRouter error {(int)statusCode}."
+                    : $"OpenRouter error {(int)statusCode}: {providerError}");
         }
 
         using var document = JsonDocument.Parse(body);
@@ -203,6 +210,36 @@ public sealed class OpenRouterClient
             : null;
     }
 
+    private static string? ExtractProviderError(string body)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            if (!document.RootElement.TryGetProperty("error", out var error))
+            {
+                return null;
+            }
+
+            if (error.ValueKind == JsonValueKind.String)
+            {
+                return TrimForDisplay(error.GetString() ?? string.Empty);
+            }
+
+            if (error.ValueKind == JsonValueKind.Object &&
+                error.TryGetProperty("message", out var message) &&
+                message.ValueKind == JsonValueKind.String)
+            {
+                return TrimForDisplay(message.GetString() ?? string.Empty);
+            }
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+
+        return null;
+    }
+
     public static string FormatCost(decimal cost)
     {
         return cost <= 0 ? "$0.00000000" : $"${cost:0.00000000}";
@@ -214,11 +251,6 @@ public sealed class OpenRouterClient
         return value.Length <= 500 ? value : value[..500] + "...";
     }
 
-    private static string TrimForDebug(string value)
-    {
-        value = value.Trim();
-        return value.Length <= 1200 ? value : value[..1200] + "...";
-    }
 }
 
 public sealed record TokenUsage(int PromptTokens, int CompletionTokens, int TotalTokens);

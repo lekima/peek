@@ -40,7 +40,7 @@
                 ContextMenu="{StaticResource WindowMenu}"
                 Visibility="Collapsed"
                 IsHitTestVisible="False">
-            <Grid MouseLeftButtonDown="Frame_MouseLeftButtonDown">
+            <Grid>
                 <Border x:Name="ResultPanel"
                         Margin="0"
                         Padding="7,5"

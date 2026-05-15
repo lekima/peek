@@ -13,8 +13,6 @@ public partial class MainWindow : Window
 {
     private const double CollapsedWidth = 84;
     private const double CollapsedHeight = 24;
-    private const double DefaultExpandedWidth = 168;
-    private const double DefaultExpandedHeight = 204;
     private const double FrameRevealHeight = 48;
     private const double MaxResultFontSize = 24;
     private const double MinResultFontSize = 8;
@@ -55,7 +53,6 @@ public partial class MainWindow : Window
         InitializeComponent();
         _lockedDragTimer.Tick += (_, _) => UpdateLockedDragPosition();
         _lockedResizeTimer.Tick += (_, _) => UpdateLockedResize();
-        ApplyOpacity();
     }
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
@@ -75,16 +72,6 @@ public partial class MainWindow : Window
         {
             source.AddHook(WindowMessageHook);
         }
-    }
-
-    private void Frame_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (e.OriginalSource == DragButton || e.OriginalSource == TranslateButton || e.OriginalSource == ClearButton || e.OriginalSource == ResizeRowButton || e.OriginalSource == ResizeCornerButton)
-        {
-            return;
-        }
-
-        DragMove();
     }
 
     private nint WindowMessageHook(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)
@@ -452,7 +439,15 @@ public partial class MainWindow : Window
     {
         if (sender is MenuItem item)
         {
-            StartupService.SetEnabled(item.IsChecked);
+            try
+            {
+                StartupService.SetEnabled(item.IsChecked);
+            }
+            catch (Exception ex)
+            {
+                item.IsChecked = StartupService.IsEnabled();
+                MessageBox.Show(this, ex.Message, "Startup setting", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
     }
 
@@ -504,9 +499,10 @@ public partial class MainWindow : Window
             }
         }
 
-        _translationCancellation?.Cancel();
+        _translationCancellation?.Dispose();
         _translationCancellation = new CancellationTokenSource();
-        var cancellationToken = _translationCancellation.Token;
+        var cancellationSource = _translationCancellation;
+        var cancellationToken = cancellationSource.Token;
         var operationId = Guid.NewGuid().ToString("N")[..12];
         var stopwatch = Stopwatch.StartNew();
         var captureWidth = 0;
@@ -562,7 +558,22 @@ public partial class MainWindow : Window
         finally
         {
             SetBusy(false);
+            if (ReferenceEquals(_translationCancellation, cancellationSource))
+            {
+                _translationCancellation.Dispose();
+                _translationCancellation = null;
+            }
         }
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _translationCancellation?.Cancel();
+        _translationCancellation?.Dispose();
+        _translationCancellation = null;
+        _lockedDragTimer.Stop();
+        _lockedResizeTimer.Stop();
+        base.OnClosed(e);
     }
 
     private void OpenSettings()
@@ -574,14 +585,15 @@ public partial class MainWindow : Window
 
         if (settings.ShowDialog() == true)
         {
-            AppConfigStore.Save(_config);
-            ApplyOpacity();
+            try
+            {
+                AppConfigStore.Save(_config);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, ex.Message, "Settings", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
-    }
-
-    private void ApplyOpacity()
-    {
-        FrameBorder.Background = Brushes.Transparent;
     }
 
     private void SetBusy(bool busy)
@@ -633,7 +645,14 @@ public partial class MainWindow : Window
         if (cost > 0)
         {
             _config.TotalCostUsd += cost;
-            AppConfigStore.Save(_config);
+            try
+            {
+                AppConfigStore.Save(_config);
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error("Could not save total cost.", ex);
+            }
         }
 
         var entry = new UsageLogEntry(
