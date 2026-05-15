@@ -5,7 +5,6 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
-using System.Windows.Controls;
 using System.Windows.Threading;
 using System.IO;
 using Drawing = System.Drawing;
@@ -71,15 +70,6 @@ public partial class MainWindow : Window
     private void InitializeTrayIcon()
     {
         _trayMenu = new Forms.ContextMenuStrip();
-        var startupItem = new Forms.ToolStripMenuItem("Run on startup")
-        {
-            CheckOnClick = true
-        };
-        startupItem.Click += (_, _) => Dispatcher.Invoke(() => ToggleStartupFromTray(startupItem));
-        _trayMenu.Opening += (_, _) => startupItem.Checked = StartupService.IsEnabled();
-
-        _trayMenu.Items.Add(startupItem);
-        _trayMenu.Items.Add(new Forms.ToolStripSeparator());
         _trayMenu.Items.Add("Settings", null, (_, _) => Dispatcher.Invoke(OpenSettings));
         _trayMenu.Items.Add("Quit", null, (_, _) => Dispatcher.Invoke(Close));
 
@@ -96,19 +86,6 @@ public partial class MainWindow : Window
             Show();
             Activate();
         });
-    }
-
-    private void ToggleStartupFromTray(Forms.ToolStripMenuItem item)
-    {
-        try
-        {
-            StartupService.SetEnabled(item.Checked);
-        }
-        catch (Exception ex)
-        {
-            item.Checked = StartupService.IsEnabled();
-            MessageBox.Show(this, ex.Message, "Startup setting", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
     }
 
     private Drawing.Icon CreateTrayIcon()
@@ -551,40 +528,6 @@ public partial class MainWindow : Window
     private void SettingsMenu_Click(object sender, RoutedEventArgs e)
     {
         OpenSettings();
-    }
-
-    private void StartupMenu_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is MenuItem item)
-        {
-            try
-            {
-                StartupService.SetEnabled(item.IsChecked);
-            }
-            catch (Exception ex)
-            {
-                item.IsChecked = StartupService.IsEnabled();
-                MessageBox.Show(this, ex.Message, "Startup setting", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
-        }
-    }
-
-    private void WindowMenu_Opened(object sender, RoutedEventArgs e)
-    {
-        if (sender is not ContextMenu menu)
-        {
-            return;
-        }
-
-        foreach (var item in menu.Items.OfType<MenuItem>())
-        {
-            if (item.Header is string header &&
-                string.Equals(header, "Run on startup", StringComparison.Ordinal))
-            {
-                item.IsChecked = StartupService.IsEnabled();
-                return;
-            }
-        }
     }
 
     private void QuitMenu_Click(object sender, RoutedEventArgs e)

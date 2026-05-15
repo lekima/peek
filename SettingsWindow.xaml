@@ -155,111 +155,37 @@
             </Setter>
         </Style>
 
-        <Style TargetType="ComboBoxItem">
-            <Setter Property="MinHeight" Value="28" />
-            <Setter Property="Padding" Value="8,5" />
-            <Setter Property="Background" Value="#FF202020" />
-            <Setter Property="Foreground" Value="#FFF2F2F2" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ComboBoxItem">
-                        <Border x:Name="Root"
-                                Background="{TemplateBinding Background}"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#FF303030" />
-                            </Trigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#FF3A3420" />
-                                <Setter Property="Foreground" Value="#FFFFD84D" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style TargetType="ComboBox">
+        <Style x:Key="SegmentButton" TargetType="RadioButton">
             <Setter Property="Height" Value="32" />
-            <Setter Property="Padding" Value="5,0" />
+            <Setter Property="Foreground" Value="#FFEDEDED" />
             <Setter Property="Background" Value="#FF202020" />
-            <Setter Property="Foreground" Value="#FFF2F2F2" />
             <Setter Property="BorderBrush" Value="#FF3C3C3C" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
-                    <ControlTemplate TargetType="ComboBox">
-                        <Grid>
-                            <ToggleButton x:Name="ToggleButton"
-                                          Focusable="False"
-                                          Background="{TemplateBinding Background}"
-                                          Foreground="{TemplateBinding Foreground}"
-                                          BorderBrush="{TemplateBinding BorderBrush}"
-                                          BorderThickness="{TemplateBinding BorderThickness}"
-                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
-                                          ClickMode="Press">
-                                <ToggleButton.Template>
-                                    <ControlTemplate TargetType="ToggleButton">
-                                        <Border x:Name="Root"
-                                                Background="{TemplateBinding Background}"
-                                                BorderBrush="{TemplateBinding BorderBrush}"
-                                                BorderThickness="{TemplateBinding BorderThickness}"
-                                                CornerRadius="4">
-                                            <Grid>
-                                                <Path Width="8"
-                                                      Height="5"
-                                                      Margin="0,0,10,0"
-                                                      HorizontalAlignment="Right"
-                                                      VerticalAlignment="Center"
-                                                      Fill="#FFB8B8B8"
-                                                      Data="M 0 0 L 8 0 L 4 5 Z" />
-                                            </Grid>
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="Root" Property="BorderBrush" Value="#FF555555" />
-                                                <Setter TargetName="Root" Property="Background" Value="#FF252525" />
-                                            </Trigger>
-                                            <Trigger Property="IsChecked" Value="True">
-                                                <Setter TargetName="Root" Property="BorderBrush" Value="#FFFFD84D" />
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </ToggleButton.Template>
-                            </ToggleButton>
-
-                            <ContentPresenter x:Name="ContentSite"
-                                              Margin="7,0,28,0"
-                                              HorizontalAlignment="Left"
-                                              VerticalAlignment="Center"
-                                              Content="{TemplateBinding SelectionBoxItem}"
-                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                              ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
-                                              IsHitTestVisible="False" />
-
-                            <Popup x:Name="Popup"
-                                   Placement="Bottom"
-                                   IsOpen="{TemplateBinding IsDropDownOpen}"
-                                   AllowsTransparency="True"
-                                   Focusable="False"
-                                   PopupAnimation="Fade">
-                                <Border MinWidth="{TemplateBinding ActualWidth}"
-                                        MaxHeight="{TemplateBinding MaxDropDownHeight}"
-                                        Margin="0,4,0,0"
-                                        Background="#FF202020"
-                                        BorderBrush="#FF3C3C3C"
-                                        BorderThickness="1"
-                                        CornerRadius="4">
-                                    <ScrollViewer CanContentScroll="True">
-                                        <ItemsPresenter />
-                                    </ScrollViewer>
-                                </Border>
-                            </Popup>
-                        </Grid>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#FF252525" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#FF555555" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#FFFFD84D" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#FFFFD84D" />
+                                <Setter Property="Foreground" Value="#FF161616" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -347,11 +273,21 @@
                          PasswordChar="*" />
 
             <TextBlock Margin="0,16,0,0"
-                       Text="Model"
+                       Text="Result format"
                        Style="{StaticResource MutedText}" />
-            <ComboBox x:Name="ModelBox"
-                      Margin="0,6,0,0"
-                      IsEditable="False" />
+            <UniformGrid Margin="0,6,0,0"
+                         Columns="2">
+                <RadioButton x:Name="TextFormatButton"
+                             Margin="0,0,4,0"
+                             Content="Text"
+                             GroupName="ResultFormat"
+                             Style="{StaticResource SegmentButton}" />
+                <RadioButton x:Name="ImageFormatButton"
+                             Margin="4,0,0,0"
+                             Content="Image"
+                             GroupName="ResultFormat"
+                             Style="{StaticResource SegmentButton}" />
+            </UniformGrid>
 
             <Grid Margin="0,16,0,0">
                 <Grid.ColumnDefinitions>

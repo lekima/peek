@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
-using System.Windows.Controls;
 using MessageBox = System.Windows.MessageBox;
 
 namespace Peek;
@@ -15,38 +14,19 @@ public partial class SettingsWindow : Window
         InitializeComponent();
         _config = config;
         ApiKeyBox.Password = config.ApiKey;
-        PopulateModels(config.Model);
+        TextFormatButton.IsChecked = !AppConfig.IsImageEditModel(config.Model);
+        ImageFormatButton.IsChecked = AppConfig.IsImageEditModel(config.Model);
         FromLanguageBox.Text = string.IsNullOrWhiteSpace(config.FromLanguage) ? "Chinese" : config.FromLanguage;
         ToLanguageBox.Text = string.IsNullOrWhiteSpace(config.ToLanguage) ? "Vietnamese" : config.ToLanguage;
         StartupBox.IsChecked = StartupService.IsEnabled();
     }
 
-    private void PopulateModels(string selectedModel)
-    {
-        ModelBox.Items.Clear();
-
-        foreach (var option in AppConfig.ModelOptions)
-        {
-            var item = new ComboBoxItem
-            {
-                Content = $"{option.Mode} - {option.Name}",
-                Tag = option.Id
-            };
-
-            ModelBox.Items.Add(item);
-            if (string.Equals(option.Id, selectedModel, StringComparison.OrdinalIgnoreCase))
-            {
-                ModelBox.SelectedItem = item;
-            }
-        }
-
-        ModelBox.SelectedItem ??= ModelBox.Items[0];
-    }
-
     private void Save_Click(object sender, RoutedEventArgs e)
     {
         var apiKey = ApiKeyBox.Password.Trim();
-        var model = (ModelBox.SelectedItem as ComboBoxItem)?.Tag as string ?? AppConfig.DefaultModel;
+        var model = ImageFormatButton.IsChecked == true
+            ? AppConfig.Gemini31FlashImageModel
+            : AppConfig.Gemini31FlashLiteModel;
         var fromLanguage = string.IsNullOrWhiteSpace(FromLanguageBox.Text)
             ? "Chinese"
             : FromLanguageBox.Text.Trim();

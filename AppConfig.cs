@@ -10,11 +10,6 @@ public sealed class AppConfig
     public const string Gemini31FlashLiteModel = "google/gemini-3.1-flash-lite-preview";
     public const string Gemini31FlashImageModel = "google/gemini-3.1-flash-image-preview";
     public const string DefaultModel = Gemini31FlashLiteModel;
-    public static readonly ModelOption[] ModelOptions =
-    [
-        new("Text", "Gemini 3.1 Flash Lite Preview", Gemini31FlashLiteModel),
-        new("Image", "Gemini 3.1 Flash Image Preview", Gemini31FlashImageModel)
-    ];
 
     public string ApiKey { get; set; } = string.Empty;
     public string Model { get; set; } = DefaultModel;
@@ -25,8 +20,6 @@ public sealed class AppConfig
     public static bool IsImageEditModel(string model) =>
         string.Equals(model, Gemini31FlashImageModel, StringComparison.OrdinalIgnoreCase);
 }
-
-public sealed record ModelOption(string Mode, string Name, string Id);
 
 public sealed class StoredAppConfig
 {
@@ -107,7 +100,8 @@ public static class AppConfigStore
             return AppConfig.DefaultModel;
         }
 
-        return AppConfig.ModelOptions.Any(option => string.Equals(option.Id, model, StringComparison.OrdinalIgnoreCase))
+        return string.Equals(model, AppConfig.Gemini31FlashLiteModel, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(model, AppConfig.Gemini31FlashImageModel, StringComparison.OrdinalIgnoreCase)
             ? model
             : AppConfig.DefaultModel;
     }
