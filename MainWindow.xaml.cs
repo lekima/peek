@@ -221,7 +221,23 @@ public partial class MainWindow : Window
 
     private void ResultPanel_SizeChanged(object sender, SizeChangedEventArgs e)
     {
+        UpdateResultPanelClip();
         FitResultText();
+    }
+
+    private void UpdateResultPanelClip()
+    {
+        if (ResultPanel.ActualWidth <= 0 || ResultPanel.ActualHeight <= 0)
+        {
+            ResultPanel.Clip = null;
+            return;
+        }
+
+        var radius = Math.Max(0, ResultPanel.CornerRadius.TopLeft);
+        ResultPanel.Clip = new RectangleGeometry(
+            new Rect(0, 0, ResultPanel.ActualWidth, ResultPanel.ActualHeight),
+            radius,
+            radius);
     }
 
     private void DragButton_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -775,6 +791,7 @@ public partial class MainWindow : Window
         ResultPanel.Padding = new Thickness(7, 5, 7, 5);
         ResultPanel.Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xE8, 0x11, 0x11, 0x11));
         ResultPanel.Visibility = Visibility.Visible;
+        UpdateResultPanelClip();
         FitResultText();
         Dispatcher.BeginInvoke(FitResultText, DispatcherPriority.Loaded);
     }
@@ -800,6 +817,7 @@ public partial class MainWindow : Window
         ResultPanel.Padding = new Thickness(0);
         ResultPanel.Background = System.Windows.Media.Brushes.Transparent;
         ResultPanel.Visibility = Visibility.Visible;
+        UpdateResultPanelClip();
         ClearStatus();
     }
 

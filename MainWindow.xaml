@@ -46,6 +46,8 @@
                         Padding="7,5"
                         Background="#E8111111"
                         CornerRadius="3"
+                        ClipToBounds="True"
+                        SnapsToDevicePixels="True"
                         Visibility="Collapsed"
                         SizeChanged="ResultPanel_SizeChanged"
                         IsHitTestVisible="False">
