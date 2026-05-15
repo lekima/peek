@@ -149,7 +149,7 @@
                       Height="10">
                     <Path x:Name="TranslateIcon"
                           Fill="#CC161616"
-                          Data="M 3 2 L 8 5 L 3 8 Z" />
+                          Data="M 2 1.5 L 8.8 5 L 2 8.5 Z" />
                     <Grid x:Name="TranslateSpinner"
                           Width="8"
                           Height="8"
