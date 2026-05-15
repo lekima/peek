@@ -11,10 +11,5 @@ internal static class Win32
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);
 
-    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static extern bool DestroyIcon(IntPtr hIcon);
-
     public static int GetLastError() => Marshal.GetLastWin32Error();
 }

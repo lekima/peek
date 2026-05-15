@@ -6,6 +6,7 @@ using System.Net;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 
 namespace Peek;
@@ -216,13 +217,56 @@ internal static class OpenRouterClient
 
     private static string ExtractTextContent(JsonElement message)
     {
-        if (!message.TryGetProperty("content", out var contentElement) ||
-            contentElement.ValueKind != JsonValueKind.String)
+        if (!message.TryGetProperty("content", out var contentElement))
         {
             return string.Empty;
         }
 
-        return contentElement.GetString() ?? string.Empty;
+        if (contentElement.ValueKind == JsonValueKind.String)
+        {
+            return contentElement.GetString() ?? string.Empty;
+        }
+
+        if (contentElement.ValueKind != JsonValueKind.Array)
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder();
+        foreach (var item in contentElement.EnumerateArray())
+        {
+            var text = ExtractTextPart(item);
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                continue;
+            }
+
+            if (builder.Length > 0)
+            {
+                builder.AppendLine();
+            }
+
+            builder.Append(text);
+        }
+
+        return builder.ToString();
+    }
+
+    private static string ExtractTextPart(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.String)
+        {
+            return element.GetString() ?? string.Empty;
+        }
+
+        if (element.ValueKind == JsonValueKind.Object &&
+            element.TryGetProperty("text", out var textElement) &&
+            textElement.ValueKind == JsonValueKind.String)
+        {
+            return textElement.GetString() ?? string.Empty;
+        }
+
+        return string.Empty;
     }
 
     private static JsonElement ExtractFirstChoiceMessage(JsonElement root)
@@ -297,19 +341,37 @@ internal static class OpenRouterClient
 
     private static string ExtractFirstImageDataUrl(JsonElement message)
     {
-        if (message.TryGetProperty("images", out var images) &&
-            images.ValueKind == JsonValueKind.Array)
+        return FindFirstImageDataUrl(message);
+    }
+
+    private static string FindFirstImageDataUrl(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.String &&
+            IsImageDataUrl(element.GetString(), out var imageUrl))
         {
-            foreach (var image in images.EnumerateArray())
+            return imageUrl;
+        }
+
+        if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray())
             {
-                if (image.ValueKind == JsonValueKind.Object &&
-                    image.TryGetProperty("image_url", out var imageObject) &&
-                    imageObject.ValueKind == JsonValueKind.Object &&
-                    imageObject.TryGetProperty("url", out var urlElement) &&
-                    urlElement.ValueKind == JsonValueKind.String &&
-                    IsImageDataUrl(urlElement.GetString(), out var url))
+                var nestedImageUrl = FindFirstImageDataUrl(item);
+                if (!string.IsNullOrWhiteSpace(nestedImageUrl))
                 {
-                    return url;
+                    return nestedImageUrl;
+                }
+            }
+        }
+
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in element.EnumerateObject())
+            {
+                var nestedImageUrl = FindFirstImageDataUrl(property.Value);
+                if (!string.IsNullOrWhiteSpace(nestedImageUrl))
+                {
+                    return nestedImageUrl;
                 }
             }
         }

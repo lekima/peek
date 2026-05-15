@@ -37,6 +37,7 @@ internal sealed partial class MainWindow : Window
     private const int WmNcHitTest = 0x0084;
     private const nint HtClient = 1;
     private const nint HtTransparent = -1;
+    private static readonly Uri AppIconUri = new("pack://application:,,,/Resources/AppIcon.ico", UriKind.Absolute);
 
     private AppConfig _config = AppConfigStore.Load();
     private CancellationTokenSource? _translationCancellation;
@@ -89,46 +90,13 @@ internal sealed partial class MainWindow : Window
     {
         _trayIconImage?.Dispose();
 
-        using var bitmap = new Drawing.Bitmap(32, 32);
-        using var graphics = Drawing.Graphics.FromImage(bitmap);
-        graphics.SmoothingMode = Drawing.Drawing2D.SmoothingMode.AntiAlias;
-        graphics.Clear(Drawing.Color.Transparent);
+        var streamInfo = System.Windows.Application.GetResourceStream(AppIconUri) ??
+            throw new InvalidOperationException("Application icon resource is missing.");
+        using var stream = streamInfo.Stream;
+        using var icon = new Drawing.Icon(stream);
 
-        using var buttonPath = RoundedRectangle(2, 2, 28, 28, 6);
-        using var buttonBrush = new Drawing.SolidBrush(Drawing.Color.FromArgb(0xDD, 0xFD, 0xD8, 0x4D));
-        graphics.FillPath(buttonBrush, buttonPath);
-
-        using var dotBrush = new Drawing.SolidBrush(Drawing.Color.FromArgb(0xCC, 0x16, 0x16, 0x16));
-        graphics.FillEllipse(dotBrush, 9, 9, 4, 4);
-        graphics.FillEllipse(dotBrush, 19, 9, 4, 4);
-        graphics.FillEllipse(dotBrush, 9, 19, 4, 4);
-        graphics.FillEllipse(dotBrush, 19, 19, 4, 4);
-
-        var handle = bitmap.GetHicon();
-        try
-        {
-            _trayIconImage = (Drawing.Icon)Drawing.Icon.FromHandle(handle).Clone();
-        }
-        finally
-        {
-            Win32.DestroyIcon(handle);
-        }
-
+        _trayIconImage = (Drawing.Icon)icon.Clone();
         return _trayIconImage;
-    }
-
-    private static Drawing.Drawing2D.GraphicsPath RoundedRectangle(int x, int y, int width, int height, int radius)
-    {
-        var path = new Drawing.Drawing2D.GraphicsPath();
-        var diameter = radius * 2;
-
-        path.AddArc(x, y, diameter, diameter, 180, 90);
-        path.AddArc(x + width - diameter, y, diameter, diameter, 270, 90);
-        path.AddArc(x + width - diameter, y + height - diameter, diameter, diameter, 0, 90);
-        path.AddArc(x, y + height - diameter, diameter, diameter, 90, 90);
-        path.CloseFigure();
-
-        return path;
     }
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
@@ -511,7 +479,6 @@ internal sealed partial class MainWindow : Window
         {
             stopwatch.Stop();
             AppLogger.Info($"operation={operationId} translate.cancelled");
-            SetStatus("Cancelled");
         }
         catch (Exception ex)
         {
