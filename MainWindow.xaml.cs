@@ -6,6 +6,12 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Controls;
 using System.Windows.Threading;
+using Drawing = System.Drawing;
+using Forms = System.Windows.Forms;
+using MessageBox = System.Windows.MessageBox;
+using MouseEventArgs = System.Windows.Input.MouseEventArgs;
+using Point = System.Windows.Point;
+using Size = System.Windows.Size;
 
 namespace Peek;
 
@@ -35,6 +41,8 @@ public partial class MainWindow : Window
     private bool _isResizeLocked;
     private bool _resizeExpandedDuringInteraction;
     private bool _isTranslating;
+    private Forms.NotifyIcon? _trayIcon;
+    private Drawing.Icon? _trayIconImage;
     private readonly DispatcherTimer _lockedDragTimer = new()
     {
         Interval = TimeSpan.FromMilliseconds(16)
@@ -53,6 +61,74 @@ public partial class MainWindow : Window
         InitializeComponent();
         _lockedDragTimer.Tick += (_, _) => UpdateLockedDragPosition();
         _lockedResizeTimer.Tick += (_, _) => UpdateLockedResize();
+        InitializeTrayIcon();
+    }
+
+    private void InitializeTrayIcon()
+    {
+        var trayMenu = new Forms.ContextMenuStrip();
+        trayMenu.Items.Add("Settings", null, (_, _) => Dispatcher.Invoke(OpenSettings));
+        trayMenu.Items.Add("Quit", null, (_, _) => Dispatcher.Invoke(Close));
+
+        _trayIcon = new Forms.NotifyIcon
+        {
+            Text = "Peek",
+            Icon = CreateTrayIcon(),
+            ContextMenuStrip = trayMenu,
+            Visible = true
+        };
+
+        _trayIcon.DoubleClick += (_, _) => Dispatcher.Invoke(() =>
+        {
+            Show();
+            Activate();
+        });
+    }
+
+    private Drawing.Icon CreateTrayIcon()
+    {
+        _trayIconImage?.Dispose();
+
+        using var bitmap = new Drawing.Bitmap(32, 32);
+        using var graphics = Drawing.Graphics.FromImage(bitmap);
+        graphics.SmoothingMode = Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        graphics.Clear(Drawing.Color.Transparent);
+
+        using var buttonPath = RoundedRectangle(2, 2, 28, 28, 6);
+        using var buttonBrush = new Drawing.SolidBrush(Drawing.Color.FromArgb(0xDD, 0xFD, 0xD8, 0x4D));
+        graphics.FillPath(buttonBrush, buttonPath);
+
+        using var dotBrush = new Drawing.SolidBrush(Drawing.Color.FromArgb(0xCC, 0x16, 0x16, 0x16));
+        graphics.FillEllipse(dotBrush, 9, 9, 4, 4);
+        graphics.FillEllipse(dotBrush, 19, 9, 4, 4);
+        graphics.FillEllipse(dotBrush, 9, 19, 4, 4);
+        graphics.FillEllipse(dotBrush, 19, 19, 4, 4);
+
+        var handle = bitmap.GetHicon();
+        try
+        {
+            _trayIconImage = (Drawing.Icon)Drawing.Icon.FromHandle(handle).Clone();
+        }
+        finally
+        {
+            Win32.DestroyIcon(handle);
+        }
+
+        return _trayIconImage;
+    }
+
+    private static Drawing.Drawing2D.GraphicsPath RoundedRectangle(int x, int y, int width, int height, int radius)
+    {
+        var path = new Drawing.Drawing2D.GraphicsPath();
+        var diameter = radius * 2;
+
+        path.AddArc(x, y, diameter, diameter, 180, 90);
+        path.AddArc(x + width - diameter, y, diameter, diameter, 270, 90);
+        path.AddArc(x + width - diameter, y + height - diameter, diameter, diameter, 0, 90);
+        path.AddArc(x, y + height - diameter, diameter, diameter, 90, 90);
+        path.CloseFigure();
+
+        return path;
     }
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
@@ -573,6 +649,16 @@ public partial class MainWindow : Window
         _translationCancellation = null;
         _lockedDragTimer.Stop();
         _lockedResizeTimer.Stop();
+        if (_trayIcon is not null)
+        {
+            _trayIcon.Visible = false;
+            _trayIcon.Dispose();
+            _trayIcon = null;
+        }
+
+        _trayIconImage?.Dispose();
+        _trayIconImage = null;
+
         base.OnClosed(e);
     }
 

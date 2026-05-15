@@ -13,6 +13,7 @@ The zip is self-contained for Windows x64, so it should not require a separate .
 - Use the four-button strip to move, translate, clear, and resize.
 - Drag the resize button downward to reveal the capture frame.
 - The app captures only the framed area underneath, sends the image to OpenRouter, then shows translated text inside the frame.
+- Peek stays available from the Windows notification area while running, using the same yellow move-button icon.
 
 ## Settings
 
