@@ -238,7 +238,8 @@
                           StrokeThickness="1.6"
                           StrokeStartLineCap="Round"
                           StrokeEndLineCap="Round"
-                          Data="M 2 8 L 8 8 L 8 2" />
+                          StrokeLineJoin="Round"
+                          Data="M 4 4 L 8 4 L 8 8 L 4 8 Z" />
                 </Grid>
             </Button>
         </StackPanel>
@@ -297,7 +298,8 @@
                       StrokeThickness="1.6"
                       StrokeStartLineCap="Round"
                       StrokeEndLineCap="Round"
-                      Data="M 2 8 L 8 8 L 8 2" />
+                      StrokeLineJoin="Round"
+                      Data="M 4 4 L 8 4 L 8 8 L 4 8 Z" />
             </Grid>
         </Button>
 
