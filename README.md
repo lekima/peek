@@ -2,6 +2,12 @@
 
 Minimal Windows overlay for manually translating a selected game-screen area.
 
+## Download
+
+Download `dist/Peek-win-x64.zip`, unzip it, then run `Peek.exe`.
+
+The zip is self-contained for Windows x64, so it should not require a separate .NET install. Windows SmartScreen may warn because the app is not code-signed.
+
 ## How it works
 
 - Use the four-button strip to move, translate, clear, and resize.
