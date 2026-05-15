@@ -91,29 +91,29 @@
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Button.Template>
-                <Grid Width="11"
-                      Height="11">
-                    <Ellipse Width="2"
-                             Height="2"
+                <Grid Width="10"
+                      Height="10">
+                    <Ellipse Width="1.6"
+                             Height="1.6"
                              Margin="2,2,0,0"
                              HorizontalAlignment="Left"
                              VerticalAlignment="Top"
                              Fill="#CC161616" />
-                    <Ellipse Width="2"
-                             Height="2"
-                             Margin="7,2,0,0"
+                    <Ellipse Width="1.6"
+                             Height="1.6"
+                             Margin="6.4,2,0,0"
                              HorizontalAlignment="Left"
                              VerticalAlignment="Top"
                              Fill="#CC161616" />
-                    <Ellipse Width="2"
-                             Height="2"
-                             Margin="2,7,0,0"
+                    <Ellipse Width="1.6"
+                             Height="1.6"
+                             Margin="2,6.4,0,0"
                              HorizontalAlignment="Left"
                              VerticalAlignment="Top"
                              Fill="#CC161616" />
-                    <Ellipse Width="2"
-                             Height="2"
-                             Margin="7,7,0,0"
+                    <Ellipse Width="1.6"
+                             Height="1.6"
+                             Margin="6.4,6.4,0,0"
                              HorizontalAlignment="Left"
                              VerticalAlignment="Top"
                              Fill="#CC161616" />
@@ -234,7 +234,7 @@
                 <Grid Width="10"
                       Height="10">
                     <Path Stroke="#CC161616"
-                          StrokeThickness="1.5"
+                          StrokeThickness="1.6"
                           StrokeStartLineCap="Round"
                           StrokeEndLineCap="Round"
                           Data="M 2 8 L 8 8 L 8 2" />
@@ -293,7 +293,7 @@
             <Grid Width="10"
                   Height="10">
                 <Path Stroke="#CC161616"
-                      StrokeThickness="1.5"
+                      StrokeThickness="1.6"
                       StrokeStartLineCap="Round"
                       StrokeEndLineCap="Round"
                       Data="M 2 8 L 8 8 L 8 2" />
