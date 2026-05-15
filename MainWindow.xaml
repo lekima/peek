@@ -7,9 +7,9 @@
         mc:Ignorable="d"
         Title="Peek"
         Height="24"
-        Width="105"
+        Width="106"
         MinHeight="24"
-        MinWidth="105"
+        MinWidth="106"
         WindowStyle="None"
         ResizeMode="NoResize"
         AllowsTransparency="True"
@@ -66,8 +66,8 @@
                     VerticalAlignment="Top"
                     Orientation="Horizontal">
             <Button x:Name="DragButton"
-                    Width="17"
-                    Height="17"
+                    Width="18"
+                    Height="18"
                     Margin="0,0,4,0"
                     Padding="0"
                     ContextMenu="{StaticResource WindowMenu}"
@@ -123,8 +123,8 @@
             </Button>
 
             <Button x:Name="TranslateTextButton"
-                    Width="17"
-                    Height="17"
+                    Width="18"
+                    Height="18"
                     Margin="0,0,4,0"
                     Padding="0"
                     Click="TranslateTextButton_Click">
@@ -157,25 +157,25 @@
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center" />
                     <Grid x:Name="TranslateTextSpinner"
-                          Width="11"
-                          Height="11"
+                          Width="9"
+                          Height="9"
                           Visibility="Collapsed"
                           RenderTransformOrigin="0.5,0.5">
                     <Grid.RenderTransform>
                         <RotateTransform x:Name="TranslateTextSpinnerRotate" Angle="0" />
                     </Grid.RenderTransform>
                     <Path Stroke="#CC161616"
-                          StrokeThickness="1.6"
+                          StrokeThickness="1.4"
                           StrokeStartLineCap="Round"
                           StrokeEndLineCap="Round"
-                          Data="M 5.5 1.2 A 4.3 4.3 0 1 1 2.45 8.55" />
+                          Data="M 4.5 1 A 3.5 3.5 0 1 1 2 7" />
                     </Grid>
                 </Grid>
             </Button>
 
             <Button x:Name="TranslateImageButton"
-                    Width="17"
-                    Height="17"
+                    Width="18"
+                    Height="18"
                     Margin="0,0,4,0"
                     Padding="0"
                     Click="TranslateImageButton_Click">
@@ -217,25 +217,25 @@
                                  Fill="#CC161616" />
                     </Grid>
                     <Grid x:Name="TranslateImageSpinner"
-                          Width="11"
-                          Height="11"
+                          Width="9"
+                          Height="9"
                           Visibility="Collapsed"
                           RenderTransformOrigin="0.5,0.5">
                     <Grid.RenderTransform>
                         <RotateTransform x:Name="TranslateImageSpinnerRotate" Angle="0" />
                     </Grid.RenderTransform>
                     <Path Stroke="#CC161616"
-                          StrokeThickness="1.6"
+                          StrokeThickness="1.4"
                           StrokeStartLineCap="Round"
                           StrokeEndLineCap="Round"
-                          Data="M 5.5 1.2 A 4.3 4.3 0 1 1 2.45 8.55" />
+                          Data="M 4.5 1 A 3.5 3.5 0 1 1 2 7" />
                     </Grid>
                 </Grid>
             </Button>
 
             <Button x:Name="ClearButton"
-                    Width="17"
-                    Height="17"
+                    Width="18"
+                    Height="18"
                     Margin="0,0,4,0"
                     Padding="0"
                     Click="ClearButton_Click">
@@ -269,8 +269,8 @@
             </Button>
 
             <Button x:Name="ResizeRowButton"
-                    Width="17"
-                    Height="17"
+                    Width="18"
+                    Height="18"
                     Padding="0"
                     PreviewMouseLeftButtonDown="ResizeButton_MouseLeftButtonDown"
                     PreviewMouseMove="ResizeButton_MouseMove"
@@ -308,7 +308,7 @@
         <Border x:Name="StatusLabel"
                 Margin="0,2,4,0"
                 Padding="6,0"
-                MinHeight="17"
+                MinHeight="18"
                 HorizontalAlignment="Right"
                 VerticalAlignment="Top"
                 Background="#DDFDD84D"
@@ -324,8 +324,8 @@
         </Border>
 
         <Button x:Name="ResizeCornerButton"
-                Width="17"
-                Height="17"
+                Width="18"
+                Height="18"
                 Margin="0,0,4,2"
                 Padding="0"
                 HorizontalAlignment="Right"

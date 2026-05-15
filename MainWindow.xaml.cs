@@ -28,7 +28,7 @@ public partial class MainWindow : Window
         Image
     }
 
-    private const double CollapsedWidth = 105;
+    private const double CollapsedWidth = 106;
     private const double CollapsedHeight = 24;
     private const double FrameRevealHeight = 48;
     private const double MaxResultFontSize = 24;

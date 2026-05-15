@@ -8,7 +8,7 @@ namespace Peek;
 
 public sealed class AppConfig
 {
-    public const string Gemini31FlashLiteModel = "google/gemini-3.1-flash-lite-preview";
+    public const string Gemini31FlashLiteModel = "google/gemini-3.1-flash-lite";
     public const string Gemini31FlashImageModel = "google/gemini-3.1-flash-image-preview";
 
     public string ApiKey { get; set; } = string.Empty;
