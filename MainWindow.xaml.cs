@@ -297,11 +297,6 @@ internal sealed partial class MainWindow : Window
         _resizeButtonDragged = false;
         _resizeExpandedDuringInteraction = false;
 
-        if (ResizeRowButton.IsMouseCaptured)
-        {
-            ResizeRowButton.ReleaseMouseCapture();
-        }
-
         if (ResizeCornerButton.IsMouseCaptured)
         {
             ResizeCornerButton.ReleaseMouseCapture();
@@ -707,7 +702,6 @@ internal sealed partial class MainWindow : Window
         ResultTextPanel.Visibility = Visibility.Visible;
         SetSearchButtons(operationId, searchQueries, targetGame, searchPrefix);
         ResultPanel.Padding = MaxResultTextPadding;
-        ResultPanel.Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xE6, 0x11, 0x11, 0x11));
         ResultPanel.Visibility = Visibility.Visible;
         UpdateResultPanelClip();
         FitResultText();
@@ -731,7 +725,6 @@ internal sealed partial class MainWindow : Window
         ResultTextPanel.Children.Clear();
         ResultTextPanel.Visibility = Visibility.Collapsed;
         ClearStatus();
-        ResultPanel.Visibility = Visibility.Collapsed;
         CollapseFrame();
     }
 

@@ -21,8 +21,6 @@ internal static class OpenRouterClient
     {
         BaseAddress = new Uri("https://openrouter.ai/")
     };
-    private static readonly JsonSerializerOptions ResponseJsonOptions = new();
-
     public static async Task<TextTranslationResult> TranslateImageToTextAsync(
         Bitmap bitmap,
         AppConfig config,
@@ -280,7 +278,7 @@ internal static class OpenRouterClient
 
         try
         {
-            var response = JsonSerializer.Deserialize<TextTranslationResponse>(content, ResponseJsonOptions);
+            var response = JsonSerializer.Deserialize<TextTranslationResponse>(content);
             var translation = response?.Translation?.Trim() ?? string.Empty;
             var searchQueries = SanitizeSearchQueries(response?.SearchQueries);
 

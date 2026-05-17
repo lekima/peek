@@ -9,11 +9,6 @@ internal static class AppLogger
     private const long MaxLogBytes = 25 * 1024 * 1024;
     private const int MaxArchiveFiles = 50;
     private static readonly object Lock = new();
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        WriteIndented = false
-    };
-
     private static string LogDirectory =>
         AppPaths.DataDirectory;
 
@@ -147,7 +142,7 @@ internal static class AppLogger
             {
                 Directory.CreateDirectory(LogDirectory);
                 RotateLogIfNeeded();
-                File.AppendAllText(LogPath, JsonSerializer.Serialize(entry, JsonOptions) + Environment.NewLine);
+                File.AppendAllText(LogPath, JsonSerializer.Serialize(entry) + Environment.NewLine);
             }
         }
         catch
