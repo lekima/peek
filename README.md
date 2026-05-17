@@ -28,7 +28,7 @@ Right-click the move button or the notification-area icon, then choose `Settings
 - Run on startup: optional per-user Windows startup entry; disabling it removes Peek's startup entry
 - Log: `data/peek.log.jsonl`
 - Review data: source captures are saved in `data/captures`, image-edit outputs in `data/results`, and text-mode translations/search queries are logged as `text_result` events.
-- Font: regular-weight Roboto and Roboto Condensed are bundled from Google Fonts under the SIL Open Font License in `Resources/Fonts`; Settings uses Roboto and overlay translation text uses Roboto Condensed.
+- Font: Roboto and Roboto Condensed are bundled from Google Fonts under the SIL Open Font License in `Resources/Fonts`; Settings uses regular Roboto and overlay translation text uses Roboto Condensed Semibold.
 - Local data cleanup: delete the `data` folder next to `Peek.exe`
 - Cost tracking: cumulative total is stored locally, and each request is written as a structured `usage` event in the log
 

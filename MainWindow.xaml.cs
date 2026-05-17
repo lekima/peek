@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Security;
 using System.Security.Cryptography;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -28,8 +29,12 @@ internal sealed partial class MainWindow : Window
     private const double CollapsedWidth = 84;
     private const double CollapsedHeight = 24;
     private const double FrameRevealHeight = 48;
-    private const double MaxResultFontSize = 20;
+    private const double MaxResultFontSize = 22;
     private const double MinResultFontSize = 10;
+    private const double MaxResultLineGap = 16;
+    private const double MinResultLineGap = 8;
+    private static readonly Thickness MaxResultTextPadding = new(16, 12, 16, 12);
+    private static readonly Thickness MinResultTextPadding = new(8, 6, 8, 6);
     private const int WmNcHitTest = 0x0084;
     private const nint HtClient = 1;
     private const nint HtTransparent = -1;
@@ -720,11 +725,11 @@ internal sealed partial class MainWindow : Window
     {
         ResultImage.Source = null;
         ResultImage.Visibility = Visibility.Collapsed;
-        ResultText.Text = text;
-        ResultText.Visibility = Visibility.Visible;
+        SetResultTextLines(text);
+        ResultTextPanel.Visibility = Visibility.Visible;
         SetSearchButtons(operationId, searchQueries, searchContext);
-        ResultPanel.Padding = new Thickness(16, 12, 16, 12);
-        ResultPanel.Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xE8, 0x11, 0x11, 0x11));
+        ResultPanel.Padding = MaxResultTextPadding;
+        ResultPanel.Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xE6, 0x11, 0x11, 0x11));
         ResultPanel.Visibility = Visibility.Visible;
         UpdateResultPanelClip();
         FitResultText();
@@ -745,8 +750,8 @@ internal sealed partial class MainWindow : Window
 
     private void SetResultImage(string imageDataUrl, string operationId)
     {
-        ResultText.Text = string.Empty;
-        ResultText.Visibility = Visibility.Collapsed;
+        ResultTextPanel.Children.Clear();
+        ResultTextPanel.Visibility = Visibility.Collapsed;
         ClearSearchButtons();
         var resultPath = SaveImageDataUrl(operationId, imageDataUrl);
         AppLogger.Event("image_result", new
@@ -765,9 +770,8 @@ internal sealed partial class MainWindow : Window
 
     private void ClearResult()
     {
-        ResultText.Text = string.Empty;
-        ResultText.FontSize = MaxResultFontSize;
-        ResultText.Visibility = Visibility.Visible;
+        ResultTextPanel.Children.Clear();
+        ResultTextPanel.Visibility = Visibility.Collapsed;
         ClearSearchButtons();
         ResultImage.Source = null;
         ResultImage.Visibility = Visibility.Collapsed;
@@ -1062,35 +1066,90 @@ internal sealed partial class MainWindow : Window
     {
         if (!ResultPanel.IsVisible ||
             ResultImage.Visibility == Visibility.Visible ||
-            string.IsNullOrWhiteSpace(ResultText.Text) ||
+            ResultTextPanel.Children.Count == 0 ||
             ResultPanel.ActualWidth <= 0 ||
             ResultPanel.ActualHeight <= 0)
         {
             return;
         }
 
-        ResultText.FontSize = MaxResultFontSize;
-        ResultText.TextTrimming = TextTrimming.None;
-
-        var availableWidth = Math.Max(1, ResultPanel.ActualWidth - ResultPanel.Padding.Left - ResultPanel.Padding.Right);
-        var availableHeight = Math.Max(1, ResultPanel.ActualHeight - ResultPanel.Padding.Top - ResultPanel.Padding.Bottom);
+        ApplyResultTextLayout(MaxResultFontSize, TextTrimming.None);
 
         for (var fontSize = MaxResultFontSize; fontSize >= MinResultFontSize; fontSize -= 0.5)
         {
-            ResultText.FontSize = fontSize;
-            ResultText.Measure(new Size(availableWidth, double.PositiveInfinity));
+            ResultPanel.Padding = GetResultTextPadding(fontSize);
+            ApplyResultTextLayout(fontSize, TextTrimming.None);
+            var availableWidth = Math.Max(1, ResultPanel.ActualWidth - ResultPanel.Padding.Left - ResultPanel.Padding.Right);
+            var availableHeight = Math.Max(1, ResultPanel.ActualHeight - ResultPanel.Padding.Top - ResultPanel.Padding.Bottom);
+            ResultTextPanel.Measure(new Size(availableWidth, double.PositiveInfinity));
 
-            if (ResultText.DesiredSize.Width <= availableWidth &&
-                ResultText.DesiredSize.Height <= availableHeight)
+            if (ResultTextPanel.DesiredSize.Width <= availableWidth &&
+                ResultTextPanel.DesiredSize.Height <= availableHeight)
             {
-                ResultText.TextTrimming = TextTrimming.None;
                 return;
             }
         }
 
-        ResultText.FontSize = MinResultFontSize;
-        ResultText.TextTrimming = TextTrimming.CharacterEllipsis;
+        ResultPanel.Padding = MinResultTextPadding;
+        ApplyResultTextLayout(MinResultFontSize, TextTrimming.CharacterEllipsis);
     }
+
+    private void SetResultTextLines(string text)
+    {
+        ResultTextPanel.Children.Clear();
+
+        var lines = text
+            .ReplaceLineEndings("\n")
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        foreach (var line in lines)
+        {
+            ResultTextPanel.Children.Add(new TextBlock
+            {
+                Text = line
+            });
+        }
+    }
+
+    private void ApplyResultTextLayout(double fontSize, TextTrimming textTrimming)
+    {
+        var lineGap = GetResultLineGap(fontSize);
+        var lines = ResultTextPanel.Children.OfType<TextBlock>().ToArray();
+
+        for (var index = 0; index < lines.Length; index++)
+        {
+            lines[index].FontSize = fontSize;
+            lines[index].TextTrimming = textTrimming;
+            lines[index].Margin = index + 1 < lines.Length
+                ? new Thickness(0, 0, 0, lineGap)
+                : new Thickness(0);
+        }
+    }
+
+    private static Thickness GetResultTextPadding(double fontSize)
+    {
+        var ratio = Math.Clamp(
+            (fontSize - MinResultFontSize) / (MaxResultFontSize - MinResultFontSize),
+            0,
+            1);
+        return new Thickness(
+            Lerp(MinResultTextPadding.Left, MaxResultTextPadding.Left, ratio),
+            Lerp(MinResultTextPadding.Top, MaxResultTextPadding.Top, ratio),
+            Lerp(MinResultTextPadding.Right, MaxResultTextPadding.Right, ratio),
+            Lerp(MinResultTextPadding.Bottom, MaxResultTextPadding.Bottom, ratio));
+    }
+
+    private static double GetResultLineGap(double fontSize)
+    {
+        var ratio = Math.Clamp(
+            (fontSize - MinResultFontSize) / (MaxResultFontSize - MinResultFontSize),
+            0,
+            1);
+        return Lerp(MinResultLineGap, MaxResultLineGap, ratio);
+    }
+
+    private static double Lerp(double start, double end, double amount) =>
+        start + (end - start) * amount;
 }
 
 internal sealed record SearchButtonState(

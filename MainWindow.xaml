@@ -38,7 +38,7 @@
                 <Border x:Name="ResultPanel"
                         Margin="0"
                         Padding="16,12"
-                        Background="#E8111111"
+                        Background="#E6111111"
                         CornerRadius="3"
                         ClipToBounds="True"
                         SnapsToDevicePixels="True"
@@ -49,12 +49,18 @@
                                Stretch="Fill"
                                Visibility="Collapsed"
                                RenderOptions.BitmapScalingMode="HighQuality" />
-                        <TextBlock x:Name="ResultText"
-                                   FontFamily="pack://application:,,,/Resources/Fonts/#Roboto Condensed"
-                                   Foreground="#FFFFC65F"
-                                   FontSize="12"
-                                   TextWrapping="Wrap"
-                                   TextTrimming="CharacterEllipsis" />
+                        <StackPanel x:Name="ResultTextPanel"
+                                    Visibility="Collapsed">
+                            <StackPanel.Resources>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="FontFamily" Value="pack://application:,,,/Resources/Fonts/#Roboto Condensed" />
+                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                    <Setter Property="Foreground" Value="#FFFFC65F" />
+                                    <Setter Property="TextWrapping" Value="Wrap" />
+                                    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                                </Style>
+                            </StackPanel.Resources>
+                        </StackPanel>
                     </Grid>
                 </Border>
             </Grid>
@@ -270,6 +276,7 @@
                     Padding="0"
                     Content="1"
                     FontSize="11"
+                    FontWeight="Bold"
                     ToolTip="Search"
                     Click="SearchButton_Click" />
             <Button x:Name="SearchButton2"
@@ -279,6 +286,7 @@
                     Padding="0"
                     Content="2"
                     FontSize="11"
+                    FontWeight="Bold"
                     ToolTip="Search"
                     Visibility="Collapsed"
                     Click="SearchButton_Click" />
@@ -288,6 +296,7 @@
                     Padding="0"
                     Content="3"
                     FontSize="11"
+                    FontWeight="Bold"
                     ToolTip="Search"
                     Visibility="Collapsed"
                     Click="SearchButton_Click" />
