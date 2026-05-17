@@ -91,8 +91,8 @@ internal static class AppConfigStore
             return new AppConfig
             {
                 ApiKey = Unprotect(stored.EncryptedApiKey),
-                Model = string.IsNullOrWhiteSpace(stored.Model) ? AppConfig.DefaultModel : stored.Model.Trim(),
-                TargetLanguage = string.IsNullOrWhiteSpace(stored.TargetLanguage) ? "English" : stored.TargetLanguage,
+                Model = NormalizeModel(stored.Model),
+                TargetLanguage = NormalizeTargetLanguage(stored.TargetLanguage),
                 TargetGame = NormalizeTargetGame(stored.TargetGame),
                 TotalCostUsd = stored.TotalCostUsd
             };
@@ -132,8 +132,8 @@ internal static class AppConfigStore
         var stored = new StoredAppConfig
         {
             EncryptedApiKey = Protect(config.ApiKey),
-            Model = string.IsNullOrWhiteSpace(config.Model) ? AppConfig.DefaultModel : config.Model,
-            TargetLanguage = string.IsNullOrWhiteSpace(config.TargetLanguage) ? "English" : config.TargetLanguage,
+            Model = NormalizeModel(config.Model),
+            TargetLanguage = NormalizeTargetLanguage(config.TargetLanguage),
             TargetGame = config.TargetGame.ToString(),
             TotalCostUsd = config.TotalCostUsd
         };
@@ -163,6 +163,16 @@ internal static class AppConfigStore
         var bytes = Encoding.UTF8.GetBytes(value);
         var encrypted = ProtectedData.Protect(bytes, null, DataProtectionScope.CurrentUser);
         return Convert.ToBase64String(encrypted);
+    }
+
+    private static string NormalizeModel(string value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? AppConfig.DefaultModel : value.Trim();
+    }
+
+    private static string NormalizeTargetLanguage(string value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "English" : value.Trim();
     }
 
     private static TargetGame NormalizeTargetGame(string value)
