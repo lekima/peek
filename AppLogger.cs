@@ -14,7 +14,7 @@ internal static class AppLogger
         WriteIndented = false
     };
 
-    public static string LogDirectory =>
+    private static string LogDirectory =>
         AppPaths.DataDirectory;
 
     public static string LogPath => Path.Combine(LogDirectory, "peek.log.jsonl");

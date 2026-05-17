@@ -21,10 +21,7 @@ internal static class OpenRouterClient
     {
         BaseAddress = new Uri("https://openrouter.ai/")
     };
-    private static readonly JsonSerializerOptions ResponseJsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true
-    };
+    private static readonly JsonSerializerOptions ResponseJsonOptions = new();
 
     public static async Task<TextTranslationResult> TranslateImageToTextAsync(
         Bitmap bitmap,
