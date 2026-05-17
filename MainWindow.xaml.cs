@@ -29,12 +29,12 @@ internal sealed partial class MainWindow : Window
     private const double CollapsedWidth = 84;
     private const double CollapsedHeight = 24;
     private const double FrameRevealHeight = 48;
-    private const double MaxResultFontSize = 22;
+    private const double MaxResultFontSize = 24;
     private const double MinResultFontSize = 10;
-    private const double MaxResultLineGap = 14;
-    private const double MinResultLineGap = 6;
-    private static readonly Thickness MaxResultTextPadding = new(16, 12, 16, 12);
-    private static readonly Thickness MinResultTextPadding = new(8, 6, 8, 6);
+    private const double MaxResultLineGap = 12;
+    private const double MinResultLineGap = 4;
+    private static readonly Thickness MaxResultTextPadding = new(14, 12, 14, 10);
+    private static readonly Thickness MinResultTextPadding = new(6, 6, 6, 4);
     private const int WmNcHitTest = 0x0084;
     private const nint HtClient = 1;
     private const nint HtTransparent = -1;
