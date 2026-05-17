@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
 using System.Security;
 using System.Security.Cryptography;
 using System.Windows;
@@ -647,6 +646,7 @@ internal sealed partial class MainWindow : Window
             {
                 try
                 {
+                    settingsConfig.TotalCostUsd = _config.TotalCostUsd;
                     AppConfigStore.Save(settingsConfig);
                     _config = settingsConfig;
                     AppLogger.Event("settings_saved", new
@@ -799,10 +799,7 @@ internal sealed partial class MainWindow : Window
             keyword.StartsWith(searchPrefix, StringComparison.OrdinalIgnoreCase)
                 ? keyword
                 : $"{searchPrefix} {keyword}";
-        return string.Format(
-            CultureInfo.InvariantCulture,
-            AppConfig.BilibiliSearchUrlTemplate,
-            Uri.EscapeDataString(prefixedKeyword));
+        return AppConfig.BilibiliSearchUrlPrefix + Uri.EscapeDataString(prefixedKeyword);
     }
 
     private void ClearSearchButtons()

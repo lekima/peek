@@ -49,7 +49,7 @@ internal static class TargetGames
 
 internal sealed class AppConfig
 {
-    public const string BilibiliSearchUrlTemplate = "https://search.bilibili.com/all?keyword={0}";
+    public const string BilibiliSearchUrlPrefix = "https://search.bilibili.com/all?keyword=";
     public const string DefaultModel = "google/gemini-3.1-flash-lite";
 
     public string ApiKey { get; set; } = string.Empty;
