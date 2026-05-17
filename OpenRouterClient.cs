@@ -3,20 +3,29 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net;
+using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Peek;
 
 internal static class OpenRouterClient
 {
+    private const string TextPromptVersion = "text-guide-search-v6";
+    private const string TextSchemaVersion = "text-result-schema-v3";
+    private const string ImageEditPromptVersion = "image-edit-v2";
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(90);
     private static readonly HttpClient HttpClient = new()
     {
         BaseAddress = new Uri("https://openrouter.ai/")
+    };
+    private static readonly JsonSerializerOptions ResponseJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
     };
 
     public static async Task<TextTranslationResult> TranslateImageToTextAsync(
@@ -36,10 +45,17 @@ internal static class OpenRouterClient
 
         var fromLanguage = string.IsNullOrWhiteSpace(config.FromLanguage) ? "Chinese" : config.FromLanguage.Trim();
         var toLanguage = string.IsNullOrWhiteSpace(config.ToLanguage) ? "English" : config.ToLanguage.Trim();
+        var searchProfile = SearchProfiles.Get(config.SearchSource);
+        var searchPrefix = GameSearchPrefixes.GetSearchPrefix(config.GameSearchPrefix, config.SearchSource);
         var imageDataUrl = ToPngDataUrl(bitmap);
         var payload = new Dictionary<string, object?>
         {
             ["model"] = model,
+            ["provider"] = new Dictionary<string, object?>
+            {
+                ["require_parameters"] = true
+            },
+            ["response_format"] = CreateTextTranslationResponseFormat(),
             ["messages"] = new object[]
             {
                 new
@@ -50,7 +66,7 @@ internal static class OpenRouterClient
                         new
                         {
                             type = "text",
-                            text = $"Read the visible text in this image. Translate {fromLanguage} text to natural {toLanguage}. Preserve names, numbers, symbols, punctuation, and useful line breaks where appropriate. Leave text that is already in {toLanguage} unchanged. Do not guess unreadable text. Return only the translated text."
+                            text = CreateTextTranslationPrompt(fromLanguage, toLanguage, searchProfile, searchPrefix)
                         },
                         new
                         {
@@ -65,23 +81,41 @@ internal static class OpenRouterClient
             }
         };
 
-        AppLogger.Info($"operation={operationId} openrouter.request model={model} from={fromLanguage} to={toLanguage} capture={bitmap.Width}x{bitmap.Height}");
+        AppLogger.Event("ai_request", new
+        {
+            operationId,
+            mode = "text",
+            model,
+            fromLanguage,
+            toLanguage,
+            searchProfile = searchProfile.DisplayName,
+            searchSource = searchProfile.PromptName,
+            searchLanguage = searchProfile.SearchLanguage,
+            gameSearchPrefix = searchPrefix,
+            captureWidth = bitmap.Width,
+            captureHeight = bitmap.Height,
+            structuredOutput = true,
+            requireParameters = true,
+            promptVersion = TextPromptVersion,
+            schemaVersion = TextSchemaVersion
+        });
 
         var (statusCode, body) = await SendCompletionAsync(config, payload, cancellationToken).ConfigureAwait(false);
         var root = ParseSuccessfulResponse(statusCode, body, operationId);
         var message = ExtractFirstChoiceMessage(root);
-        var translation = ExtractTextContent(message);
+        var content = ExtractTextContent(message);
+        var translation = ParseTextTranslation(content, operationId);
         var providerRequestId = ExtractString(root, "id");
         var cost = ExtractCost(root);
         var usage = ExtractTokenUsage(root);
         LogUsage(operationId, providerRequestId, cost, usage);
 
-        if (string.IsNullOrWhiteSpace(translation))
+        if (string.IsNullOrWhiteSpace(translation.Text))
         {
             throw new InvalidOperationException("No translation returned. See log.");
         }
 
-        return new TextTranslationResult(translation.Trim(), cost, usage, providerRequestId);
+        return new TextTranslationResult(translation.Text, translation.SearchBasis, translation.SearchQueries, cost, usage, providerRequestId);
     }
 
     public static async Task<ImageTranslationResult> TranslateImageToEditedImageAsync(
@@ -116,7 +150,7 @@ internal static class OpenRouterClient
                         new
                         {
                             type = "text",
-                            text = $"Edit this image so visible {fromLanguage} text appears in natural {toLanguage}. Leave text that is already in {toLanguage} unchanged. Preserve the rest of the image, including layout, colors, style, and non-text content. Do not guess unreadable text. Return only the edited image."
+                            text = CreateImageEditPrompt(fromLanguage, toLanguage)
                         },
                         new
                         {
@@ -131,7 +165,18 @@ internal static class OpenRouterClient
             }
         };
 
-        AppLogger.Info($"operation={operationId} openrouter.request mode=image_edit model={model} from={fromLanguage} to={toLanguage} capture={bitmap.Width}x{bitmap.Height}");
+        AppLogger.Event("ai_request", new
+        {
+            operationId,
+            mode = "image_edit",
+            model,
+            fromLanguage,
+            toLanguage,
+            captureWidth = bitmap.Width,
+            captureHeight = bitmap.Height,
+            structuredOutput = false,
+            promptVersion = ImageEditPromptVersion
+        });
 
         var (statusCode, body) = await SendCompletionAsync(config, payload, cancellationToken).ConfigureAwait(false);
         var root = ParseSuccessfulResponse(statusCode, body, operationId);
@@ -160,6 +205,12 @@ internal static class OpenRouterClient
             providerError is null
                 ? $"operation={operationId} openrouter.response status={(int)statusCode}"
                 : $"operation={operationId} openrouter.response status={(int)statusCode} provider_error={providerError}");
+        AppLogger.Event("ai_response", new
+        {
+            operationId,
+            statusCode = (int)statusCode,
+            providerError
+        });
 
         if ((int)statusCode < 200 || (int)statusCode >= 300)
         {
@@ -250,6 +301,262 @@ internal static class OpenRouterClient
         }
 
         return builder.ToString();
+    }
+
+    private static string CreateTextTranslationPrompt(
+        string fromLanguage,
+        string toLanguage,
+        SearchProfile searchProfile,
+        string gameSearchPrefix)
+    {
+        var prefixInstruction = string.IsNullOrWhiteSpace(gameSearchPrefix)
+            ? "No game title prefix is configured."
+            : $"The app will prefix every {searchProfile.PromptName} search with \"{gameSearchPrefix}\". Do not include that game title in any query.";
+
+        return
+            "You are helping a player understand a game screen capture. " +
+            $"Translate visible {fromLanguage} text into natural {toLanguage}, preserving the player's useful context: names, numbers, item counts, symbols, punctuation, and line breaks. " +
+            "For game-specific proper nouns such as character, pet, quest, item, place, boss, skill, and event names, prefer the official localized name if it is clear; otherwise keep the source name or transliterate it rather than inventing a literal translation. " +
+            $"Leave text already in {toLanguage} unchanged. Do not invent unreadable text. " +
+            $"Also create {searchProfile.PromptName} search queries for the {searchProfile.SearchLanguage} search profile; the query strings must be written in {searchProfile.SearchLanguage}, independent of the translation languages. " +
+            "They should help the player find the most relevant guide or video for this exact selected content. " +
+            "Think like a player searching after seeing this screen: anchor queries to the strongest visible clue or the clearest direct inference from it. " +
+            "Return up to 3 queries, ordered by likely usefulness. Use no queries when the screen is broad, tutorial-like, or has little searchable detail; one precise mechanic query is better than several generic angles. " +
+            "Each additional query should offer a genuinely useful nearby angle on the same intent, not a broader or generic search. " +
+            $"Prefer keywords that players actually use on {searchProfile.PromptName} in {searchProfile.SearchLanguage}; keep official or community-known names when they are the likely search terms, and otherwise translate or localize the clue into the search profile language. Include a guide-intent word only when it would make the search better. " +
+            $"{prefixInstruction} " +
+            "For each query, include a short basis that explains the visible clue or inference behind it. " +
+            "Return only valid JSON matching the schema.";
+    }
+
+    private static string CreateImageEditPrompt(string fromLanguage, string toLanguage) =>
+        "You are editing a game screenshot for quick reading while preserving the original UI. " +
+        $"Replace visible {fromLanguage} text with natural {toLanguage}. " +
+        "For game-specific proper nouns, use the official localized name when clear; otherwise keep the source name or transliterate it rather than inventing a literal translation. " +
+        $"Leave text already in {toLanguage} unchanged. Preserve names, numbers, item counts, symbols, punctuation, line breaks, layout, colors, style, and all non-text content. " +
+        "Keep translated text compact enough to fit the original UI regions. Do not add commentary, captions, highlights, or new UI. " +
+        "Do not guess unreadable text. If text is unreadable, leave that part unchanged. Return only the edited image.";
+
+    private static Dictionary<string, object?> CreateTextTranslationResponseFormat() =>
+        new()
+        {
+            ["type"] = "json_schema",
+            ["json_schema"] = new Dictionary<string, object?>
+            {
+                ["name"] = "peek_text_translation",
+                ["strict"] = true,
+                ["schema"] = new Dictionary<string, object?>
+                {
+                    ["type"] = "object",
+                    ["additionalProperties"] = false,
+                    ["required"] = new[] { "translation", "search_basis", "search_queries" },
+                    ["properties"] = new Dictionary<string, object?>
+                    {
+                        ["translation"] = new Dictionary<string, object?>
+                        {
+                            ["type"] = "string",
+                            ["description"] = "Natural translated text to display to the user."
+                        },
+                        ["search_basis"] = new Dictionary<string, object?>
+                        {
+                            ["type"] = "string",
+                            ["description"] = "The exact source clues, names, items, NPCs, locations, objectives, or distinctive phrases used to choose the search queries."
+                        },
+                        ["search_queries"] = new Dictionary<string, object?>
+                        {
+                            ["type"] = "array",
+                            ["description"] = "Zero to three distinct gaming-guide search queries for the configured search source, ordered by usefulness.",
+                            ["minItems"] = 0,
+                            ["maxItems"] = 3,
+                            ["items"] = new Dictionary<string, object?>
+                            {
+                                ["type"] = "object",
+                                ["additionalProperties"] = false,
+                                ["required"] = new[] { "label", "basis", "query" },
+                                ["properties"] = new Dictionary<string, object?>
+                                {
+                                    ["label"] = new Dictionary<string, object?>
+                                    {
+                                        ["type"] = "string",
+                                        ["enum"] = new[] { "closest", "alternative", "another_angle" },
+                                        ["description"] = "The role of this query in the ordered search set."
+                                    },
+                                    ["basis"] = new Dictionary<string, object?>
+                                    {
+                                        ["type"] = "string",
+                                        ["description"] = "Visible text clue or direct inference that keeps this query close to the selected content."
+                                    },
+                                    ["query"] = new Dictionary<string, object?>
+                                    {
+                                        ["type"] = "string",
+                                        ["description"] = "Concise gaming-guide search keywords in the configured search profile language. Use 2 to 6 keywords. Keep close to the selected text. Do not include the game title prefix."
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+    private static ParsedTextTranslation ParseTextTranslation(string content, string operationId)
+    {
+        var json = ExtractJsonObject(content);
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            throw new InvalidOperationException("Translation response was not valid JSON.");
+        }
+
+        try
+        {
+            var response = JsonSerializer.Deserialize<TextTranslationResponse>(json, ResponseJsonOptions);
+            var translation = response?.Translation?.Trim() ?? string.Empty;
+            var searchBasis = SanitizeSearchBasis(response?.SearchBasis);
+            var searchQueries = SanitizeSearchQueries(response?.SearchQueries);
+
+            if (string.IsNullOrWhiteSpace(translation))
+            {
+                throw new InvalidOperationException("Translation response did not include translated text.");
+            }
+
+            return new ParsedTextTranslation(translation, searchBasis, searchQueries);
+        }
+        catch (JsonException ex)
+        {
+            AppLogger.Info($"operation={operationId} translation_json_parse_failed message={ex.Message}");
+            AppLogger.Event("text_result_parse_failed", new
+            {
+                operationId,
+                error = ex.Message,
+                contentPreview = TrimForDisplay(content)
+            });
+            throw new InvalidOperationException("Translation response was not valid JSON.", ex);
+        }
+    }
+
+    private static string ExtractJsonObject(string content)
+    {
+        content = content.Trim();
+        if (content.StartsWith("```", StringComparison.Ordinal))
+        {
+            var firstLineEnd = content.IndexOf('\n', StringComparison.Ordinal);
+            var lastFence = content.LastIndexOf("```", StringComparison.Ordinal);
+            if (firstLineEnd >= 0 && lastFence > firstLineEnd)
+            {
+                content = content[(firstLineEnd + 1)..lastFence].Trim();
+            }
+        }
+
+        var start = content.IndexOf('{', StringComparison.Ordinal);
+        var end = content.LastIndexOf('}');
+        return start >= 0 && end > start
+            ? content[start..(end + 1)]
+            : string.Empty;
+    }
+
+    private static IReadOnlyList<SearchQueryResult> SanitizeSearchQueries(IEnumerable<SearchQueryResponse?>? queries)
+    {
+        if (queries is null)
+        {
+            return Array.Empty<SearchQueryResult>();
+        }
+
+        var cleanQueries = new List<SearchQueryResult>();
+        foreach (var query in queries)
+        {
+            if (query is null)
+            {
+                continue;
+            }
+
+            var cleanQuery = SanitizeSearchQuery(query.Query);
+            if (string.IsNullOrWhiteSpace(cleanQuery) ||
+                cleanQueries.Any(existing => string.Equals(existing.Query, cleanQuery, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            cleanQueries.Add(new SearchQueryResult(
+                SanitizeSearchLabel(query.Label),
+                SanitizeSearchBasis(query.Basis),
+                cleanQuery));
+            if (cleanQueries.Count >= 3)
+            {
+                break;
+            }
+        }
+
+        return cleanQueries;
+    }
+
+    private static string SanitizeSearchQuery(string? query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return string.Empty;
+        }
+
+        var cleanQuery = query
+            .Replace('\r', ' ')
+            .Replace('\n', ' ')
+            .Trim();
+        cleanQuery = CompactSpacesBetweenChineseCharacters(cleanQuery);
+
+        if (cleanQuery.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            cleanQuery.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Empty;
+        }
+
+        return cleanQuery.Length <= 40 ? cleanQuery : cleanQuery[..40].Trim();
+    }
+
+    private static string CompactSpacesBetweenChineseCharacters(string value)
+    {
+        if (value.IndexOf(' ', StringComparison.Ordinal) < 0)
+        {
+            return value;
+        }
+
+        var builder = new StringBuilder(value.Length);
+        for (var i = 0; i < value.Length; i++)
+        {
+            var current = value[i];
+            if (current == ' ' &&
+                i > 0 &&
+                i + 1 < value.Length &&
+                IsChineseCharacter(value[i - 1]) &&
+                IsChineseCharacter(value[i + 1]))
+            {
+                continue;
+            }
+
+            builder.Append(current);
+        }
+
+        return builder.ToString();
+    }
+
+    private static bool IsChineseCharacter(char value) =>
+        (value >= '\u3400' && value <= '\u4DBF') ||
+        (value >= '\u4E00' && value <= '\u9FFF') ||
+        (value >= '\uF900' && value <= '\uFAFF');
+
+    private static string SanitizeSearchLabel(string? label)
+    {
+        label = label?.Trim() ?? string.Empty;
+        return label is "closest" or "alternative" or "another_angle"
+            ? label
+            : "alternative";
+    }
+
+    private static string SanitizeSearchBasis(string? basis)
+    {
+        basis = basis?
+            .Replace('\r', ' ')
+            .Replace('\n', ' ')
+            .Trim() ?? string.Empty;
+        return basis.Length <= 120 ? basis : basis[..120].Trim();
     }
 
     private static string ExtractTextPart(JsonElement element)
@@ -428,10 +735,48 @@ internal static class OpenRouterClient
 
 }
 
+[SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "Instantiated by System.Text.Json deserialization.")]
+internal sealed class TextTranslationResponse
+{
+    [JsonPropertyName("translation")]
+    public string? Translation { get; set; }
+
+    [JsonPropertyName("search_basis")]
+    public string? SearchBasis { get; set; }
+
+    [JsonPropertyName("search_queries")]
+    public List<SearchQueryResponse?>? SearchQueries { get; set; }
+}
+
+[SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "Instantiated by System.Text.Json deserialization.")]
+internal sealed class SearchQueryResponse
+{
+    [JsonPropertyName("label")]
+    public string? Label { get; set; }
+
+    [JsonPropertyName("basis")]
+    public string? Basis { get; set; }
+
+    [JsonPropertyName("query")]
+    public string? Query { get; set; }
+}
+
+internal sealed record ParsedTextTranslation(
+    string Text,
+    string SearchBasis,
+    IReadOnlyList<SearchQueryResult> SearchQueries);
+
+internal sealed record SearchQueryResult(
+    string Label,
+    string Basis,
+    string Query);
+
 internal sealed record TokenUsage(int PromptTokens, int CompletionTokens, int TotalTokens);
 
 internal sealed record TextTranslationResult(
     string Text,
+    string SearchBasis,
+    IReadOnlyList<SearchQueryResult> SearchQueries,
     decimal CostUsd,
     TokenUsage Usage,
     string? ProviderRequestId);

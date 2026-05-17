@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Security;
 using System.Security.Cryptography;
 using System.Windows;
@@ -47,6 +49,7 @@ internal sealed partial class MainWindow : Window
     private Forms.ContextMenuStrip? _trayMenu;
     private Drawing.Icon? _trayIconImage;
     private SettingsWindow? _settingsWindow;
+    private readonly Dictionary<System.Windows.Controls.Button, SearchButtonState> _searchButtons = [];
     private readonly DoubleAnimation _spinnerAnimation = new(0, 360, TimeSpan.FromMilliseconds(700))
     {
         RepeatBehavior = RepeatBehavior.Forever
@@ -56,6 +59,18 @@ internal sealed partial class MainWindow : Window
     {
         InitializeComponent();
         InitializeTrayIcon();
+        AppLogger.Event("app_start", new
+        {
+            appDirectory = AppPaths.AppDirectory,
+            resultFormat = _config.ResultFormat.ToString(),
+            fromLanguage = _config.FromLanguage,
+            toLanguage = _config.ToLanguage,
+            searchProfile = SearchProfiles.Get(_config.SearchSource).DisplayName,
+            searchSource = SearchProfiles.Get(_config.SearchSource).PromptName,
+            searchLanguage = SearchProfiles.Get(_config.SearchSource).SearchLanguage,
+            gameSearchPrefix = GameSearchPrefixes.GetSearchPrefix(_config.GameSearchPrefix, _config.SearchSource),
+            totalCostUsd = _config.TotalCostUsd
+        });
     }
 
     [SuppressMessage("Globalization", "CA1303:Do not pass literals as localized parameters", Justification = "Peek is the product name shown in the tray.")]
@@ -135,7 +150,8 @@ internal sealed partial class MainWindow : Window
             IsPointInside(TranslateButton, windowPoint) ||
             IsPointInside(ClearButton, windowPoint) ||
             IsPointInside(ResizeRowButton, windowPoint) ||
-            IsPointInside(ResizeCornerButton, windowPoint);
+            IsPointInside(ResizeCornerButton, windowPoint) ||
+            IsPointInside(SearchButtonsPanel, windowPoint);
     }
 
     private bool IsPointInside(FrameworkElement element, Point windowPoint)
@@ -317,6 +333,7 @@ internal sealed partial class MainWindow : Window
     {
         FrameBorder.Visibility = Visibility.Collapsed;
         ResultPanel.Visibility = Visibility.Collapsed;
+        ClearSearchButtons();
         ResizeCornerButton.Visibility = Visibility.Collapsed;
         ResizeRowButton.Visibility = Visibility.Visible;
         Width = CollapsedWidth;
@@ -360,10 +377,36 @@ internal sealed partial class MainWindow : Window
     {
         if (_isTranslating)
         {
+            AppLogger.Event("translate_cancel_requested", new { reason = "clear_button" });
             _translationCancellation?.Cancel();
         }
 
+        AppLogger.Event("result_clear", new { hadResult = ResultPanel.Visibility == Visibility.Visible });
         ClearResult();
+    }
+
+    private void SearchButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button button ||
+            !_searchButtons.TryGetValue(button, out var searchButton) ||
+            string.IsNullOrWhiteSpace(searchButton.Url))
+        {
+            return;
+        }
+
+        AppLogger.SearchClick(new SearchClickLogEntry(
+            DateTimeOffset.Now,
+            searchButton.OperationId,
+            searchButton.Index,
+            searchButton.Query.Label,
+            searchButton.Query.Query,
+            searchButton.Query.Basis,
+            searchButton.SearchProfile,
+            searchButton.SearchSource,
+            searchButton.SearchLanguage,
+            searchButton.GameSearchPrefix,
+            searchButton.Url));
+        OpenUrl(searchButton.Url);
     }
 
     private void SettingsMenu_Click(object sender, RoutedEventArgs e)
@@ -388,7 +431,12 @@ internal sealed partial class MainWindow : Window
             FrameBorder.ActualWidth < 8 ||
             FrameBorder.ActualHeight < 8)
         {
-            AppLogger.Info("Translate skipped: frame is collapsed.");
+            AppLogger.Event("translate_skipped", new
+            {
+                reason = "frame_collapsed_or_too_small",
+                frameWidth = FrameBorder.ActualWidth,
+                frameHeight = FrameBorder.ActualHeight
+            });
             return;
         }
 
@@ -397,7 +445,7 @@ internal sealed partial class MainWindow : Window
             OpenSettings();
             if (string.IsNullOrWhiteSpace(_config.ApiKey))
             {
-                AppLogger.Error("Translate skipped: API key required.");
+                AppLogger.Event("translate_skipped", new { reason = "api_key_required" });
                 return;
             }
         }
@@ -406,66 +454,131 @@ internal sealed partial class MainWindow : Window
         _translationCancellation = new CancellationTokenSource();
         var cancellationSource = _translationCancellation;
         var cancellationToken = cancellationSource.Token;
+        var operationConfig = CloneConfig(_config);
+        var searchContext = CreateSearchContext(operationConfig);
         var operationId = Guid.NewGuid().ToString("N")[..12];
         var stopwatch = Stopwatch.StartNew();
         var captureWidth = 0;
         var captureHeight = 0;
-        var resultFormat = _config.ResultFormat;
+        var resultFormat = operationConfig.ResultFormat;
         var model = AppConfig.GetModel(resultFormat);
+        string? providerRequestId = null;
+        decimal responseCost = 0;
+        var responseUsage = new TokenUsage(0, 0, 0);
+        var usageTracked = false;
 
         try
         {
-            AppLogger.Info($"operation={operationId} translate.start bounds=({Left:0},{Top:0},{FrameBorder.ActualWidth:0}x{FrameBorder.ActualHeight:0}) model={model}");
+            AppLogger.Event("translate_start", new
+            {
+                operationId,
+                model,
+                resultFormat = resultFormat.ToString(),
+                fromLanguage = operationConfig.FromLanguage,
+                toLanguage = operationConfig.ToLanguage,
+                searchProfile = searchContext.Profile,
+                searchSource = searchContext.Source,
+                searchLanguage = searchContext.Language,
+                gameSearchPrefix = searchContext.GamePrefix,
+                windowLeft = Left,
+                windowTop = Top,
+                frameWidth = FrameBorder.ActualWidth,
+                frameHeight = FrameBorder.ActualHeight
+            });
             SetBusy(true);
             ClearStatus();
 
             using var bitmap = ScreenCaptureService.CaptureVisualBounds(this, FrameBorder);
             captureWidth = bitmap.Width;
             captureHeight = bitmap.Height;
+            var capturePath = SaveCapture(operationId, resultFormat, bitmap);
 
             if (resultFormat == ResultFormat.Image)
             {
-                var imageResult = await OpenRouterClient.TranslateImageToEditedImageAsync(bitmap, _config, model, operationId, cancellationToken).ConfigureAwait(true);
+                var imageResult = await OpenRouterClient.TranslateImageToEditedImageAsync(bitmap, operationConfig, model, operationId, cancellationToken).ConfigureAwait(true);
+                providerRequestId = imageResult.ProviderRequestId;
+                responseCost = imageResult.CostUsd;
+                responseUsage = imageResult.Usage;
                 stopwatch.Stop();
                 cancellationToken.ThrowIfCancellationRequested();
-                SetResultImage(imageResult.ImageData);
+                SetResultImage(imageResult.ImageData, operationId);
                 TrackUsage(
                     operationId,
-                    imageResult.ProviderRequestId,
+                    providerRequestId,
                     true,
-                    imageResult.CostUsd,
+                    responseCost,
                     captureWidth,
                     captureHeight,
                     stopwatch.ElapsedMilliseconds,
-                    imageResult.Usage,
+                    responseUsage,
                     model,
+                    operationConfig,
+                    searchContext,
                     null,
                     null);
+                usageTracked = true;
                 return;
             }
 
-            var result = await OpenRouterClient.TranslateImageToTextAsync(bitmap, _config, model, operationId, cancellationToken).ConfigureAwait(true);
+            var result = await OpenRouterClient.TranslateImageToTextAsync(bitmap, operationConfig, model, operationId, cancellationToken).ConfigureAwait(true);
+            providerRequestId = result.ProviderRequestId;
+            responseCost = result.CostUsd;
+            responseUsage = result.Usage;
             stopwatch.Stop();
             cancellationToken.ThrowIfCancellationRequested();
-            SetResultText(result.Text);
+            SetResultText(operationId, result.Text, result.SearchQueries, searchContext);
+            AppLogger.TextResult(new TextResultLogEntry(
+                DateTimeOffset.Now,
+                operationId,
+                model,
+                operationConfig.FromLanguage,
+                operationConfig.ToLanguage,
+                searchContext.Profile,
+                searchContext.Source,
+                searchContext.Language,
+                searchContext.GamePrefix,
+                capturePath,
+                result.Text,
+                result.SearchBasis,
+                result.SearchQueries));
             ClearStatus();
             TrackUsage(
                 operationId,
-                result.ProviderRequestId,
+                providerRequestId,
                 true,
-                result.CostUsd,
+                responseCost,
                 captureWidth,
                 captureHeight,
                 stopwatch.ElapsedMilliseconds,
-                result.Usage,
+                responseUsage,
                 model,
+                operationConfig,
+                searchContext,
                 null,
                 null);
+            usageTracked = true;
         }
         catch (OperationCanceledException)
         {
             stopwatch.Stop();
             AppLogger.Info($"operation={operationId} translate.cancelled");
+            if (!usageTracked && (responseCost > 0 || providerRequestId is not null))
+            {
+                TrackUsage(
+                    operationId,
+                    providerRequestId,
+                    false,
+                    responseCost,
+                    captureWidth,
+                    captureHeight,
+                    stopwatch.ElapsedMilliseconds,
+                    responseUsage,
+                    model,
+                    operationConfig,
+                    searchContext,
+                    nameof(OperationCanceledException),
+                    "Cancelled");
+            }
         }
         catch (Exception ex)
         {
@@ -476,14 +589,16 @@ internal sealed partial class MainWindow : Window
             AppLogger.Info($"operation={operationId} user_error={shortError}");
             TrackUsage(
                 operationId,
-                null,
+                providerRequestId,
                 false,
-                0,
+                responseCost,
                 captureWidth,
                 captureHeight,
                 stopwatch.ElapsedMilliseconds,
-                new TokenUsage(0, 0, 0),
+                responseUsage,
                 model,
+                operationConfig,
+                searchContext,
                 ex.GetType().Name,
                 shortError);
         }
@@ -500,6 +615,7 @@ internal sealed partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        AppLogger.Event("app_closed", new { reason = "window_closed" });
         _translationCancellation?.Cancel();
         _translationCancellation?.Dispose();
         _translationCancellation = null;
@@ -528,6 +644,18 @@ internal sealed partial class MainWindow : Window
             return;
         }
 
+        AppLogger.Event("settings_opened", new
+        {
+            resultFormat = _config.ResultFormat.ToString(),
+            fromLanguage = _config.FromLanguage,
+            toLanguage = _config.ToLanguage,
+            searchProfile = SearchProfiles.Get(_config.SearchSource).DisplayName,
+            searchSource = SearchProfiles.Get(_config.SearchSource).PromptName,
+            searchLanguage = SearchProfiles.Get(_config.SearchSource).SearchLanguage,
+            gameSearchPrefix = GameSearchPrefixes.GetSearchPrefix(_config.GameSearchPrefix, _config.SearchSource),
+            startupEnabled = StartupService.IsEnabled()
+        });
+
         _settingsWindow = new SettingsWindow(_config)
         {
             Owner = this
@@ -540,6 +668,18 @@ internal sealed partial class MainWindow : Window
                 try
                 {
                     AppConfigStore.Save(_config);
+                    AppLogger.Event("settings_saved", new
+                    {
+                        resultFormat = _config.ResultFormat.ToString(),
+                        fromLanguage = _config.FromLanguage,
+                        toLanguage = _config.ToLanguage,
+                        searchProfile = SearchProfiles.Get(_config.SearchSource).DisplayName,
+                        searchSource = SearchProfiles.Get(_config.SearchSource).PromptName,
+                        searchLanguage = SearchProfiles.Get(_config.SearchSource).SearchLanguage,
+                        gameSearchPrefix = GameSearchPrefixes.GetSearchPrefix(_config.GameSearchPrefix, _config.SearchSource),
+                        startupEnabled = StartupService.IsEnabled(),
+                        totalCostUsd = _config.TotalCostUsd
+                    });
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or CryptographicException)
                 {
@@ -571,12 +711,13 @@ internal sealed partial class MainWindow : Window
         }
     }
 
-    private void SetResultText(string text)
+    private void SetResultText(string operationId, string text, IReadOnlyList<SearchQueryResult> searchQueries, SearchContext searchContext)
     {
         ResultImage.Source = null;
         ResultImage.Visibility = Visibility.Collapsed;
         ResultText.Text = text;
         ResultText.Visibility = Visibility.Visible;
+        SetSearchButtons(operationId, searchQueries, searchContext);
         ResultPanel.Padding = new Thickness(16, 12, 16, 12);
         ResultPanel.Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xE8, 0x11, 0x11, 0x11));
         ResultPanel.Visibility = Visibility.Visible;
@@ -597,10 +738,17 @@ internal sealed partial class MainWindow : Window
         StatusLabel.Visibility = Visibility.Collapsed;
     }
 
-    private void SetResultImage(string imageDataUrl)
+    private void SetResultImage(string imageDataUrl, string operationId)
     {
         ResultText.Text = string.Empty;
         ResultText.Visibility = Visibility.Collapsed;
+        ClearSearchButtons();
+        var resultPath = SaveImageDataUrl(operationId, imageDataUrl);
+        AppLogger.Event("image_result", new
+        {
+            operationId,
+            path = resultPath
+        });
         ResultImage.Source = LoadImageDataUrl(imageDataUrl);
         ResultImage.Visibility = Visibility.Visible;
         ResultPanel.Padding = new Thickness(0);
@@ -615,6 +763,7 @@ internal sealed partial class MainWindow : Window
         ResultText.Text = string.Empty;
         ResultText.FontSize = MaxResultFontSize;
         ResultText.Visibility = Visibility.Visible;
+        ClearSearchButtons();
         ResultImage.Source = null;
         ResultImage.Visibility = Visibility.Collapsed;
         ClearStatus();
@@ -641,6 +790,145 @@ internal sealed partial class MainWindow : Window
         return image;
     }
 
+    private void SetSearchButtons(string operationId, IReadOnlyList<SearchQueryResult> searchQueries, SearchContext searchContext)
+    {
+        ClearSearchButtons();
+
+        var buttons = new[] { SearchButton1, SearchButton2, SearchButton3 };
+        var buttonIndex = 0;
+        foreach (var searchQuery in searchQueries)
+        {
+            if (buttonIndex >= buttons.Length)
+            {
+                break;
+            }
+
+            var searchUrl = BuildSearchUrl(searchQuery.Query, searchContext);
+            if (string.IsNullOrWhiteSpace(searchUrl))
+            {
+                continue;
+            }
+
+            var button = buttons[buttonIndex];
+            button.ToolTip = string.IsNullOrWhiteSpace(searchQuery.Basis)
+                ? searchQuery.Query
+                : $"{searchQuery.Query}\n{searchQuery.Basis}";
+            button.Visibility = Visibility.Visible;
+            _searchButtons[button] = new SearchButtonState(
+                operationId,
+                buttonIndex + 1,
+                searchQuery,
+                searchContext.Profile,
+                searchContext.Source,
+                searchContext.Language,
+                searchContext.GamePrefix,
+                searchUrl);
+            buttonIndex++;
+        }
+
+        SearchButtonsPanel.Visibility = _searchButtons.Count > 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    private static string BuildSearchUrl(string searchQuery, SearchContext searchContext)
+    {
+        var keyword = searchQuery.Trim();
+        if (string.IsNullOrWhiteSpace(keyword))
+        {
+            return string.Empty;
+        }
+
+        var prefixedKeyword = string.IsNullOrWhiteSpace(searchContext.GamePrefix) ||
+            keyword.StartsWith(searchContext.GamePrefix, StringComparison.OrdinalIgnoreCase)
+                ? keyword
+                : $"{searchContext.GamePrefix} {keyword}";
+        return string.Format(
+            CultureInfo.InvariantCulture,
+            searchContext.UrlTemplate,
+            Uri.EscapeDataString(prefixedKeyword));
+    }
+
+    private void ClearSearchButtons()
+    {
+        _searchButtons.Clear();
+        SearchButtonsPanel.Visibility = Visibility.Collapsed;
+        SearchButton1.Visibility = Visibility.Collapsed;
+        SearchButton2.Visibility = Visibility.Collapsed;
+        SearchButton3.Visibility = Visibility.Collapsed;
+        var searchLabel = $"Search {SearchProfiles.Get(_config.SearchSource).PromptName}";
+        SearchButton1.ToolTip = searchLabel;
+        SearchButton2.ToolTip = searchLabel;
+        SearchButton3.ToolTip = searchLabel;
+    }
+
+    private void OpenUrl(string url)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            AppLogger.Error("Could not open search link.", ex);
+            SetStatus("Could not open link");
+        }
+    }
+
+    private string? SaveCapture(string operationId, ResultFormat resultFormat, Drawing.Bitmap bitmap)
+    {
+        try
+        {
+            var directory = Path.Combine(AppPaths.DataDirectory, "captures");
+            Directory.CreateDirectory(directory);
+            var path = Path.Combine(directory, $"{operationId}.png");
+            bitmap.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+            AppLogger.Capture(new CaptureLogEntry(
+                DateTimeOffset.Now,
+                operationId,
+                resultFormat.ToString(),
+                path,
+                bitmap.Width,
+                bitmap.Height,
+                FrameBorder.ActualWidth,
+                FrameBorder.ActualHeight));
+            return path;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or ExternalException)
+        {
+            AppLogger.Error("Could not save capture.", ex);
+            return null;
+        }
+    }
+
+    private static string? SaveImageDataUrl(string operationId, string dataUrl)
+    {
+        try
+        {
+            var commaIndex = dataUrl.IndexOf(',', StringComparison.Ordinal);
+            if (commaIndex < 0)
+            {
+                return null;
+            }
+
+            var bytes = Convert.FromBase64String(dataUrl[(commaIndex + 1)..]);
+            var directory = Path.Combine(AppPaths.DataDirectory, "results");
+            Directory.CreateDirectory(directory);
+            var path = Path.Combine(directory, $"{operationId}.png");
+            File.WriteAllBytes(path, bytes);
+            return path;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or FormatException)
+        {
+            AppLogger.Error("Could not save image result.", ex);
+            return null;
+        }
+    }
+
     private void TrackUsage(
         string operationId,
         string? providerRequestId,
@@ -651,6 +939,8 @@ internal sealed partial class MainWindow : Window
         long elapsedMilliseconds,
         TokenUsage usage,
         string model,
+        AppConfig operationConfig,
+        SearchContext searchContext,
         string? errorKind,
         string? errorMessage)
     {
@@ -672,8 +962,13 @@ internal sealed partial class MainWindow : Window
             operationId,
             providerRequestId,
             model,
-            _config.FromLanguage,
-            _config.ToLanguage,
+            operationConfig.ResultFormat.ToString(),
+            operationConfig.FromLanguage,
+            operationConfig.ToLanguage,
+            searchContext.Profile,
+            searchContext.Source,
+            searchContext.Language,
+            searchContext.GamePrefix,
             success,
             cost,
             _config.TotalCostUsd,
@@ -738,6 +1033,29 @@ internal sealed partial class MainWindow : Window
         return "Translation failed";
     }
 
+    private static AppConfig CloneConfig(AppConfig config) =>
+        new()
+        {
+            ApiKey = config.ApiKey,
+            ResultFormat = config.ResultFormat,
+            FromLanguage = config.FromLanguage,
+            ToLanguage = config.ToLanguage,
+            SearchSource = config.SearchSource,
+            GameSearchPrefix = config.GameSearchPrefix,
+            TotalCostUsd = config.TotalCostUsd
+        };
+
+    private static SearchContext CreateSearchContext(AppConfig config)
+    {
+        var profile = SearchProfiles.Get(config.SearchSource);
+        return new SearchContext(
+            profile.DisplayName,
+            profile.PromptName,
+            profile.SearchLanguage,
+            GameSearchPrefixes.GetSearchPrefix(config.GameSearchPrefix, config.SearchSource),
+            profile.UrlTemplate);
+    }
+
     private void FitResultText()
     {
         if (!ResultPanel.IsVisible ||
@@ -772,3 +1090,20 @@ internal sealed partial class MainWindow : Window
         ResultText.TextTrimming = TextTrimming.CharacterEllipsis;
     }
 }
+
+internal sealed record SearchButtonState(
+    string OperationId,
+    int Index,
+    SearchQueryResult Query,
+    string SearchProfile,
+    string SearchSource,
+    string SearchLanguage,
+    string GameSearchPrefix,
+    string Url);
+
+internal sealed record SearchContext(
+    string Profile,
+    string Source,
+    string Language,
+    string GamePrefix,
+    string UrlTemplate);

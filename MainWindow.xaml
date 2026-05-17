@@ -32,7 +32,7 @@
                 CornerRadius="4"
                 Background="Transparent"
                 Visibility="Collapsed"
-                IsHitTestVisible="False">
+                IsHitTestVisible="True">
             <Grid>
                 <Border x:Name="ResultPanel"
                         Margin="0"
@@ -256,6 +256,74 @@
                        FontWeight="SemiBold"
                        TextTrimming="CharacterEllipsis" />
         </Border>
+
+        <StackPanel x:Name="SearchButtonsPanel"
+                    Margin="0,0,0,2"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Bottom"
+                    Orientation="Horizontal"
+                    Visibility="Collapsed">
+            <Button x:Name="SearchButton1"
+                    Width="18"
+                    Height="18"
+                    Margin="0,0,4,0"
+                    Padding="0"
+                    Content="1"
+                    FontSize="11"
+                    FontWeight="SemiBold"
+                    ToolTip="Search"
+                    Click="SearchButton_Click" />
+            <Button x:Name="SearchButton2"
+                    Width="18"
+                    Height="18"
+                    Margin="0,0,4,0"
+                    Padding="0"
+                    Content="2"
+                    FontSize="11"
+                    FontWeight="SemiBold"
+                    ToolTip="Search"
+                    Visibility="Collapsed"
+                    Click="SearchButton_Click" />
+            <Button x:Name="SearchButton3"
+                    Width="18"
+                    Height="18"
+                    Padding="0"
+                    Content="3"
+                    FontSize="11"
+                    FontWeight="SemiBold"
+                    ToolTip="Search"
+                    Visibility="Collapsed"
+                    Click="SearchButton_Click" />
+            <StackPanel.Resources>
+                <Style TargetType="Button">
+                    <Setter Property="Foreground" Value="#CC161616" />
+                    <Setter Property="Background" Value="#DDFFC65F" />
+                    <Setter Property="BorderThickness" Value="0" />
+                    <Setter Property="Cursor" Value="Hand" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Circle"
+                                        Background="{TemplateBinding Background}"
+                                        BorderThickness="0"
+                                        CornerRadius="3">
+                                    <ContentPresenter HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Circle" Property="Background" Value="#FFFFC65F" />
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter TargetName="Circle" Property="Background" Value="#FFFFC65F" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </StackPanel.Resources>
+        </StackPanel>
 
         <Button x:Name="ResizeCornerButton"
                 Width="18"

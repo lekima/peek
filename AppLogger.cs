@@ -6,7 +6,8 @@ namespace Peek;
 
 internal static class AppLogger
 {
-    private const long MaxLogBytes = 5 * 1024 * 1024;
+    private const long MaxLogBytes = 25 * 1024 * 1024;
+    private const int MaxArchiveFiles = 50;
     private static readonly object Lock = new();
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -17,6 +18,20 @@ internal static class AppLogger
         AppPaths.DataDirectory;
 
     public static string LogPath => Path.Combine(LogDirectory, "peek.log.jsonl");
+
+    public static void Event(string eventName, object data)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(eventName);
+        ArgumentNullException.ThrowIfNull(data);
+
+        WriteJson(new
+        {
+            timestamp = DateTimeOffset.Now,
+            level = "info",
+            eventName,
+            data
+        });
+    }
 
     public static void Info(string message)
     {
@@ -53,8 +68,13 @@ internal static class AppLogger
             operationId = entry.OperationId,
             providerRequestId = entry.ProviderRequestId,
             model = entry.Model,
+            resultFormat = entry.ResultFormat,
             fromLanguage = entry.FromLanguage,
             toLanguage = entry.ToLanguage,
+            searchProfile = entry.SearchProfile,
+            searchSource = entry.SearchSource,
+            searchLanguage = entry.SearchLanguage,
+            gameSearchPrefix = entry.GameSearchPrefix,
             success = entry.Success,
             costUsd = entry.CostUsd,
             totalCostUsd = entry.TotalCostUsd,
@@ -66,6 +86,72 @@ internal static class AppLogger
             totalTokens = entry.TotalTokens,
             errorKind = entry.ErrorKind,
             errorMessage = entry.ErrorMessage
+        });
+    }
+
+    public static void TextResult(TextResultLogEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+
+        WriteJson(new
+        {
+            timestamp = entry.Timestamp,
+            level = "info",
+            eventName = "text_result",
+            operationId = entry.OperationId,
+            mode = "text",
+            model = entry.Model,
+            fromLanguage = entry.FromLanguage,
+            toLanguage = entry.ToLanguage,
+            searchProfile = entry.SearchProfile,
+            searchSource = entry.SearchSource,
+            searchLanguage = entry.SearchLanguage,
+            gameSearchPrefix = entry.GameSearchPrefix,
+            capturePath = entry.CapturePath,
+            translation = entry.Translation,
+            searchBasis = entry.SearchBasis,
+            searchQueries = entry.SearchQueries
+        });
+    }
+
+    public static void Capture(CaptureLogEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+
+        WriteJson(new
+        {
+            timestamp = entry.Timestamp,
+            level = "info",
+            eventName = "capture",
+            operationId = entry.OperationId,
+            mode = entry.Mode,
+            path = entry.Path,
+            width = entry.Width,
+            height = entry.Height,
+            frameWidth = entry.FrameWidth,
+            frameHeight = entry.FrameHeight
+        });
+    }
+
+    public static void SearchClick(SearchClickLogEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+
+        WriteJson(new
+        {
+            timestamp = entry.Timestamp,
+            level = "info",
+            eventName = "search_click",
+            operationId = entry.OperationId,
+            index = entry.Index,
+            label = entry.Label,
+            query = entry.Query,
+            basis = entry.Basis,
+            searchProfile = entry.SearchProfile,
+            searchSource = entry.SearchSource,
+            searchLanguage = entry.SearchLanguage,
+            gameSearchPrefix = entry.GameSearchPrefix,
+            url = entry.Url
         });
     }
 
@@ -95,13 +181,25 @@ internal static class AppLogger
             return;
         }
 
-        var archivePath = Path.Combine(LogDirectory, "peek.previous.log.jsonl");
-        if (File.Exists(archivePath))
+        for (var i = MaxArchiveFiles; i >= 1; i--)
         {
-            File.Delete(archivePath);
-        }
+            var sourcePath = i == 1
+                ? LogPath
+                : Path.Combine(LogDirectory, $"peek.{i - 1}.log.jsonl");
+            var destinationPath = Path.Combine(LogDirectory, $"peek.{i}.log.jsonl");
 
-        File.Move(LogPath, archivePath);
+            if (!File.Exists(sourcePath))
+            {
+                continue;
+            }
+
+            if (File.Exists(destinationPath))
+            {
+                File.Delete(destinationPath);
+            }
+
+            File.Move(sourcePath, destinationPath);
+        }
     }
 }
 
@@ -110,8 +208,13 @@ internal sealed record UsageLogEntry(
     string OperationId,
     string? ProviderRequestId,
     string Model,
+    string ResultFormat,
     string FromLanguage,
     string ToLanguage,
+    string SearchProfile,
+    string SearchSource,
+    string SearchLanguage,
+    string GameSearchPrefix,
     bool Success,
     decimal CostUsd,
     decimal TotalCostUsd,
@@ -123,3 +226,41 @@ internal sealed record UsageLogEntry(
     int TotalTokens,
     string? ErrorKind,
     string? ErrorMessage);
+
+internal sealed record TextResultLogEntry(
+    DateTimeOffset Timestamp,
+    string OperationId,
+    string Model,
+    string FromLanguage,
+    string ToLanguage,
+    string SearchProfile,
+    string SearchSource,
+    string SearchLanguage,
+    string GameSearchPrefix,
+    string? CapturePath,
+    string Translation,
+    string SearchBasis,
+    IReadOnlyList<SearchQueryResult> SearchQueries);
+
+internal sealed record CaptureLogEntry(
+    DateTimeOffset Timestamp,
+    string OperationId,
+    string Mode,
+    string Path,
+    int Width,
+    int Height,
+    double FrameWidth,
+    double FrameHeight);
+
+internal sealed record SearchClickLogEntry(
+    DateTimeOffset Timestamp,
+    string OperationId,
+    int Index,
+    string Label,
+    string Query,
+    string Basis,
+    string SearchProfile,
+    string SearchSource,
+    string SearchLanguage,
+    string GameSearchPrefix,
+    string Url);
