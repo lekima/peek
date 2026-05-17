@@ -7,12 +7,6 @@ namespace Peek;
 
 internal static class ScreenCaptureService
 {
-    public static Bitmap CaptureVisualBounds(Window window, FrameworkElement visual)
-    {
-        var bounds = GetVisualScreenBounds(window, visual);
-        return CaptureScreenBounds(bounds);
-    }
-
     public static Rect GetVisualScreenBounds(Window window, FrameworkElement visual)
     {
         ArgumentNullException.ThrowIfNull(window);
