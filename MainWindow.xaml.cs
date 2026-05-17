@@ -359,6 +359,64 @@ internal sealed partial class MainWindow : Window
         OpenUrl(searchButton.Url);
     }
 
+    private void WindowMenu_Opened(object sender, RoutedEventArgs e)
+    {
+        UpdateTargetGameMenuChecks();
+    }
+
+    private void TargetGameMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string tag } ||
+            !Enum.TryParse<TargetGame>(tag, true, out var targetGame) ||
+            !Enum.IsDefined(targetGame) ||
+            _config.TargetGame == targetGame)
+        {
+            UpdateTargetGameMenuChecks();
+            return;
+        }
+
+        var previousTargetGame = _config.TargetGame;
+        try
+        {
+            _config.TargetGame = targetGame;
+            AppConfigStore.Save(_config);
+            AppLogger.Event("target_game_changed", new
+            {
+                targetGame = TargetGames.GetDisplayName(_config.TargetGame)
+            });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or CryptographicException)
+        {
+            _config.TargetGame = previousTargetGame;
+            AppLogger.Error("Could not save target game.", ex);
+            MessageBox.Show(this, ex.Message, "Target game", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            UpdateTargetGameMenuChecks();
+        }
+    }
+
+    private void UpdateTargetGameMenuChecks()
+    {
+        if (DragButton.ContextMenu is not { } menu)
+        {
+            return;
+        }
+
+        foreach (var item in menu.Items.OfType<MenuItem>())
+        {
+            if (item.Tag is string tag &&
+                Enum.TryParse<TargetGame>(tag, true, out var targetGame) &&
+                Enum.IsDefined(targetGame))
+            {
+                var isSelected = _config.TargetGame == targetGame;
+                item.IsChecked = isSelected;
+                item.FontWeight = isSelected ? FontWeights.Bold : FontWeights.Normal;
+            }
+        }
+    }
+
     private void SettingsMenu_Click(object sender, RoutedEventArgs e)
     {
         OpenSettings();
@@ -411,7 +469,9 @@ internal sealed partial class MainWindow : Window
         var stopwatch = Stopwatch.StartNew();
         var captureWidth = 0;
         var captureHeight = 0;
-        var model = AppConfig.Gemini31FlashLiteModel;
+        var model = string.IsNullOrWhiteSpace(operationConfig.Model)
+            ? AppConfig.DefaultModel
+            : operationConfig.Model;
         string? providerRequestId = null;
         decimal responseCost = 0;
         var responseUsage = new TokenUsage(0, 0, 0);
@@ -546,8 +606,7 @@ internal sealed partial class MainWindow : Window
 
         AppLogger.Event("settings_opened", new
         {
-            targetLanguage = _config.TargetLanguage,
-            targetGame = TargetGames.GetDisplayName(_config.TargetGame)
+            targetLanguage = _config.TargetLanguage
         });
 
         _settingsWindow = new SettingsWindow(_config)
@@ -565,7 +624,6 @@ internal sealed partial class MainWindow : Window
                     AppLogger.Event("settings_saved", new
                     {
                         targetLanguage = _config.TargetLanguage,
-                        targetGame = TargetGames.GetDisplayName(_config.TargetGame),
                         totalCostUsd = _config.TotalCostUsd
                     });
                 }
@@ -633,7 +691,6 @@ internal sealed partial class MainWindow : Window
     {
         ResultTextPanel.Children.Clear();
         ResultTextPanel.Visibility = Visibility.Collapsed;
-        ClearSearchButtons();
         ClearStatus();
         ResultPanel.Visibility = Visibility.Collapsed;
         CollapseFrame();
@@ -856,6 +913,7 @@ internal sealed partial class MainWindow : Window
         new()
         {
             ApiKey = config.ApiKey,
+            Model = config.Model,
             TargetLanguage = config.TargetLanguage,
             TargetGame = config.TargetGame,
             TotalCostUsd = config.TotalCostUsd

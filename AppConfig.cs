@@ -11,6 +11,7 @@ internal enum TargetGame
     None,
     RocoKingdomWorld,
     HonorOfKingsWorld,
+    HonorOfKingsChess,
     HonorOfKings
 }
 
@@ -19,10 +20,11 @@ internal static class TargetGames
     public static string GetDisplayName(TargetGame game) =>
         game switch
         {
-            TargetGame.RocoKingdomWorld => "洛克王国 / Roco Kingdom: World",
-            TargetGame.HonorOfKingsWorld => "王者荣耀世界 / Honor of Kings: World",
-            TargetGame.HonorOfKings => "王者荣耀 / Honor of Kings",
-            _ => "No specific game"
+            TargetGame.RocoKingdomWorld => "Roco Kingdom: World",
+            TargetGame.HonorOfKingsWorld => "Honor of Kings: World",
+            TargetGame.HonorOfKingsChess => "Honor of Kings: Chess",
+            TargetGame.HonorOfKings => "Honor of Kings",
+            _ => "Any game"
         };
 
     public static string GetSearchPrefix(TargetGame game) =>
@@ -30,6 +32,7 @@ internal static class TargetGames
         {
             TargetGame.RocoKingdomWorld => "洛克王国",
             TargetGame.HonorOfKingsWorld => "王者荣耀世界",
+            TargetGame.HonorOfKingsChess => "王者万象棋",
             TargetGame.HonorOfKings => "王者荣耀",
             _ => string.Empty
         };
@@ -38,9 +41,10 @@ internal static class TargetGames
 internal sealed class AppConfig
 {
     public const string BilibiliSearchUrlTemplate = "https://search.bilibili.com/all?keyword={0}";
-    public const string Gemini31FlashLiteModel = "google/gemini-3.1-flash-lite";
+    public const string DefaultModel = "google/gemini-3.1-flash-lite";
 
     public string ApiKey { get; set; } = string.Empty;
+    public string Model { get; set; } = DefaultModel;
     public string TargetLanguage { get; set; } = "English";
     public TargetGame TargetGame { get; set; } = TargetGame.None;
     public decimal TotalCostUsd { get; set; }
@@ -51,6 +55,7 @@ internal static class AppConfigStore
     private sealed class StoredAppConfig
     {
         public string EncryptedApiKey { get; set; } = string.Empty;
+        public string Model { get; set; } = AppConfig.DefaultModel;
         public string TargetLanguage { get; set; } = "English";
         public string TargetGame { get; set; } = nameof(Peek.TargetGame.None);
         public decimal TotalCostUsd { get; set; }
@@ -77,6 +82,7 @@ internal static class AppConfigStore
             return new AppConfig
             {
                 ApiKey = Unprotect(stored.EncryptedApiKey),
+                Model = string.IsNullOrWhiteSpace(stored.Model) ? AppConfig.DefaultModel : stored.Model.Trim(),
                 TargetLanguage = string.IsNullOrWhiteSpace(stored.TargetLanguage) ? "English" : stored.TargetLanguage,
                 TargetGame = NormalizeTargetGame(stored.TargetGame),
                 TotalCostUsd = stored.TotalCostUsd
@@ -117,6 +123,7 @@ internal static class AppConfigStore
         var stored = new StoredAppConfig
         {
             EncryptedApiKey = Protect(config.ApiKey),
+            Model = string.IsNullOrWhiteSpace(config.Model) ? AppConfig.DefaultModel : config.Model,
             TargetLanguage = string.IsNullOrWhiteSpace(config.TargetLanguage) ? "English" : config.TargetLanguage,
             TargetGame = config.TargetGame.ToString(),
             TotalCostUsd = config.TotalCostUsd

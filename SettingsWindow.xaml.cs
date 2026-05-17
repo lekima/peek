@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Security;
 using System.Windows;
-using System.Windows.Controls;
 using MessageBox = System.Windows.MessageBox;
 
 namespace Peek;
@@ -19,8 +18,8 @@ internal sealed partial class SettingsWindow : Window
 
         _config = config;
         ApiKeyBox.Password = config.ApiKey;
+        ModelBox.Text = string.IsNullOrWhiteSpace(config.Model) ? AppConfig.DefaultModel : config.Model;
         TargetLanguageBox.Text = string.IsNullOrWhiteSpace(config.TargetLanguage) ? "English" : config.TargetLanguage;
-        InitializeTargetGameBox(config.TargetGame);
     }
 
     private void Save_Click(object sender, RoutedEventArgs e)
@@ -31,8 +30,10 @@ internal sealed partial class SettingsWindow : Window
             : TargetLanguageBox.Text.Trim();
 
         _config.ApiKey = apiKey;
+        _config.Model = string.IsNullOrWhiteSpace(ModelBox.Text)
+            ? AppConfig.DefaultModel
+            : ModelBox.Text.Trim();
         _config.TargetLanguage = targetLanguage;
-        _config.TargetGame = GetSelectedTargetGame();
 
         DialogResult = true;
         Close();
@@ -72,34 +73,4 @@ internal sealed partial class SettingsWindow : Window
         });
     }
 
-    private void InitializeTargetGameBox(TargetGame selectedGame)
-    {
-        TargetGameBox.Items.Add(CreateTargetGameItem(TargetGame.None));
-        TargetGameBox.Items.Add(CreateTargetGameItem(TargetGame.RocoKingdomWorld));
-        TargetGameBox.Items.Add(CreateTargetGameItem(TargetGame.HonorOfKingsWorld));
-        TargetGameBox.Items.Add(CreateTargetGameItem(TargetGame.HonorOfKings));
-
-        foreach (ComboBoxItem item in TargetGameBox.Items)
-        {
-            if (item.Tag is TargetGame game && game == selectedGame)
-            {
-                TargetGameBox.SelectedItem = item;
-                return;
-            }
-        }
-
-        TargetGameBox.SelectedIndex = 0;
-    }
-
-    private static ComboBoxItem CreateTargetGameItem(TargetGame game) =>
-        new()
-        {
-            Content = TargetGames.GetDisplayName(game),
-            Tag = game
-        };
-
-    private TargetGame GetSelectedTargetGame() =>
-        TargetGameBox.SelectedItem is ComboBoxItem { Tag: TargetGame game }
-            ? game
-            : TargetGame.None;
 }
