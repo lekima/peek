@@ -326,6 +326,7 @@ internal static class OpenRouterClient
             "Also generate up to three Chinese Bilibili guide searches for the same selected content. " +
             $"{targetGameInstruction} " +
             "The best query should match what the player would most likely search after seeing this screen; alternatives should cover meaningfully different but still close angles. " +
+            "Broaden alternatives by changing the search strategy, not by replacing distinctive names or terms with nearby guesses; if a term is uncertain, preserve the visible Chinese wording. " +
             "Use concise Chinese keywords built from distinctive clues such as quests, items, NPCs, locations, bosses, objectives, mechanics, or unusual dialogue. " +
             $"For each query, write a short search intent in {targetLanguage} explaining what help the player should expect to find. " +
             "Return only valid JSON matching the schema.";
