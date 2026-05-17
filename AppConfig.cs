@@ -6,12 +6,6 @@ using System.Text.Json;
 
 namespace Peek;
 
-internal enum ResultFormat
-{
-    Text,
-    Image
-}
-
 internal enum TargetGame
 {
     None,
@@ -43,21 +37,13 @@ internal static class TargetGames
 
 internal sealed class AppConfig
 {
-    public const string SearchProfile = "Bilibili - Chinese";
-    public const string SearchSource = "Bilibili";
-    public const string SearchLanguage = "Chinese";
-    public const string SearchUrlTemplate = "https://search.bilibili.com/all?keyword={0}";
+    public const string BilibiliSearchUrlTemplate = "https://search.bilibili.com/all?keyword={0}";
     public const string Gemini31FlashLiteModel = "google/gemini-3.1-flash-lite";
-    public const string Gemini31FlashImageModel = "google/gemini-3.1-flash-image-preview";
 
     public string ApiKey { get; set; } = string.Empty;
-    public ResultFormat ResultFormat { get; set; } = ResultFormat.Text;
     public string TargetLanguage { get; set; } = "English";
     public TargetGame TargetGame { get; set; } = TargetGame.None;
     public decimal TotalCostUsd { get; set; }
-
-    public static string GetModel(ResultFormat resultFormat) =>
-        resultFormat == ResultFormat.Image ? Gemini31FlashImageModel : Gemini31FlashLiteModel;
 }
 
 internal static class AppConfigStore
@@ -65,7 +51,6 @@ internal static class AppConfigStore
     private sealed class StoredAppConfig
     {
         public string EncryptedApiKey { get; set; } = string.Empty;
-        public string ResultFormat { get; set; } = nameof(Peek.ResultFormat.Text);
         public string TargetLanguage { get; set; } = "English";
         public string TargetGame { get; set; } = nameof(Peek.TargetGame.None);
         public decimal TotalCostUsd { get; set; }
@@ -92,7 +77,6 @@ internal static class AppConfigStore
             return new AppConfig
             {
                 ApiKey = Unprotect(stored.EncryptedApiKey),
-                ResultFormat = NormalizeResultFormat(stored.ResultFormat),
                 TargetLanguage = string.IsNullOrWhiteSpace(stored.TargetLanguage) ? "English" : stored.TargetLanguage,
                 TargetGame = NormalizeTargetGame(stored.TargetGame),
                 TotalCostUsd = stored.TotalCostUsd
@@ -133,7 +117,6 @@ internal static class AppConfigStore
         var stored = new StoredAppConfig
         {
             EncryptedApiKey = Protect(config.ApiKey),
-            ResultFormat = config.ResultFormat.ToString(),
             TargetLanguage = string.IsNullOrWhiteSpace(config.TargetLanguage) ? "English" : config.TargetLanguage,
             TargetGame = config.TargetGame.ToString(),
             TotalCostUsd = config.TotalCostUsd
@@ -164,14 +147,6 @@ internal static class AppConfigStore
         var bytes = Encoding.UTF8.GetBytes(value);
         var encrypted = ProtectedData.Protect(bytes, null, DataProtectionScope.CurrentUser);
         return Convert.ToBase64String(encrypted);
-    }
-
-    private static ResultFormat NormalizeResultFormat(string value)
-    {
-        return Enum.TryParse<ResultFormat>(value, true, out var resultFormat) &&
-            Enum.IsDefined(resultFormat)
-            ? resultFormat
-            : ResultFormat.Text;
     }
 
     private static TargetGame NormalizeTargetGame(string value)

@@ -17,7 +17,6 @@ internal static class OpenRouterClient
 {
     private const string TextPromptVersion = "chinese-game-bilibili-search-v12";
     private const string TextSchemaVersion = "text-result-schema-v6";
-    private const string ImageEditPromptVersion = "image-edit-v3";
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(90);
     private static readonly HttpClient HttpClient = new()
     {
@@ -83,14 +82,9 @@ internal static class OpenRouterClient
         AppLogger.Event("ai_request", new
         {
             operationId,
-            mode = "text",
             model,
             targetLanguage,
             targetGame,
-            searchProfile = AppConfig.SearchProfile,
-            searchSource = AppConfig.SearchSource,
-            searchLanguage = AppConfig.SearchLanguage,
-            searchPrefix,
             captureWidth = bitmap.Width,
             captureHeight = bitmap.Height,
             structuredOutput = true,
@@ -120,85 +114,6 @@ internal static class OpenRouterClient
             cost,
             usage,
             providerRequestId);
-    }
-
-    public static async Task<ImageTranslationResult> TranslateImageToEditedImageAsync(
-        Bitmap bitmap,
-        AppConfig config,
-        string model,
-        string operationId,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(bitmap);
-        ArgumentNullException.ThrowIfNull(config);
-
-        if (string.IsNullOrWhiteSpace(config.ApiKey))
-        {
-            throw new InvalidOperationException("OpenRouter API key is missing.");
-        }
-
-        var targetLanguage = string.IsNullOrWhiteSpace(config.TargetLanguage) ? "English" : config.TargetLanguage.Trim();
-        var targetGame = TargetGames.GetDisplayName(config.TargetGame);
-        var searchPrefix = TargetGames.GetSearchPrefix(config.TargetGame);
-        var imageDataUrl = ToPngDataUrl(bitmap);
-        var payload = new Dictionary<string, object?>
-        {
-            ["model"] = model,
-            ["modalities"] = new[] { "image", "text" },
-            ["messages"] = new object[]
-            {
-                new
-                {
-                    role = "user",
-                    content = new object[]
-                    {
-                        new
-                        {
-                            type = "text",
-                            text = CreateImageEditPrompt(targetLanguage, targetGame, searchPrefix)
-                        },
-                        new
-                        {
-                            type = "image_url",
-                            image_url = new
-                            {
-                                url = imageDataUrl
-                            }
-                        }
-                    }
-                }
-            }
-        };
-
-        AppLogger.Event("ai_request", new
-        {
-            operationId,
-            mode = "image_edit",
-            model,
-            targetLanguage,
-            targetGame,
-            searchPrefix,
-            captureWidth = bitmap.Width,
-            captureHeight = bitmap.Height,
-            structuredOutput = false,
-            promptVersion = ImageEditPromptVersion
-        });
-
-        var (statusCode, body) = await SendCompletionAsync(config, payload, cancellationToken).ConfigureAwait(false);
-        var root = ParseSuccessfulResponse(statusCode, body, operationId);
-        var message = ExtractFirstChoiceMessage(root);
-        var editedImageDataUrl = ExtractFirstImageDataUrl(message);
-        var providerRequestId = ExtractString(root, "id");
-        var cost = ExtractCost(root);
-        var usage = ExtractTokenUsage(root);
-        LogUsage(operationId, providerRequestId, cost, usage);
-
-        if (string.IsNullOrWhiteSpace(editedImageDataUrl))
-        {
-            throw new InvalidOperationException("No edited image returned. See log.");
-        }
-
-        return new ImageTranslationResult(editedImageDataUrl, cost, usage, providerRequestId);
     }
 
     private static JsonElement ParseSuccessfulResponse(HttpStatusCode statusCode, string body, string operationId)
@@ -330,22 +245,6 @@ internal static class OpenRouterClient
             "Use concise Chinese keywords built from distinctive clues such as quests, items, NPCs, locations, bosses, objectives, mechanics, or unusual dialogue. " +
             $"For each query, write a short search intent in {targetLanguage} explaining what help the player should expect to find. " +
             "Return only valid JSON matching the schema.";
-    }
-
-    private static string CreateImageEditPrompt(string targetLanguage, string targetGame, string searchPrefix)
-    {
-        var targetGameInstruction = string.IsNullOrWhiteSpace(searchPrefix)
-            ? "No specific target game is selected; infer the game only when the screenshot makes it clear."
-            : $"The selected target game is {targetGame}. Use that only as context for game-specific terminology.";
-
-        return
-            "You are editing a Chinese game screenshot so the player can read it quickly while the original UI still feels intact. " +
-            $"{targetGameInstruction} " +
-            $"Replace visible Chinese text with natural {targetLanguage} for quick play decisions. " +
-            "Preserve layout, colors, style, names, numbers, counts, symbols, punctuation, line breaks, and all non-text content. " +
-            $"Use clear official localized game terms in {targetLanguage} when they are obvious; otherwise preserve the Chinese name or transliterate instead of inventing. " +
-            $"Leave text already in {targetLanguage} unchanged. Keep translated text compact enough to fit the original UI. " +
-            "Do not add commentary, captions, highlights, or new UI. Do not guess unreadable text; leave unreadable text unchanged. Return only the edited image.";
     }
 
     private static Dictionary<string, object?> CreateTextTranslationResponseFormat(string targetLanguage) =>
@@ -651,52 +550,6 @@ internal static class OpenRouterClient
             : null;
     }
 
-    private static string ExtractFirstImageDataUrl(JsonElement message)
-    {
-        return FindFirstImageDataUrl(message);
-    }
-
-    private static string FindFirstImageDataUrl(JsonElement element)
-    {
-        if (element.ValueKind == JsonValueKind.String &&
-            IsImageDataUrl(element.GetString(), out var imageUrl))
-        {
-            return imageUrl;
-        }
-
-        if (element.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var item in element.EnumerateArray())
-            {
-                var nestedImageUrl = FindFirstImageDataUrl(item);
-                if (!string.IsNullOrWhiteSpace(nestedImageUrl))
-                {
-                    return nestedImageUrl;
-                }
-            }
-        }
-
-        if (element.ValueKind == JsonValueKind.Object)
-        {
-            foreach (var property in element.EnumerateObject())
-            {
-                var nestedImageUrl = FindFirstImageDataUrl(property.Value);
-                if (!string.IsNullOrWhiteSpace(nestedImageUrl))
-                {
-                    return nestedImageUrl;
-                }
-            }
-        }
-
-        return string.Empty;
-    }
-
-    private static bool IsImageDataUrl(string? value, out string url)
-    {
-        url = value?.Trim() ?? string.Empty;
-        return url.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase);
-    }
-
     private static string? ExtractProviderError(string body)
     {
         try
@@ -777,12 +630,6 @@ internal sealed record TokenUsage(int PromptTokens, int CompletionTokens, int To
 internal sealed record TextTranslationResult(
     string Text,
     IReadOnlyList<SearchQueryResult> SearchQueries,
-    decimal CostUsd,
-    TokenUsage Usage,
-    string? ProviderRequestId);
-
-internal sealed record ImageTranslationResult(
-    string ImageData,
     decimal CostUsd,
     TokenUsage Usage,
     string? ProviderRequestId);

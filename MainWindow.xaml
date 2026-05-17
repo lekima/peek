@@ -23,6 +23,45 @@
             <MenuItem Header="Settings" Click="SettingsMenu_Click" />
             <MenuItem Header="Quit" Click="QuitMenu_Click" />
         </ContextMenu>
+
+        <Style x:Key="OverlayButton" TargetType="Button">
+            <Setter Property="Width" Value="18" />
+            <Setter Property="Height" Value="18" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Background" Value="#DDFFC65F" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderThickness="0"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#FFFFC65F" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#FFFFC65F" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SearchButton" TargetType="Button" BasedOn="{StaticResource OverlayButton}">
+            <Setter Property="Foreground" Value="#E6080808" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="ToolTip" Value="Search" />
+        </Style>
     </Window.Resources>
 
     <Grid Background="Transparent">
@@ -45,10 +84,6 @@
                         Visibility="Collapsed"
                         SizeChanged="ResultPanel_SizeChanged">
                     <Grid>
-                        <Image x:Name="ResultImage"
-                               Stretch="Fill"
-                               Visibility="Collapsed"
-                               RenderOptions.BitmapScalingMode="HighQuality" />
                         <StackPanel x:Name="ResultTextPanel"
                                     Visibility="Collapsed">
                             <StackPanel.Resources>
@@ -71,35 +106,12 @@
                     VerticalAlignment="Top"
                     Orientation="Horizontal">
             <Button x:Name="DragButton"
-                    Width="18"
-                    Height="18"
                     Margin="0,0,4,0"
-                    Padding="0"
-                    Focusable="False"
-                    FocusVisualStyle="{x:Null}"
+                    Style="{StaticResource OverlayButton}"
                     ContextMenu="{StaticResource WindowMenu}"
                     PreviewMouseLeftButtonDown="DragButton_MouseLeftButtonDown"
                     PreviewMouseMove="DragButton_MouseMove"
                     PreviewMouseLeftButtonUp="DragButton_MouseLeftButtonUp">
-                <Button.Template>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Circle"
-                                Background="#DDFFC65F"
-                                BorderThickness="0"
-                                CornerRadius="3">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Circle" Property="Background" Value="#FFFFC65F" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Circle" Property="Background" Value="#FFFFC65F" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Button.Template>
                 <Grid Width="10"
                       Height="10">
                     <Ellipse Width="1.6"
@@ -130,32 +142,9 @@
             </Button>
 
             <Button x:Name="TranslateButton"
-                    Width="18"
-                    Height="18"
                     Margin="0,0,4,0"
-                    Padding="0"
-                    Focusable="False"
-                    FocusVisualStyle="{x:Null}"
+                    Style="{StaticResource OverlayButton}"
                     Click="TranslateButton_Click">
-                <Button.Template>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Circle"
-                                Background="#DDFFC65F"
-                                BorderThickness="0"
-                                CornerRadius="3">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Circle" Property="Background" Value="#FFFFC65F" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Circle" Property="Background" Value="#FFFFC65F" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Button.Template>
                 <Grid Width="10"
                       Height="10">
                     <Path x:Name="TranslateIcon"
@@ -179,32 +168,9 @@
             </Button>
 
             <Button x:Name="ClearButton"
-                    Width="18"
-                    Height="18"
                     Margin="0,0,4,0"
-                    Padding="0"
-                    Focusable="False"
-                    FocusVisualStyle="{x:Null}"
+                    Style="{StaticResource OverlayButton}"
                     Click="ClearButton_Click">
-                <Button.Template>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Circle"
-                                Background="#DDFFC65F"
-                                BorderThickness="0"
-                                CornerRadius="3">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Circle" Property="Background" Value="#FFFFC65F" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Circle" Property="Background" Value="#FFFFC65F" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Button.Template>
                 <Grid Width="10"
                       Height="10">
                     <Path Stroke="#E6080808"
@@ -216,33 +182,10 @@
             </Button>
 
             <Button x:Name="ResizeRowButton"
-                    Width="18"
-                    Height="18"
-                    Padding="0"
-                    Focusable="False"
-                    FocusVisualStyle="{x:Null}"
+                    Style="{StaticResource OverlayButton}"
                     PreviewMouseLeftButtonDown="ResizeButton_MouseLeftButtonDown"
                     PreviewMouseMove="ResizeButton_MouseMove"
                     PreviewMouseLeftButtonUp="ResizeButton_MouseLeftButtonUp">
-                <Button.Template>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Circle"
-                                Background="#DDFFC65F"
-                                BorderThickness="0"
-                                CornerRadius="3">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Circle" Property="Background" Value="#FFFFC65F" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Circle" Property="Background" Value="#FFFFC65F" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Button.Template>
                 <Grid Width="10"
                       Height="10">
                     <Path Stroke="#E6080808"
@@ -278,105 +221,32 @@
                     Orientation="Horizontal"
                     Visibility="Collapsed">
             <Button x:Name="SearchButton1"
-                    Width="18"
-                    Height="18"
                     Margin="0,0,4,0"
-                    Padding="0"
+                    Style="{StaticResource SearchButton}"
                     Content="1"
-                    FontSize="11"
-                    FontWeight="Bold"
-                    Focusable="False"
-                    FocusVisualStyle="{x:Null}"
-                    ToolTip="Search"
                     Click="SearchButton_Click" />
             <Button x:Name="SearchButton2"
-                    Width="18"
-                    Height="18"
                     Margin="0,0,4,0"
-                    Padding="0"
+                    Style="{StaticResource SearchButton}"
                     Content="2"
-                    FontSize="11"
-                    FontWeight="Bold"
-                    Focusable="False"
-                    FocusVisualStyle="{x:Null}"
-                    ToolTip="Search"
                     Visibility="Collapsed"
                     Click="SearchButton_Click" />
             <Button x:Name="SearchButton3"
-                    Width="18"
-                    Height="18"
-                    Padding="0"
+                    Style="{StaticResource SearchButton}"
                     Content="3"
-                    FontSize="11"
-                    FontWeight="Bold"
-                    Focusable="False"
-                    FocusVisualStyle="{x:Null}"
-                    ToolTip="Search"
                     Visibility="Collapsed"
                     Click="SearchButton_Click" />
-            <StackPanel.Resources>
-                <Style TargetType="Button">
-                    <Setter Property="Foreground" Value="#E6080808" />
-                    <Setter Property="Background" Value="#DDFFC65F" />
-                    <Setter Property="BorderThickness" Value="0" />
-                    <Setter Property="Cursor" Value="Hand" />
-                    <Setter Property="Template">
-                        <Setter.Value>
-                            <ControlTemplate TargetType="Button">
-                                <Border x:Name="Circle"
-                                        Background="{TemplateBinding Background}"
-                                        BorderThickness="0"
-                                        CornerRadius="3">
-                                    <ContentPresenter HorizontalAlignment="Center"
-                                                      VerticalAlignment="Center" />
-                                </Border>
-                                <ControlTemplate.Triggers>
-                                    <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter TargetName="Circle" Property="Background" Value="#FFFFC65F" />
-                                    </Trigger>
-                                    <Trigger Property="IsPressed" Value="True">
-                                        <Setter TargetName="Circle" Property="Background" Value="#FFFFC65F" />
-                                    </Trigger>
-                                </ControlTemplate.Triggers>
-                            </ControlTemplate>
-                        </Setter.Value>
-                    </Setter>
-                </Style>
-            </StackPanel.Resources>
         </StackPanel>
 
         <Button x:Name="ResizeCornerButton"
-                Width="18"
-                Height="18"
                 Margin="0,0,4,2"
-                Padding="0"
-                Focusable="False"
-                FocusVisualStyle="{x:Null}"
+                Style="{StaticResource OverlayButton}"
                 HorizontalAlignment="Right"
                 VerticalAlignment="Bottom"
                 Visibility="Collapsed"
                 PreviewMouseLeftButtonDown="ResizeButton_MouseLeftButtonDown"
                 PreviewMouseMove="ResizeButton_MouseMove"
                 PreviewMouseLeftButtonUp="ResizeButton_MouseLeftButtonUp">
-            <Button.Template>
-                <ControlTemplate TargetType="Button">
-                    <Border x:Name="Circle"
-                            Background="#DDFFC65F"
-                            BorderThickness="0"
-                            CornerRadius="3">
-                        <ContentPresenter HorizontalAlignment="Center"
-                                          VerticalAlignment="Center" />
-                    </Border>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Circle" Property="Background" Value="#FFFFC65F" />
-                        </Trigger>
-                        <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Circle" Property="Background" Value="#FFFFC65F" />
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Button.Template>
             <Grid Width="10"
                   Height="10">
                 <Path Stroke="#E6080808"

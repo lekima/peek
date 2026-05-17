@@ -12,22 +12,18 @@ The zip is self-contained for Windows x64, so it should not require a separate .
 
 - Use the four-button strip to move, translate, clear, and resize.
 - Drag the resize button downward to reveal the capture frame.
-- The app captures only the framed area underneath, sends the image to OpenRouter, then shows either translated text or an edited translated image inside the frame.
-- Peek stays available from the Windows notification area while running, using the same yellow move-button icon.
+- The app captures only the framed area underneath, sends the image to OpenRouter, then shows translated text inside the frame.
 
 ## Settings
 
-Right-click the move button or the notification-area icon, then choose `Settings`.
+Right-click the move button, then choose `Settings`.
 
 - Target language: configurable, default English
-- Result format: Text or Image
-- The translate button follows the selected result format: translated text inside the frame, or an edited translated image inside the frame.
-- Search: text-mode search buttons open Bilibili Chinese search.
-- Target game: optional Chinese game-name prefix for text-mode search links; choose `No specific game` for no added prefix. Current games are `洛克王国`, `王者荣耀世界`, and `王者荣耀`.
+- Search: search buttons open Bilibili Chinese search.
+- Target game: optional Chinese game-name prefix for search links; choose `No specific game` for no added prefix. Current games are `洛克王国`, `王者荣耀世界`, and `王者荣耀`.
 - API key storage: encrypted for the current Windows user with DPAPI in `data/settings.json`
-- Run on startup: optional per-user Windows startup entry; disabling it removes Peek's startup entry
 - Log: `data/peek.log.jsonl`
-- Review data: source captures are saved in `data/captures`, image-edit outputs in `data/results`, and text-mode translations/search queries are logged as `text_result` events.
+- Review data: source captures are saved in `data/captures`, and translations/search queries are logged as `text_result` events.
 - Font: Roboto and Roboto Condensed are bundled from Google Fonts under the SIL Open Font License in `Resources/Fonts`; Settings uses regular Roboto and overlay translation text uses Roboto Condensed Semibold.
 - Local data cleanup: delete the `data` folder next to `Peek.exe`
 - Cost tracking: cumulative total is stored locally, and each request is written as a structured `usage` event in the log

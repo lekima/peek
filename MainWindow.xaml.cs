@@ -9,11 +9,9 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
-using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using System.IO;
 using Drawing = System.Drawing;
-using Forms = System.Windows.Forms;
 using MessageBox = System.Windows.MessageBox;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using Point = System.Windows.Point;
@@ -38,7 +36,6 @@ internal sealed partial class MainWindow : Window
     private const int WmNcHitTest = 0x0084;
     private const nint HtClient = 1;
     private const nint HtTransparent = -1;
-    private static readonly Uri AppIconUri = new("pack://application:,,,/Resources/AppIcon.ico", UriKind.Absolute);
 
     private AppConfig _config = AppConfigStore.Load();
     private CancellationTokenSource? _translationCancellation;
@@ -50,9 +47,6 @@ internal sealed partial class MainWindow : Window
     private bool _resizeButtonDragged;
     private bool _resizeExpandedDuringInteraction;
     private bool _isTranslating;
-    private Forms.NotifyIcon? _trayIcon;
-    private Forms.ContextMenuStrip? _trayMenu;
-    private Drawing.Icon? _trayIconImage;
     private SettingsWindow? _settingsWindow;
     private readonly Dictionary<System.Windows.Controls.Button, SearchButtonState> _searchButtons = [];
     private readonly DoubleAnimation _spinnerAnimation = new(0, 360, TimeSpan.FromMilliseconds(700))
@@ -63,54 +57,13 @@ internal sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        InitializeTrayIcon();
         AppLogger.Event("app_start", new
         {
             appDirectory = AppPaths.AppDirectory,
-            resultFormat = _config.ResultFormat.ToString(),
             targetLanguage = _config.TargetLanguage,
             targetGame = TargetGames.GetDisplayName(_config.TargetGame),
-            searchProfile = AppConfig.SearchProfile,
-            searchSource = AppConfig.SearchSource,
-            searchLanguage = AppConfig.SearchLanguage,
-            searchPrefix = TargetGames.GetSearchPrefix(_config.TargetGame),
             totalCostUsd = _config.TotalCostUsd
         });
-    }
-
-    [SuppressMessage("Globalization", "CA1303:Do not pass literals as localized parameters", Justification = "Peek is the product name shown in the tray.")]
-    private void InitializeTrayIcon()
-    {
-        _trayMenu = new Forms.ContextMenuStrip();
-        _trayMenu.Items.Add("Settings", null, (_, _) => Dispatcher.Invoke(OpenSettings));
-        _trayMenu.Items.Add("Quit", null, (_, _) => Dispatcher.Invoke(Close));
-
-        _trayIcon = new Forms.NotifyIcon
-        {
-            Text = "Peek",
-            Icon = CreateTrayIcon(),
-            ContextMenuStrip = _trayMenu,
-            Visible = true
-        };
-
-        _trayIcon.DoubleClick += (_, _) => Dispatcher.Invoke(() =>
-        {
-            Show();
-            Activate();
-        });
-    }
-
-    private Drawing.Icon CreateTrayIcon()
-    {
-        _trayIconImage?.Dispose();
-
-        var streamInfo = System.Windows.Application.GetResourceStream(AppIconUri) ??
-            throw new InvalidOperationException("Application icon resource is missing.");
-        using var stream = streamInfo.Stream;
-        using var icon = new Drawing.Icon(stream);
-
-        _trayIconImage = (Drawing.Icon)icon.Clone();
-        return _trayIconImage;
     }
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
@@ -402,10 +355,6 @@ internal sealed partial class MainWindow : Window
             searchButton.Query.Query,
             searchButton.Query.Intent,
             searchButton.TargetGame,
-            searchButton.SearchProfile,
-            searchButton.SearchSource,
-            searchButton.SearchLanguage,
-            searchButton.SearchPrefix,
             searchButton.Url));
         OpenUrl(searchButton.Url);
     }
@@ -456,13 +405,13 @@ internal sealed partial class MainWindow : Window
         var cancellationSource = _translationCancellation;
         var cancellationToken = cancellationSource.Token;
         var operationConfig = CloneConfig(_config);
-        var searchContext = CreateSearchContext(operationConfig);
+        var targetGame = TargetGames.GetDisplayName(operationConfig.TargetGame);
+        var searchPrefix = TargetGames.GetSearchPrefix(operationConfig.TargetGame);
         var operationId = Guid.NewGuid().ToString("N")[..12];
         var stopwatch = Stopwatch.StartNew();
         var captureWidth = 0;
         var captureHeight = 0;
-        var resultFormat = operationConfig.ResultFormat;
-        var model = AppConfig.GetModel(resultFormat);
+        var model = AppConfig.Gemini31FlashLiteModel;
         string? providerRequestId = null;
         decimal responseCost = 0;
         var responseUsage = new TokenUsage(0, 0, 0);
@@ -474,13 +423,8 @@ internal sealed partial class MainWindow : Window
             {
                 operationId,
                 model,
-                resultFormat = resultFormat.ToString(),
                 targetLanguage = operationConfig.TargetLanguage,
-                targetGame = searchContext.TargetGame,
-                searchProfile = searchContext.Profile,
-                searchSource = searchContext.Source,
-                searchLanguage = searchContext.Language,
-                searchPrefix = searchContext.SearchPrefix,
+                targetGame,
                 windowLeft = Left,
                 windowTop = Top,
                 frameWidth = FrameBorder.ActualWidth,
@@ -492,34 +436,7 @@ internal sealed partial class MainWindow : Window
             using var bitmap = ScreenCaptureService.CaptureVisualBounds(this, FrameBorder, new Thickness(CaptureInset));
             captureWidth = bitmap.Width;
             captureHeight = bitmap.Height;
-            var capturePath = SaveCapture(operationId, resultFormat, bitmap);
-
-            if (resultFormat == ResultFormat.Image)
-            {
-                var imageResult = await OpenRouterClient.TranslateImageToEditedImageAsync(bitmap, operationConfig, model, operationId, cancellationToken).ConfigureAwait(true);
-                providerRequestId = imageResult.ProviderRequestId;
-                responseCost = imageResult.CostUsd;
-                responseUsage = imageResult.Usage;
-                stopwatch.Stop();
-                cancellationToken.ThrowIfCancellationRequested();
-                SetResultImage(imageResult.ImageData, operationId);
-                TrackUsage(
-                    operationId,
-                    providerRequestId,
-                    true,
-                    responseCost,
-                    captureWidth,
-                    captureHeight,
-                    stopwatch.ElapsedMilliseconds,
-                    responseUsage,
-                    model,
-                    operationConfig,
-                    searchContext,
-                    null,
-                    null);
-                usageTracked = true;
-                return;
-            }
+            var capturePath = SaveCapture(operationId, bitmap);
 
             var result = await OpenRouterClient.TranslateImageToTextAsync(bitmap, operationConfig, model, operationId, cancellationToken).ConfigureAwait(true);
             providerRequestId = result.ProviderRequestId;
@@ -527,17 +444,13 @@ internal sealed partial class MainWindow : Window
             responseUsage = result.Usage;
             stopwatch.Stop();
             cancellationToken.ThrowIfCancellationRequested();
-            SetResultText(operationId, result.Text, result.SearchQueries, searchContext);
+            SetResultText(operationId, result.Text, result.SearchQueries, targetGame, searchPrefix);
             AppLogger.TextResult(new TextResultLogEntry(
                 DateTimeOffset.Now,
                 operationId,
                 model,
                 operationConfig.TargetLanguage,
-                searchContext.TargetGame,
-                searchContext.Profile,
-                searchContext.Source,
-                searchContext.Language,
-                searchContext.SearchPrefix,
+                targetGame,
                 capturePath,
                 result.Text,
                 result.SearchQueries));
@@ -553,7 +466,7 @@ internal sealed partial class MainWindow : Window
                 responseUsage,
                 model,
                 operationConfig,
-                searchContext,
+                targetGame,
                 null,
                 null);
             usageTracked = true;
@@ -575,7 +488,7 @@ internal sealed partial class MainWindow : Window
                     responseUsage,
                     model,
                     operationConfig,
-                    searchContext,
+                    targetGame,
                     nameof(OperationCanceledException),
                     "Cancelled");
             }
@@ -598,7 +511,7 @@ internal sealed partial class MainWindow : Window
                 responseUsage,
                 model,
                 operationConfig,
-                searchContext,
+                targetGame,
                 ex.GetType().Name,
                 shortError);
         }
@@ -619,19 +532,6 @@ internal sealed partial class MainWindow : Window
         _translationCancellation?.Cancel();
         _translationCancellation?.Dispose();
         _translationCancellation = null;
-        if (_trayIcon is not null)
-        {
-            _trayIcon.ContextMenuStrip = null;
-            _trayIcon.Visible = false;
-            _trayIcon.Dispose();
-            _trayIcon = null;
-        }
-
-        _trayMenu?.Dispose();
-        _trayMenu = null;
-
-        _trayIconImage?.Dispose();
-        _trayIconImage = null;
 
         base.OnClosed(e);
     }
@@ -646,14 +546,8 @@ internal sealed partial class MainWindow : Window
 
         AppLogger.Event("settings_opened", new
         {
-            resultFormat = _config.ResultFormat.ToString(),
             targetLanguage = _config.TargetLanguage,
-            targetGame = TargetGames.GetDisplayName(_config.TargetGame),
-            searchProfile = AppConfig.SearchProfile,
-            searchSource = AppConfig.SearchSource,
-            searchLanguage = AppConfig.SearchLanguage,
-            searchPrefix = TargetGames.GetSearchPrefix(_config.TargetGame),
-            startupEnabled = StartupService.IsEnabled()
+            targetGame = TargetGames.GetDisplayName(_config.TargetGame)
         });
 
         _settingsWindow = new SettingsWindow(_config)
@@ -670,14 +564,8 @@ internal sealed partial class MainWindow : Window
                     AppConfigStore.Save(_config);
                     AppLogger.Event("settings_saved", new
                     {
-                        resultFormat = _config.ResultFormat.ToString(),
                         targetLanguage = _config.TargetLanguage,
                         targetGame = TargetGames.GetDisplayName(_config.TargetGame),
-                        searchProfile = AppConfig.SearchProfile,
-                        searchSource = AppConfig.SearchSource,
-                        searchLanguage = AppConfig.SearchLanguage,
-                        searchPrefix = TargetGames.GetSearchPrefix(_config.TargetGame),
-                        startupEnabled = StartupService.IsEnabled(),
                         totalCostUsd = _config.TotalCostUsd
                     });
                 }
@@ -715,13 +603,12 @@ internal sealed partial class MainWindow : Window
         string operationId,
         string text,
         IReadOnlyList<SearchQueryResult> searchQueries,
-        SearchContext searchContext)
+        string targetGame,
+        string searchPrefix)
     {
-        ResultImage.Source = null;
-        ResultImage.Visibility = Visibility.Collapsed;
         SetResultTextLines(text);
         ResultTextPanel.Visibility = Visibility.Visible;
-        SetSearchButtons(operationId, searchQueries, searchContext);
+        SetSearchButtons(operationId, searchQueries, targetGame, searchPrefix);
         ResultPanel.Padding = MaxResultTextPadding;
         ResultPanel.Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xE6, 0x11, 0x11, 0x11));
         ResultPanel.Visibility = Visibility.Visible;
@@ -742,58 +629,21 @@ internal sealed partial class MainWindow : Window
         StatusLabel.Visibility = Visibility.Collapsed;
     }
 
-    private void SetResultImage(string imageDataUrl, string operationId)
-    {
-        ResultTextPanel.Children.Clear();
-        ResultTextPanel.Visibility = Visibility.Collapsed;
-        ClearSearchButtons();
-        var resultPath = SaveImageDataUrl(operationId, imageDataUrl);
-        AppLogger.Event("image_result", new
-        {
-            operationId,
-            path = resultPath
-        });
-        ResultImage.Source = LoadImageDataUrl(imageDataUrl);
-        ResultImage.Visibility = Visibility.Visible;
-        ResultPanel.Padding = new Thickness(0);
-        ResultPanel.Background = System.Windows.Media.Brushes.Transparent;
-        ResultPanel.Visibility = Visibility.Visible;
-        UpdateResultPanelClip();
-        ClearStatus();
-    }
-
     private void ClearResult()
     {
         ResultTextPanel.Children.Clear();
         ResultTextPanel.Visibility = Visibility.Collapsed;
         ClearSearchButtons();
-        ResultImage.Source = null;
-        ResultImage.Visibility = Visibility.Collapsed;
         ClearStatus();
         ResultPanel.Visibility = Visibility.Collapsed;
         CollapseFrame();
     }
 
-    private static BitmapImage LoadImageDataUrl(string dataUrl)
-    {
-        var commaIndex = dataUrl.IndexOf(',', StringComparison.Ordinal);
-        if (commaIndex < 0)
-        {
-            throw new InvalidOperationException("Image response was not a data URL.");
-        }
-
-        var bytes = Convert.FromBase64String(dataUrl[(commaIndex + 1)..]);
-        using var stream = new MemoryStream(bytes);
-        var image = new BitmapImage();
-        image.BeginInit();
-        image.CacheOption = BitmapCacheOption.OnLoad;
-        image.StreamSource = stream;
-        image.EndInit();
-        image.Freeze();
-        return image;
-    }
-
-    private void SetSearchButtons(string operationId, IReadOnlyList<SearchQueryResult> searchQueries, SearchContext searchContext)
+    private void SetSearchButtons(
+        string operationId,
+        IReadOnlyList<SearchQueryResult> searchQueries,
+        string targetGame,
+        string searchPrefix)
     {
         ClearSearchButtons();
 
@@ -806,7 +656,7 @@ internal sealed partial class MainWindow : Window
                 break;
             }
 
-            var searchUrl = BuildSearchUrl(searchQuery.Query, searchContext);
+            var searchUrl = BuildBilibiliSearchUrl(searchQuery.Query, searchPrefix);
             if (string.IsNullOrWhiteSpace(searchUrl))
             {
                 continue;
@@ -814,18 +664,14 @@ internal sealed partial class MainWindow : Window
 
             var button = buttons[buttonIndex];
             button.ToolTip = string.IsNullOrWhiteSpace(searchQuery.Intent)
-                ? AppConfig.SearchSource
+                ? "Search Bilibili"
                 : searchQuery.Intent;
             button.Visibility = Visibility.Visible;
             _searchButtons[button] = new SearchButtonState(
                 operationId,
                 buttonIndex + 1,
                 searchQuery,
-                searchContext.TargetGame,
-                searchContext.Profile,
-                searchContext.Source,
-                searchContext.Language,
-                searchContext.SearchPrefix,
+                targetGame,
                 searchUrl);
             buttonIndex++;
         }
@@ -835,7 +681,7 @@ internal sealed partial class MainWindow : Window
             : Visibility.Collapsed;
     }
 
-    private static string BuildSearchUrl(string searchQuery, SearchContext searchContext)
+    private static string BuildBilibiliSearchUrl(string searchQuery, string searchPrefix)
     {
         var keyword = searchQuery.Trim();
         if (string.IsNullOrWhiteSpace(keyword))
@@ -843,13 +689,13 @@ internal sealed partial class MainWindow : Window
             return string.Empty;
         }
 
-        var prefixedKeyword = string.IsNullOrWhiteSpace(searchContext.SearchPrefix) ||
-            keyword.StartsWith(searchContext.SearchPrefix, StringComparison.OrdinalIgnoreCase)
+        var prefixedKeyword = string.IsNullOrWhiteSpace(searchPrefix) ||
+            keyword.StartsWith(searchPrefix, StringComparison.OrdinalIgnoreCase)
                 ? keyword
-                : $"{searchContext.SearchPrefix} {keyword}";
+                : $"{searchPrefix} {keyword}";
         return string.Format(
             CultureInfo.InvariantCulture,
-            searchContext.UrlTemplate,
+            AppConfig.BilibiliSearchUrlTemplate,
             Uri.EscapeDataString(prefixedKeyword));
     }
 
@@ -860,10 +706,9 @@ internal sealed partial class MainWindow : Window
         SearchButton1.Visibility = Visibility.Collapsed;
         SearchButton2.Visibility = Visibility.Collapsed;
         SearchButton3.Visibility = Visibility.Collapsed;
-        var searchLabel = $"Search {AppConfig.SearchSource}";
-        SearchButton1.ToolTip = searchLabel;
-        SearchButton2.ToolTip = searchLabel;
-        SearchButton3.ToolTip = searchLabel;
+        SearchButton1.ToolTip = "Search Bilibili";
+        SearchButton2.ToolTip = "Search Bilibili";
+        SearchButton3.ToolTip = "Search Bilibili";
     }
 
     private void OpenUrl(string url)
@@ -883,7 +728,7 @@ internal sealed partial class MainWindow : Window
         }
     }
 
-    private string? SaveCapture(string operationId, ResultFormat resultFormat, Drawing.Bitmap bitmap)
+    private string? SaveCapture(string operationId, Drawing.Bitmap bitmap)
     {
         try
         {
@@ -894,7 +739,6 @@ internal sealed partial class MainWindow : Window
             AppLogger.Capture(new CaptureLogEntry(
                 DateTimeOffset.Now,
                 operationId,
-                resultFormat.ToString(),
                 path,
                 bitmap.Width,
                 bitmap.Height,
@@ -905,30 +749,6 @@ internal sealed partial class MainWindow : Window
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or System.Runtime.InteropServices.ExternalException)
         {
             AppLogger.Error("Could not save capture.", ex);
-            return null;
-        }
-    }
-
-    private static string? SaveImageDataUrl(string operationId, string dataUrl)
-    {
-        try
-        {
-            var commaIndex = dataUrl.IndexOf(',', StringComparison.Ordinal);
-            if (commaIndex < 0)
-            {
-                return null;
-            }
-
-            var bytes = Convert.FromBase64String(dataUrl[(commaIndex + 1)..]);
-            var directory = Path.Combine(AppPaths.DataDirectory, "results");
-            Directory.CreateDirectory(directory);
-            var path = Path.Combine(directory, $"{operationId}.png");
-            File.WriteAllBytes(path, bytes);
-            return path;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or FormatException)
-        {
-            AppLogger.Error("Could not save image result.", ex);
             return null;
         }
     }
@@ -944,7 +764,7 @@ internal sealed partial class MainWindow : Window
         TokenUsage usage,
         string model,
         AppConfig operationConfig,
-        SearchContext searchContext,
+        string targetGame,
         string? errorKind,
         string? errorMessage)
     {
@@ -966,13 +786,8 @@ internal sealed partial class MainWindow : Window
             operationId,
             providerRequestId,
             model,
-            operationConfig.ResultFormat.ToString(),
             operationConfig.TargetLanguage,
-            searchContext.TargetGame,
-            searchContext.Profile,
-            searchContext.Source,
-            searchContext.Language,
-            searchContext.SearchPrefix,
+            targetGame,
             success,
             cost,
             _config.TotalCostUsd,
@@ -1041,25 +856,14 @@ internal sealed partial class MainWindow : Window
         new()
         {
             ApiKey = config.ApiKey,
-            ResultFormat = config.ResultFormat,
             TargetLanguage = config.TargetLanguage,
             TargetGame = config.TargetGame,
             TotalCostUsd = config.TotalCostUsd
         };
 
-    private static SearchContext CreateSearchContext(AppConfig config) =>
-        new(
-            AppConfig.SearchProfile,
-            AppConfig.SearchSource,
-            AppConfig.SearchLanguage,
-            TargetGames.GetDisplayName(config.TargetGame),
-            TargetGames.GetSearchPrefix(config.TargetGame),
-            AppConfig.SearchUrlTemplate);
-
     private void FitResultText()
     {
         if (!ResultPanel.IsVisible ||
-            ResultImage.Visibility == Visibility.Visible ||
             ResultTextPanel.Children.Count == 0 ||
             ResultPanel.ActualWidth <= 0 ||
             ResultPanel.ActualHeight <= 0)
@@ -1151,16 +955,4 @@ internal sealed record SearchButtonState(
     int Index,
     SearchQueryResult Query,
     string TargetGame,
-    string SearchProfile,
-    string SearchSource,
-    string SearchLanguage,
-    string SearchPrefix,
     string Url);
-
-internal sealed record SearchContext(
-    string Profile,
-    string Source,
-    string Language,
-    string TargetGame,
-    string SearchPrefix,
-    string UrlTemplate);

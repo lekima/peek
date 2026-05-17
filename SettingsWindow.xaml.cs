@@ -19,45 +19,20 @@ internal sealed partial class SettingsWindow : Window
 
         _config = config;
         ApiKeyBox.Password = config.ApiKey;
-        TextFormatButton.IsChecked = config.ResultFormat != ResultFormat.Image;
-        ImageFormatButton.IsChecked = config.ResultFormat == ResultFormat.Image;
         TargetLanguageBox.Text = string.IsNullOrWhiteSpace(config.TargetLanguage) ? "English" : config.TargetLanguage;
         InitializeTargetGameBox(config.TargetGame);
-        StartupBox.IsChecked = StartupService.IsEnabled();
     }
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
         var apiKey = ApiKeyBox.Password.Trim();
-        var resultFormat = ImageFormatButton.IsChecked == true ? ResultFormat.Image : ResultFormat.Text;
         var targetLanguage = string.IsNullOrWhiteSpace(TargetLanguageBox.Text)
             ? "English"
             : TargetLanguageBox.Text.Trim();
-        Exception? startupException = null;
-
-        try
-        {
-            StartupService.SetEnabled(StartupBox.IsChecked == true);
-        }
-        catch (Exception ex) when (ex is IOException or SecurityException or UnauthorizedAccessException or InvalidOperationException)
-        {
-            startupException = ex;
-        }
 
         _config.ApiKey = apiKey;
-        _config.ResultFormat = resultFormat;
         _config.TargetLanguage = targetLanguage;
         _config.TargetGame = GetSelectedTargetGame();
-
-        if (startupException is not null)
-        {
-            MessageBox.Show(
-                this,
-                $"Startup setting was not saved. Other settings will still be saved.\n\n{startupException.Message}",
-                "Startup setting",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
-        }
 
         DialogResult = true;
         Close();
