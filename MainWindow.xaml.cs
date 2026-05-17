@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using System.Runtime.InteropServices;
 using System.Security;
 using System.Security.Cryptography;
 using System.Windows;
@@ -33,6 +32,7 @@ internal sealed partial class MainWindow : Window
     private const double MinResultFontSize = 10;
     private const double MaxResultLineGap = 12;
     private const double MinResultLineGap = 4;
+    private const double CaptureInset = 3;
     private static readonly Thickness MaxResultTextPadding = new(14, 12, 14, 10);
     private static readonly Thickness MinResultTextPadding = new(6, 6, 6, 4);
     private const int WmNcHitTest = 0x0084;
@@ -124,11 +124,6 @@ internal sealed partial class MainWindow : Window
     private void Window_SourceInitialized(object sender, EventArgs e)
     {
         var handle = new WindowInteropHelper(this).Handle;
-        if (!Win32.SetWindowDisplayAffinity(handle, Win32.WdaExcludeFromCapture))
-        {
-            AppLogger.Info($"SetWindowDisplayAffinity failed error={Win32.GetLastError()}");
-        }
-
         if (HwndSource.FromHwnd(handle) is { } source)
         {
             source.AddHook(WindowMessageHook);
@@ -494,7 +489,7 @@ internal sealed partial class MainWindow : Window
             SetBusy(true);
             ClearStatus();
 
-            using var bitmap = ScreenCaptureService.CaptureVisualBounds(this, FrameBorder);
+            using var bitmap = ScreenCaptureService.CaptureVisualBounds(this, FrameBorder, new Thickness(CaptureInset));
             captureWidth = bitmap.Width;
             captureHeight = bitmap.Height;
             var capturePath = SaveCapture(operationId, resultFormat, bitmap);
@@ -907,7 +902,7 @@ internal sealed partial class MainWindow : Window
                 FrameBorder.ActualHeight));
             return path;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or ExternalException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or System.Runtime.InteropServices.ExternalException)
         {
             AppLogger.Error("Could not save capture.", ex);
             return null;

@@ -7,7 +7,7 @@ namespace Peek;
 
 internal static class ScreenCaptureService
 {
-    public static Bitmap CaptureVisualBounds(Window window, FrameworkElement visual)
+    public static Bitmap CaptureVisualBounds(Window window, FrameworkElement visual, Thickness inset)
     {
         ArgumentNullException.ThrowIfNull(window);
         ArgumentNullException.ThrowIfNull(visual);
@@ -19,8 +19,10 @@ internal static class ScreenCaptureService
         }
 
         var transform = source.CompositionTarget.TransformToDevice;
-        var topLeft = visual.PointToScreen(new Point(0, 0));
-        var size = transform.Transform(new Point(visual.ActualWidth, visual.ActualHeight));
+        var topLeft = visual.PointToScreen(new Point(inset.Left, inset.Top));
+        var widthDip = Math.Max(1, visual.ActualWidth - inset.Left - inset.Right);
+        var heightDip = Math.Max(1, visual.ActualHeight - inset.Top - inset.Bottom);
+        var size = transform.Transform(new Point(widthDip, heightDip));
 
         var x = (int)Math.Round(topLeft.X);
         var y = (int)Math.Round(topLeft.Y);
