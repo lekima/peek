@@ -75,6 +75,8 @@
                     Height="18"
                     Margin="0,0,4,0"
                     Padding="0"
+                    Focusable="False"
+                    FocusVisualStyle="{x:Null}"
                     ContextMenu="{StaticResource WindowMenu}"
                     PreviewMouseLeftButtonDown="DragButton_MouseLeftButtonDown"
                     PreviewMouseMove="DragButton_MouseMove"
@@ -132,6 +134,8 @@
                     Height="18"
                     Margin="0,0,4,0"
                     Padding="0"
+                    Focusable="False"
+                    FocusVisualStyle="{x:Null}"
                     Click="TranslateButton_Click">
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
@@ -179,6 +183,8 @@
                     Height="18"
                     Margin="0,0,4,0"
                     Padding="0"
+                    Focusable="False"
+                    FocusVisualStyle="{x:Null}"
                     Click="ClearButton_Click">
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
@@ -213,6 +219,8 @@
                     Width="18"
                     Height="18"
                     Padding="0"
+                    Focusable="False"
+                    FocusVisualStyle="{x:Null}"
                     PreviewMouseLeftButtonDown="ResizeButton_MouseLeftButtonDown"
                     PreviewMouseMove="ResizeButton_MouseMove"
                     PreviewMouseLeftButtonUp="ResizeButton_MouseLeftButtonUp">
@@ -277,6 +285,8 @@
                     Content="1"
                     FontSize="11"
                     FontWeight="Bold"
+                    Focusable="False"
+                    FocusVisualStyle="{x:Null}"
                     ToolTip="Search"
                     Click="SearchButton_Click" />
             <Button x:Name="SearchButton2"
@@ -287,6 +297,8 @@
                     Content="2"
                     FontSize="11"
                     FontWeight="Bold"
+                    Focusable="False"
+                    FocusVisualStyle="{x:Null}"
                     ToolTip="Search"
                     Visibility="Collapsed"
                     Click="SearchButton_Click" />
@@ -297,6 +309,8 @@
                     Content="3"
                     FontSize="11"
                     FontWeight="Bold"
+                    Focusable="False"
+                    FocusVisualStyle="{x:Null}"
                     ToolTip="Search"
                     Visibility="Collapsed"
                     Click="SearchButton_Click" />
@@ -336,6 +350,8 @@
                 Height="18"
                 Margin="0,0,4,2"
                 Padding="0"
+                Focusable="False"
+                FocusVisualStyle="{x:Null}"
                 HorizontalAlignment="Right"
                 VerticalAlignment="Bottom"
                 Visibility="Collapsed"
