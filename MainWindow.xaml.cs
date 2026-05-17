@@ -31,8 +31,8 @@ internal sealed partial class MainWindow : Window
     private const double FrameRevealHeight = 48;
     private const double MaxResultFontSize = 22;
     private const double MinResultFontSize = 10;
-    private const double MaxResultLineGap = 16;
-    private const double MinResultLineGap = 8;
+    private const double MaxResultLineGap = 14;
+    private const double MinResultLineGap = 6;
     private static readonly Thickness MaxResultTextPadding = new(16, 12, 16, 12);
     private static readonly Thickness MinResultTextPadding = new(8, 6, 8, 6);
     private const int WmNcHitTest = 0x0084;
