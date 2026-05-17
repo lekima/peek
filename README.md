@@ -42,4 +42,6 @@ dotnet publish .\Peek.csproj -c Release -r win-x64 --self-contained true -p:Publ
 Compress-Archive -LiteralPath .\bin\Release\net8.0-windows10.0.19041.0\win-x64\publish\Peek.exe -DestinationPath .\releases\Peek-win-x64.zip -CompressionLevel Optimal -Force
 ```
 
+Before pushing code changes that affect the app, rebuild and commit `releases/Peek-win-x64.zip` with the same change.
+
 For strict anti-cheat games, use borderless windowed mode when possible. The app is an external desktop overlay: it does not inject into the game, hook graphics APIs, read or write process memory, install global input hooks, or automate input. It still uses normal Windows screen capture for the selected area, so no app can guarantee compatibility with every anti-cheat.
