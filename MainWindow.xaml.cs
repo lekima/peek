@@ -819,8 +819,8 @@ internal sealed partial class MainWindow : Window
 
             var button = buttons[buttonIndex];
             button.ToolTip = string.IsNullOrWhiteSpace(searchQuery.Intent)
-                ? searchQuery.Query
-                : $"{searchQuery.Query}\n{searchQuery.Intent}";
+                ? AppConfig.SearchSource
+                : searchQuery.Intent;
             button.Visibility = Visibility.Visible;
             _searchButtons[button] = new SearchButtonState(
                 operationId,
