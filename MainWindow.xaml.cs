@@ -28,8 +28,8 @@ internal sealed partial class MainWindow : Window
     private const double CollapsedWidth = 84;
     private const double CollapsedHeight = 24;
     private const double FrameRevealHeight = 48;
-    private const double MaxResultFontSize = 24;
-    private const double MinResultFontSize = 8;
+    private const double MaxResultFontSize = 20;
+    private const double MinResultFontSize = 10;
     private const int WmNcHitTest = 0x0084;
     private const nint HtClient = 1;
     private const nint HtTransparent = -1;
@@ -63,12 +63,12 @@ internal sealed partial class MainWindow : Window
         {
             appDirectory = AppPaths.AppDirectory,
             resultFormat = _config.ResultFormat.ToString(),
-            fromLanguage = _config.FromLanguage,
-            toLanguage = _config.ToLanguage,
-            searchProfile = SearchProfiles.Get(_config.SearchSource).DisplayName,
-            searchSource = SearchProfiles.Get(_config.SearchSource).PromptName,
-            searchLanguage = SearchProfiles.Get(_config.SearchSource).SearchLanguage,
-            gameSearchPrefix = GameSearchPrefixes.GetSearchPrefix(_config.GameSearchPrefix, _config.SearchSource),
+            targetLanguage = _config.TargetLanguage,
+            targetGame = TargetGames.GetDisplayName(_config.TargetGame),
+            searchProfile = AppConfig.SearchProfile,
+            searchSource = AppConfig.SearchSource,
+            searchLanguage = AppConfig.SearchLanguage,
+            searchPrefix = TargetGames.GetSearchPrefix(_config.TargetGame),
             totalCostUsd = _config.TotalCostUsd
         });
     }
@@ -401,10 +401,11 @@ internal sealed partial class MainWindow : Window
             searchButton.Query.Label,
             searchButton.Query.Query,
             searchButton.Query.Basis,
+            searchButton.TargetGame,
             searchButton.SearchProfile,
             searchButton.SearchSource,
             searchButton.SearchLanguage,
-            searchButton.GameSearchPrefix,
+            searchButton.SearchPrefix,
             searchButton.Url));
         OpenUrl(searchButton.Url);
     }
@@ -474,12 +475,12 @@ internal sealed partial class MainWindow : Window
                 operationId,
                 model,
                 resultFormat = resultFormat.ToString(),
-                fromLanguage = operationConfig.FromLanguage,
-                toLanguage = operationConfig.ToLanguage,
+                targetLanguage = operationConfig.TargetLanguage,
+                targetGame = searchContext.TargetGame,
                 searchProfile = searchContext.Profile,
                 searchSource = searchContext.Source,
                 searchLanguage = searchContext.Language,
-                gameSearchPrefix = searchContext.GamePrefix,
+                searchPrefix = searchContext.SearchPrefix,
                 windowLeft = Left,
                 windowTop = Top,
                 frameWidth = FrameBorder.ActualWidth,
@@ -531,12 +532,12 @@ internal sealed partial class MainWindow : Window
                 DateTimeOffset.Now,
                 operationId,
                 model,
-                operationConfig.FromLanguage,
-                operationConfig.ToLanguage,
+                operationConfig.TargetLanguage,
+                searchContext.TargetGame,
                 searchContext.Profile,
                 searchContext.Source,
                 searchContext.Language,
-                searchContext.GamePrefix,
+                searchContext.SearchPrefix,
                 capturePath,
                 result.Text,
                 result.SearchBasis,
@@ -647,12 +648,12 @@ internal sealed partial class MainWindow : Window
         AppLogger.Event("settings_opened", new
         {
             resultFormat = _config.ResultFormat.ToString(),
-            fromLanguage = _config.FromLanguage,
-            toLanguage = _config.ToLanguage,
-            searchProfile = SearchProfiles.Get(_config.SearchSource).DisplayName,
-            searchSource = SearchProfiles.Get(_config.SearchSource).PromptName,
-            searchLanguage = SearchProfiles.Get(_config.SearchSource).SearchLanguage,
-            gameSearchPrefix = GameSearchPrefixes.GetSearchPrefix(_config.GameSearchPrefix, _config.SearchSource),
+            targetLanguage = _config.TargetLanguage,
+            targetGame = TargetGames.GetDisplayName(_config.TargetGame),
+            searchProfile = AppConfig.SearchProfile,
+            searchSource = AppConfig.SearchSource,
+            searchLanguage = AppConfig.SearchLanguage,
+            searchPrefix = TargetGames.GetSearchPrefix(_config.TargetGame),
             startupEnabled = StartupService.IsEnabled()
         });
 
@@ -671,12 +672,12 @@ internal sealed partial class MainWindow : Window
                     AppLogger.Event("settings_saved", new
                     {
                         resultFormat = _config.ResultFormat.ToString(),
-                        fromLanguage = _config.FromLanguage,
-                        toLanguage = _config.ToLanguage,
-                        searchProfile = SearchProfiles.Get(_config.SearchSource).DisplayName,
-                        searchSource = SearchProfiles.Get(_config.SearchSource).PromptName,
-                        searchLanguage = SearchProfiles.Get(_config.SearchSource).SearchLanguage,
-                        gameSearchPrefix = GameSearchPrefixes.GetSearchPrefix(_config.GameSearchPrefix, _config.SearchSource),
+                        targetLanguage = _config.TargetLanguage,
+                        targetGame = TargetGames.GetDisplayName(_config.TargetGame),
+                        searchProfile = AppConfig.SearchProfile,
+                        searchSource = AppConfig.SearchSource,
+                        searchLanguage = AppConfig.SearchLanguage,
+                        searchPrefix = TargetGames.GetSearchPrefix(_config.TargetGame),
                         startupEnabled = StartupService.IsEnabled(),
                         totalCostUsd = _config.TotalCostUsd
                     });
@@ -711,7 +712,11 @@ internal sealed partial class MainWindow : Window
         }
     }
 
-    private void SetResultText(string operationId, string text, IReadOnlyList<SearchQueryResult> searchQueries, SearchContext searchContext)
+    private void SetResultText(
+        string operationId,
+        string text,
+        IReadOnlyList<SearchQueryResult> searchQueries,
+        SearchContext searchContext)
     {
         ResultImage.Source = null;
         ResultImage.Visibility = Visibility.Collapsed;
@@ -818,10 +823,11 @@ internal sealed partial class MainWindow : Window
                 operationId,
                 buttonIndex + 1,
                 searchQuery,
+                searchContext.TargetGame,
                 searchContext.Profile,
                 searchContext.Source,
                 searchContext.Language,
-                searchContext.GamePrefix,
+                searchContext.SearchPrefix,
                 searchUrl);
             buttonIndex++;
         }
@@ -839,10 +845,10 @@ internal sealed partial class MainWindow : Window
             return string.Empty;
         }
 
-        var prefixedKeyword = string.IsNullOrWhiteSpace(searchContext.GamePrefix) ||
-            keyword.StartsWith(searchContext.GamePrefix, StringComparison.OrdinalIgnoreCase)
+        var prefixedKeyword = string.IsNullOrWhiteSpace(searchContext.SearchPrefix) ||
+            keyword.StartsWith(searchContext.SearchPrefix, StringComparison.OrdinalIgnoreCase)
                 ? keyword
-                : $"{searchContext.GamePrefix} {keyword}";
+                : $"{searchContext.SearchPrefix} {keyword}";
         return string.Format(
             CultureInfo.InvariantCulture,
             searchContext.UrlTemplate,
@@ -856,7 +862,7 @@ internal sealed partial class MainWindow : Window
         SearchButton1.Visibility = Visibility.Collapsed;
         SearchButton2.Visibility = Visibility.Collapsed;
         SearchButton3.Visibility = Visibility.Collapsed;
-        var searchLabel = $"Search {SearchProfiles.Get(_config.SearchSource).PromptName}";
+        var searchLabel = $"Search {AppConfig.SearchSource}";
         SearchButton1.ToolTip = searchLabel;
         SearchButton2.ToolTip = searchLabel;
         SearchButton3.ToolTip = searchLabel;
@@ -963,12 +969,12 @@ internal sealed partial class MainWindow : Window
             providerRequestId,
             model,
             operationConfig.ResultFormat.ToString(),
-            operationConfig.FromLanguage,
-            operationConfig.ToLanguage,
+            operationConfig.TargetLanguage,
+            searchContext.TargetGame,
             searchContext.Profile,
             searchContext.Source,
             searchContext.Language,
-            searchContext.GamePrefix,
+            searchContext.SearchPrefix,
             success,
             cost,
             _config.TotalCostUsd,
@@ -1038,23 +1044,19 @@ internal sealed partial class MainWindow : Window
         {
             ApiKey = config.ApiKey,
             ResultFormat = config.ResultFormat,
-            FromLanguage = config.FromLanguage,
-            ToLanguage = config.ToLanguage,
-            SearchSource = config.SearchSource,
-            GameSearchPrefix = config.GameSearchPrefix,
+            TargetLanguage = config.TargetLanguage,
+            TargetGame = config.TargetGame,
             TotalCostUsd = config.TotalCostUsd
         };
 
-    private static SearchContext CreateSearchContext(AppConfig config)
-    {
-        var profile = SearchProfiles.Get(config.SearchSource);
-        return new SearchContext(
-            profile.DisplayName,
-            profile.PromptName,
-            profile.SearchLanguage,
-            GameSearchPrefixes.GetSearchPrefix(config.GameSearchPrefix, config.SearchSource),
-            profile.UrlTemplate);
-    }
+    private static SearchContext CreateSearchContext(AppConfig config) =>
+        new(
+            AppConfig.SearchProfile,
+            AppConfig.SearchSource,
+            AppConfig.SearchLanguage,
+            TargetGames.GetDisplayName(config.TargetGame),
+            TargetGames.GetSearchPrefix(config.TargetGame),
+            AppConfig.SearchUrlTemplate);
 
     private void FitResultText()
     {
@@ -1095,15 +1097,17 @@ internal sealed record SearchButtonState(
     string OperationId,
     int Index,
     SearchQueryResult Query,
+    string TargetGame,
     string SearchProfile,
     string SearchSource,
     string SearchLanguage,
-    string GameSearchPrefix,
+    string SearchPrefix,
     string Url);
 
 internal sealed record SearchContext(
     string Profile,
     string Source,
     string Language,
-    string GamePrefix,
+    string TargetGame,
+    string SearchPrefix,
     string UrlTemplate);

@@ -19,15 +19,16 @@ The zip is self-contained for Windows x64, so it should not require a separate .
 
 Right-click the move button or the notification-area icon, then choose `Settings`.
 
-- Default languages: Chinese to English
+- Target language: configurable, default English
 - Result format: Text or Image
 - The translate button follows the selected result format: translated text inside the frame, or an edited translated image inside the frame.
-- Search source: text-mode search buttons can target `Bilibili - Chinese`, `YouTube - English`, or `YouTube - Chinese`.
-- Search prefix: optional game-name prefix for text-mode search links; choose `No prefix` for no added prefix. The app uses source-appropriate game names such as `王者荣耀世界` for Bilibili and `Honor of Kings: World` for YouTube.
+- Search: text-mode search buttons open Bilibili Chinese search.
+- Target game: optional Chinese game-name prefix for text-mode search links; choose `No specific game` for no added prefix. Current games are `洛克王国`, `王者荣耀世界`, and `王者荣耀`.
 - API key storage: encrypted for the current Windows user with DPAPI in `data/settings.json`
 - Run on startup: optional per-user Windows startup entry; disabling it removes Peek's startup entry
 - Log: `data/peek.log.jsonl`
 - Review data: source captures are saved in `data/captures`, image-edit outputs in `data/results`, and text-mode translations/search queries are logged as `text_result` events.
+- Font: regular-weight Roboto and Roboto Condensed are bundled from Google Fonts under the SIL Open Font License in `Resources/Fonts`; Settings uses Roboto and overlay translation text uses Roboto Condensed.
 - Local data cleanup: delete the `data` folder next to `Peek.exe`
 - Cost tracking: cumulative total is stored locally, and each request is written as a structured `usage` event in the log
 

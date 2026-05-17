@@ -15,8 +15,8 @@ namespace Peek;
 
 internal static class OpenRouterClient
 {
-    private const string TextPromptVersion = "text-guide-search-v6";
-    private const string TextSchemaVersion = "text-result-schema-v3";
+    private const string TextPromptVersion = "chinese-game-bilibili-search-v7";
+    private const string TextSchemaVersion = "text-result-schema-v4";
     private const string ImageEditPromptVersion = "image-edit-v2";
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(90);
     private static readonly HttpClient HttpClient = new()
@@ -43,10 +43,9 @@ internal static class OpenRouterClient
             throw new InvalidOperationException("OpenRouter API key is missing.");
         }
 
-        var fromLanguage = string.IsNullOrWhiteSpace(config.FromLanguage) ? "Chinese" : config.FromLanguage.Trim();
-        var toLanguage = string.IsNullOrWhiteSpace(config.ToLanguage) ? "English" : config.ToLanguage.Trim();
-        var searchProfile = SearchProfiles.Get(config.SearchSource);
-        var searchPrefix = GameSearchPrefixes.GetSearchPrefix(config.GameSearchPrefix, config.SearchSource);
+        var targetLanguage = string.IsNullOrWhiteSpace(config.TargetLanguage) ? "English" : config.TargetLanguage.Trim();
+        var targetGame = TargetGames.GetDisplayName(config.TargetGame);
+        var searchPrefix = TargetGames.GetSearchPrefix(config.TargetGame);
         var imageDataUrl = ToPngDataUrl(bitmap);
         var payload = new Dictionary<string, object?>
         {
@@ -66,7 +65,7 @@ internal static class OpenRouterClient
                         new
                         {
                             type = "text",
-                            text = CreateTextTranslationPrompt(fromLanguage, toLanguage, searchProfile, searchPrefix)
+                            text = CreateTextTranslationPrompt(targetLanguage, targetGame, searchPrefix)
                         },
                         new
                         {
@@ -86,12 +85,12 @@ internal static class OpenRouterClient
             operationId,
             mode = "text",
             model,
-            fromLanguage,
-            toLanguage,
-            searchProfile = searchProfile.DisplayName,
-            searchSource = searchProfile.PromptName,
-            searchLanguage = searchProfile.SearchLanguage,
-            gameSearchPrefix = searchPrefix,
+            targetLanguage,
+            targetGame,
+            searchProfile = AppConfig.SearchProfile,
+            searchSource = AppConfig.SearchSource,
+            searchLanguage = AppConfig.SearchLanguage,
+            searchPrefix,
             captureWidth = bitmap.Width,
             captureHeight = bitmap.Height,
             structuredOutput = true,
@@ -115,7 +114,13 @@ internal static class OpenRouterClient
             throw new InvalidOperationException("No translation returned. See log.");
         }
 
-        return new TextTranslationResult(translation.Text, translation.SearchBasis, translation.SearchQueries, cost, usage, providerRequestId);
+        return new TextTranslationResult(
+            translation.Text,
+            translation.SearchBasis,
+            translation.SearchQueries,
+            cost,
+            usage,
+            providerRequestId);
     }
 
     public static async Task<ImageTranslationResult> TranslateImageToEditedImageAsync(
@@ -133,8 +138,9 @@ internal static class OpenRouterClient
             throw new InvalidOperationException("OpenRouter API key is missing.");
         }
 
-        var fromLanguage = string.IsNullOrWhiteSpace(config.FromLanguage) ? "Chinese" : config.FromLanguage.Trim();
-        var toLanguage = string.IsNullOrWhiteSpace(config.ToLanguage) ? "English" : config.ToLanguage.Trim();
+        var targetLanguage = string.IsNullOrWhiteSpace(config.TargetLanguage) ? "English" : config.TargetLanguage.Trim();
+        var targetGame = TargetGames.GetDisplayName(config.TargetGame);
+        var searchPrefix = TargetGames.GetSearchPrefix(config.TargetGame);
         var imageDataUrl = ToPngDataUrl(bitmap);
         var payload = new Dictionary<string, object?>
         {
@@ -150,7 +156,7 @@ internal static class OpenRouterClient
                         new
                         {
                             type = "text",
-                            text = CreateImageEditPrompt(fromLanguage, toLanguage)
+                            text = CreateImageEditPrompt(targetLanguage, targetGame, searchPrefix)
                         },
                         new
                         {
@@ -170,8 +176,9 @@ internal static class OpenRouterClient
             operationId,
             mode = "image_edit",
             model,
-            fromLanguage,
-            toLanguage,
+            targetLanguage,
+            targetGame,
+            searchPrefix,
             captureWidth = bitmap.Width,
             captureHeight = bitmap.Height,
             structuredOutput = false,
@@ -304,38 +311,42 @@ internal static class OpenRouterClient
     }
 
     private static string CreateTextTranslationPrompt(
-        string fromLanguage,
-        string toLanguage,
-        SearchProfile searchProfile,
-        string gameSearchPrefix)
+        string targetLanguage,
+        string targetGame,
+        string searchPrefix)
     {
-        var prefixInstruction = string.IsNullOrWhiteSpace(gameSearchPrefix)
-            ? "No game title prefix is configured."
-            : $"The app will prefix every {searchProfile.PromptName} search with \"{gameSearchPrefix}\". Do not include that game title in any query.";
+        var targetGameInstruction = string.IsNullOrWhiteSpace(searchPrefix)
+            ? "No specific target game is selected; infer the game only when the screenshot makes it clear."
+            : $"The selected target game is {targetGame}. The app will prefix every Bilibili search with \"{searchPrefix}\"; do not include that game title in any query.";
 
         return
-            "You are helping a player understand a game screen capture. " +
-            $"Translate visible {fromLanguage} text into natural {toLanguage}, preserving the player's useful context: names, numbers, item counts, symbols, punctuation, and line breaks. " +
-            "For game-specific proper nouns such as character, pet, quest, item, place, boss, skill, and event names, prefer the official localized name if it is clear; otherwise keep the source name or transliterate it rather than inventing a literal translation. " +
-            $"Leave text already in {toLanguage} unchanged. Do not invent unreadable text. " +
-            $"Also create {searchProfile.PromptName} search queries for the {searchProfile.SearchLanguage} search profile; the query strings must be written in {searchProfile.SearchLanguage}, independent of the translation languages. " +
-            "They should help the player find the most relevant guide or video for this exact selected content. " +
-            "Think like a player searching after seeing this screen: anchor queries to the strongest visible clue or the clearest direct inference from it. " +
-            "Return up to 3 queries, ordered by likely usefulness. Use no queries when the screen is broad, tutorial-like, or has little searchable detail; one precise mechanic query is better than several generic angles. " +
-            "Each additional query should offer a genuinely useful nearby angle on the same intent, not a broader or generic search. " +
-            $"Prefer keywords that players actually use on {searchProfile.PromptName} in {searchProfile.SearchLanguage}; keep official or community-known names when they are the likely search terms, and otherwise translate or localize the clue into the search profile language. Include a guide-intent word only when it would make the search better. " +
-            $"{prefixInstruction} " +
-            "For each query, include a short basis that explains the visible clue or inference behind it. " +
+            "You are helping a player understand a Chinese game screen capture. " +
+            $"Translate visible Chinese game text into natural {targetLanguage}. Preserve important player-facing details: names, numbers, counts, symbols, punctuation, and useful line breaks. " +
+            "For game-specific names, prefer official localized names when clear; otherwise keep the Chinese name or transliterate rather than inventing a literal name. " +
+            $"Leave text already in {targetLanguage} unchanged, and do not guess unreadable text. " +
+            "Also create Bilibili guide-search queries in Chinese for the same selected content. Think like a player looking for a useful video guide after seeing this UI. " +
+            "Good queries are concise and anchored to distinctive visible clues or direct inferences: quest names, items, NPCs, locations, bosses, objectives, mechanics, or unusual dialogue. " +
+            "Prefer fewer strong queries over filling all 3 slots. Additional queries should offer nearby useful angles while staying close to the same intent. " +
+            $"{targetGameInstruction} " +
+            "For each query, include a short basis describing the clue or inference behind it. " +
             "Return only valid JSON matching the schema.";
     }
 
-    private static string CreateImageEditPrompt(string fromLanguage, string toLanguage) =>
-        "You are editing a game screenshot for quick reading while preserving the original UI. " +
-        $"Replace visible {fromLanguage} text with natural {toLanguage}. " +
-        "For game-specific proper nouns, use the official localized name when clear; otherwise keep the source name or transliterate it rather than inventing a literal translation. " +
-        $"Leave text already in {toLanguage} unchanged. Preserve names, numbers, item counts, symbols, punctuation, line breaks, layout, colors, style, and all non-text content. " +
-        "Keep translated text compact enough to fit the original UI regions. Do not add commentary, captions, highlights, or new UI. " +
-        "Do not guess unreadable text. If text is unreadable, leave that part unchanged. Return only the edited image.";
+    private static string CreateImageEditPrompt(string targetLanguage, string targetGame, string searchPrefix)
+    {
+        var targetGameInstruction = string.IsNullOrWhiteSpace(searchPrefix)
+            ? "No specific target game is selected; infer the game only when the screenshot makes it clear."
+            : $"The selected target game is {targetGame}. Use that only as context for game-specific terminology.";
+
+        return
+            "You are editing a Chinese game screenshot for quick reading while preserving the original UI. " +
+            $"{targetGameInstruction} " +
+            $"Replace visible Chinese text with natural {targetLanguage}. " +
+            "Preserve layout, colors, style, names, numbers, counts, symbols, punctuation, line breaks, and all non-text content. " +
+            "For game-specific names, prefer official localized names when clear; otherwise keep the Chinese name or transliterate rather than inventing a literal name. " +
+            $"Leave text already in {targetLanguage} unchanged. Keep translated text compact enough to fit the original UI. " +
+            "Do not add commentary, captions, highlights, or new UI. Do not guess unreadable text; leave unreadable text unchanged. Return only the edited image.";
+    }
 
     private static Dictionary<string, object?> CreateTextTranslationResponseFormat() =>
         new()
@@ -365,7 +376,7 @@ internal static class OpenRouterClient
                         ["search_queries"] = new Dictionary<string, object?>
                         {
                             ["type"] = "array",
-                            ["description"] = "Zero to three distinct gaming-guide search queries for the configured search source, ordered by usefulness.",
+                            ["description"] = "Zero to three distinct Chinese gaming-guide search queries for Bilibili, ordered by usefulness.",
                             ["minItems"] = 0,
                             ["maxItems"] = 3,
                             ["items"] = new Dictionary<string, object?>
@@ -389,7 +400,7 @@ internal static class OpenRouterClient
                                     ["query"] = new Dictionary<string, object?>
                                     {
                                         ["type"] = "string",
-                                        ["description"] = "Concise gaming-guide search keywords in the configured search profile language. Use 2 to 6 keywords. Keep close to the selected text. Do not include the game title prefix."
+                                        ["description"] = "Concise Chinese gaming-guide search keywords for Bilibili. Use 2 to 6 keywords. Keep close to the selected text. Do not include the game title prefix."
                                     }
                                 }
                             }

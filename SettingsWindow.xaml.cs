@@ -21,10 +21,8 @@ internal sealed partial class SettingsWindow : Window
         ApiKeyBox.Password = config.ApiKey;
         TextFormatButton.IsChecked = config.ResultFormat != ResultFormat.Image;
         ImageFormatButton.IsChecked = config.ResultFormat == ResultFormat.Image;
-        FromLanguageBox.Text = string.IsNullOrWhiteSpace(config.FromLanguage) ? "Chinese" : config.FromLanguage;
-        ToLanguageBox.Text = string.IsNullOrWhiteSpace(config.ToLanguage) ? "English" : config.ToLanguage;
-        InitializeSearchSourceBox(config.SearchSource);
-        InitializeGameSearchPrefixBox(config.GameSearchPrefix);
+        TargetLanguageBox.Text = string.IsNullOrWhiteSpace(config.TargetLanguage) ? "English" : config.TargetLanguage;
+        InitializeTargetGameBox(config.TargetGame);
         StartupBox.IsChecked = StartupService.IsEnabled();
     }
 
@@ -32,12 +30,9 @@ internal sealed partial class SettingsWindow : Window
     {
         var apiKey = ApiKeyBox.Password.Trim();
         var resultFormat = ImageFormatButton.IsChecked == true ? ResultFormat.Image : ResultFormat.Text;
-        var fromLanguage = string.IsNullOrWhiteSpace(FromLanguageBox.Text)
-            ? "Chinese"
-            : FromLanguageBox.Text.Trim();
-        var toLanguage = string.IsNullOrWhiteSpace(ToLanguageBox.Text)
+        var targetLanguage = string.IsNullOrWhiteSpace(TargetLanguageBox.Text)
             ? "English"
-            : ToLanguageBox.Text.Trim();
+            : TargetLanguageBox.Text.Trim();
         Exception? startupException = null;
 
         try
@@ -51,10 +46,8 @@ internal sealed partial class SettingsWindow : Window
 
         _config.ApiKey = apiKey;
         _config.ResultFormat = resultFormat;
-        _config.FromLanguage = fromLanguage;
-        _config.ToLanguage = toLanguage;
-        _config.SearchSource = GetSelectedSearchSource();
-        _config.GameSearchPrefix = GetSelectedGameSearchPrefix();
+        _config.TargetLanguage = targetLanguage;
+        _config.TargetGame = GetSelectedTargetGame();
 
         if (startupException is not null)
         {
@@ -104,63 +97,34 @@ internal sealed partial class SettingsWindow : Window
         });
     }
 
-    private void InitializeGameSearchPrefixBox(GameSearchPrefix selectedPrefix)
+    private void InitializeTargetGameBox(TargetGame selectedGame)
     {
-        GameSearchPrefixBox.Items.Add(CreateGameSearchPrefixItem(GameSearchPrefix.None));
-        GameSearchPrefixBox.Items.Add(CreateGameSearchPrefixItem(GameSearchPrefix.HonorOfKingsWorld));
-        GameSearchPrefixBox.Items.Add(CreateGameSearchPrefixItem(GameSearchPrefix.RocoKingdomWorld));
+        TargetGameBox.Items.Add(CreateTargetGameItem(TargetGame.None));
+        TargetGameBox.Items.Add(CreateTargetGameItem(TargetGame.RocoKingdomWorld));
+        TargetGameBox.Items.Add(CreateTargetGameItem(TargetGame.HonorOfKingsWorld));
+        TargetGameBox.Items.Add(CreateTargetGameItem(TargetGame.HonorOfKings));
 
-        foreach (ComboBoxItem item in GameSearchPrefixBox.Items)
+        foreach (ComboBoxItem item in TargetGameBox.Items)
         {
-            if (item.Tag is GameSearchPrefix prefix && prefix == selectedPrefix)
+            if (item.Tag is TargetGame game && game == selectedGame)
             {
-                GameSearchPrefixBox.SelectedItem = item;
+                TargetGameBox.SelectedItem = item;
                 return;
             }
         }
 
-        GameSearchPrefixBox.SelectedIndex = 0;
+        TargetGameBox.SelectedIndex = 0;
     }
 
-    private void InitializeSearchSourceBox(SearchSource selectedSource)
-    {
-        SearchSourceBox.Items.Add(CreateSearchSourceItem(SearchSource.Bilibili));
-        SearchSourceBox.Items.Add(CreateSearchSourceItem(SearchSource.YouTube));
-        SearchSourceBox.Items.Add(CreateSearchSourceItem(SearchSource.YouTubeChinese));
-
-        foreach (ComboBoxItem item in SearchSourceBox.Items)
-        {
-            if (item.Tag is SearchSource source && source == selectedSource)
-            {
-                SearchSourceBox.SelectedItem = item;
-                return;
-            }
-        }
-
-        SearchSourceBox.SelectedIndex = 0;
-    }
-
-    private static ComboBoxItem CreateSearchSourceItem(SearchSource source) =>
+    private static ComboBoxItem CreateTargetGameItem(TargetGame game) =>
         new()
         {
-            Content = SearchProfiles.Get(source).DisplayName,
-            Tag = source
+            Content = TargetGames.GetDisplayName(game),
+            Tag = game
         };
 
-    private SearchSource GetSelectedSearchSource() =>
-        SearchSourceBox.SelectedItem is ComboBoxItem { Tag: SearchSource source }
-            ? source
-            : SearchSource.Bilibili;
-
-    private static ComboBoxItem CreateGameSearchPrefixItem(GameSearchPrefix prefix) =>
-        new()
-        {
-            Content = GameSearchPrefixes.GetDisplayName(prefix),
-            Tag = prefix
-        };
-
-    private GameSearchPrefix GetSelectedGameSearchPrefix() =>
-        GameSearchPrefixBox.SelectedItem is ComboBoxItem { Tag: GameSearchPrefix prefix }
-            ? prefix
-            : GameSearchPrefix.None;
+    private TargetGame GetSelectedTargetGame() =>
+        TargetGameBox.SelectedItem is ComboBoxItem { Tag: TargetGame game }
+            ? game
+            : TargetGame.None;
 }

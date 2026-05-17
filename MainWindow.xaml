@@ -14,6 +14,7 @@
         Background="Transparent"
         Topmost="True"
         ShowInTaskbar="True"
+        FontFamily="pack://application:,,,/Resources/Fonts/#Roboto"
         WindowStartupLocation="CenterScreen"
         SourceInitialized="Window_SourceInitialized"
         Loaded="Window_Loaded">
@@ -49,9 +50,9 @@
                                Visibility="Collapsed"
                                RenderOptions.BitmapScalingMode="HighQuality" />
                         <TextBlock x:Name="ResultText"
+                                   FontFamily="pack://application:,,,/Resources/Fonts/#Roboto Condensed"
                                    Foreground="#FFFFC65F"
                                    FontSize="12"
-                                   FontWeight="SemiBold"
                                    TextWrapping="Wrap"
                                    TextTrimming="CharacterEllipsis" />
                     </Grid>
@@ -253,7 +254,6 @@
                        VerticalAlignment="Center"
                        Foreground="#FF0B0B0B"
                        FontSize="11"
-                       FontWeight="SemiBold"
                        TextTrimming="CharacterEllipsis" />
         </Border>
 
@@ -270,7 +270,6 @@
                     Padding="0"
                     Content="1"
                     FontSize="11"
-                    FontWeight="SemiBold"
                     ToolTip="Search"
                     Click="SearchButton_Click" />
             <Button x:Name="SearchButton2"
@@ -280,7 +279,6 @@
                     Padding="0"
                     Content="2"
                     FontSize="11"
-                    FontWeight="SemiBold"
                     ToolTip="Search"
                     Visibility="Collapsed"
                     Click="SearchButton_Click" />
@@ -290,7 +288,6 @@
                     Padding="0"
                     Content="3"
                     FontSize="11"
-                    FontWeight="SemiBold"
                     ToolTip="Search"
                     Visibility="Collapsed"
                     Click="SearchButton_Click" />
