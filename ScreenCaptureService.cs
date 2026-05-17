@@ -7,7 +7,13 @@ namespace Peek;
 
 internal static class ScreenCaptureService
 {
-    public static Bitmap CaptureVisualBounds(Window window, FrameworkElement visual, Thickness inset)
+    public static Bitmap CaptureVisualBounds(Window window, FrameworkElement visual)
+    {
+        var bounds = GetVisualScreenBounds(window, visual);
+        return CaptureScreenBounds(bounds);
+    }
+
+    public static Rect GetVisualScreenBounds(Window window, FrameworkElement visual)
     {
         ArgumentNullException.ThrowIfNull(window);
         ArgumentNullException.ThrowIfNull(visual);
@@ -19,19 +25,29 @@ internal static class ScreenCaptureService
         }
 
         var transform = source.CompositionTarget.TransformToDevice;
-        var topLeft = visual.PointToScreen(new Point(inset.Left, inset.Top));
-        var widthDip = Math.Max(1, visual.ActualWidth - inset.Left - inset.Right);
-        var heightDip = Math.Max(1, visual.ActualHeight - inset.Top - inset.Bottom);
+        var topLeft = visual.PointToScreen(new Point(0, 0));
+        var widthDip = Math.Max(1, visual.ActualWidth);
+        var heightDip = Math.Max(1, visual.ActualHeight);
         var size = transform.Transform(new Point(widthDip, heightDip));
 
-        var x = (int)Math.Round(topLeft.X);
-        var y = (int)Math.Round(topLeft.Y);
-        var width = Math.Max(1, (int)Math.Round(size.X));
-        var height = Math.Max(1, (int)Math.Round(size.Y));
+        return new Rect(
+            Math.Round(topLeft.X),
+            Math.Round(topLeft.Y),
+            Math.Max(1, Math.Round(size.X)),
+            Math.Max(1, Math.Round(size.Y)));
+    }
 
-        var bitmap = new Bitmap(width, height);
+    public static Bitmap CaptureScreenBounds(Rect bounds)
+    {
+        var bitmap = new Bitmap((int)bounds.Width, (int)bounds.Height);
         using var graphics = Graphics.FromImage(bitmap);
-        graphics.CopyFromScreen(x, y, 0, 0, new System.Drawing.Size(width, height), CopyPixelOperation.SourceCopy);
+        graphics.CopyFromScreen(
+            (int)bounds.X,
+            (int)bounds.Y,
+            0,
+            0,
+            new System.Drawing.Size((int)bounds.Width, (int)bounds.Height),
+            CopyPixelOperation.SourceCopy);
         return bitmap;
     }
 }

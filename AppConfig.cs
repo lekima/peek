@@ -17,6 +17,15 @@ internal enum TargetGame
 
 internal static class TargetGames
 {
+    public static IReadOnlyList<TargetGame> MenuGames { get; } =
+    [
+        TargetGame.None,
+        TargetGame.RocoKingdomWorld,
+        TargetGame.HonorOfKingsWorld,
+        TargetGame.HonorOfKingsChess,
+        TargetGame.HonorOfKings
+    ];
+
     public static string GetDisplayName(TargetGame game) =>
         game switch
         {

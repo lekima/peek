@@ -30,7 +30,6 @@ internal sealed partial class MainWindow : Window
     private const double MinResultFontSize = 10;
     private const double MaxResultLineGap = 12;
     private const double MinResultLineGap = 4;
-    private const double CaptureInset = 3;
     private static readonly Thickness MaxResultTextPadding = new(14, 12, 14, 10);
     private static readonly Thickness MinResultTextPadding = new(6, 6, 6, 4);
     private const int WmNcHitTest = 0x0084;
@@ -57,6 +56,7 @@ internal sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        InitializeTargetGameMenu();
         AppLogger.Event("app_start", new
         {
             appDirectory = AppPaths.AppDirectory,
@@ -359,6 +359,32 @@ internal sealed partial class MainWindow : Window
         OpenUrl(searchButton.Url);
     }
 
+    private void InitializeTargetGameMenu()
+    {
+        if (DragButton.ContextMenu is not { } menu)
+        {
+            return;
+        }
+
+        var insertIndex = 0;
+        while (insertIndex < menu.Items.Count && menu.Items[insertIndex] is not Separator)
+        {
+            insertIndex++;
+        }
+
+        foreach (var game in TargetGames.MenuGames.Reverse())
+        {
+            var item = new MenuItem
+            {
+                Header = TargetGames.GetDisplayName(game),
+                IsCheckable = true,
+                Tag = game.ToString()
+            };
+            item.Click += TargetGameMenu_Click;
+            menu.Items.Insert(insertIndex, item);
+        }
+    }
+
     private void WindowMenu_Opened(object sender, RoutedEventArgs e)
     {
         UpdateTargetGameMenuChecks();
@@ -493,7 +519,7 @@ internal sealed partial class MainWindow : Window
             SetBusy(true);
             ClearStatus();
 
-            using var bitmap = ScreenCaptureService.CaptureVisualBounds(this, FrameBorder, new Thickness(CaptureInset));
+            using var bitmap = await CaptureFrameWithoutOverlayAsync(cancellationToken).ConfigureAwait(true);
             captureWidth = bitmap.Width;
             captureHeight = bitmap.Height;
             var capturePath = SaveCapture(operationId, bitmap);
@@ -609,7 +635,8 @@ internal sealed partial class MainWindow : Window
             targetLanguage = _config.TargetLanguage
         });
 
-        _settingsWindow = new SettingsWindow(_config)
+        var settingsConfig = CloneConfig(_config);
+        _settingsWindow = new SettingsWindow(settingsConfig)
         {
             Owner = this
         };
@@ -620,7 +647,8 @@ internal sealed partial class MainWindow : Window
             {
                 try
                 {
-                    AppConfigStore.Save(_config);
+                    AppConfigStore.Save(settingsConfig);
+                    _config = settingsConfig;
                     AppLogger.Event("settings_saved", new
                     {
                         targetLanguage = _config.TargetLanguage,
@@ -636,6 +664,27 @@ internal sealed partial class MainWindow : Window
         finally
         {
             _settingsWindow = null;
+        }
+    }
+
+    private async Task<Drawing.Bitmap> CaptureFrameWithoutOverlayAsync(CancellationToken cancellationToken)
+    {
+        var bounds = ScreenCaptureService.GetVisualScreenBounds(this, FrameBorder);
+        var previousVisibility = Visibility;
+        var previousHitTestVisible = IsHitTestVisible;
+        Visibility = Visibility.Hidden;
+        IsHitTestVisible = false;
+
+        try
+        {
+            await Task.Delay(50, cancellationToken).ConfigureAwait(true);
+            cancellationToken.ThrowIfCancellationRequested();
+            return ScreenCaptureService.CaptureScreenBounds(bounds);
+        }
+        finally
+        {
+            Visibility = previousVisibility;
+            IsHitTestVisible = previousHitTestVisible;
         }
     }
 

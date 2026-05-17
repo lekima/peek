@@ -20,26 +20,6 @@
         Loaded="Window_Loaded">
     <Window.Resources>
         <ContextMenu x:Key="WindowMenu" Opened="WindowMenu_Opened">
-            <MenuItem Header="Any game"
-                      IsCheckable="True"
-                      Tag="None"
-                      Click="TargetGameMenu_Click" />
-            <MenuItem Header="Roco Kingdom: World"
-                      IsCheckable="True"
-                      Tag="RocoKingdomWorld"
-                      Click="TargetGameMenu_Click" />
-            <MenuItem Header="Honor of Kings: World"
-                      IsCheckable="True"
-                      Tag="HonorOfKingsWorld"
-                      Click="TargetGameMenu_Click" />
-            <MenuItem Header="Honor of Kings: Chess"
-                      IsCheckable="True"
-                      Tag="HonorOfKingsChess"
-                      Click="TargetGameMenu_Click" />
-            <MenuItem Header="Honor of Kings"
-                      IsCheckable="True"
-                      Tag="HonorOfKings"
-                      Click="TargetGameMenu_Click" />
             <Separator />
             <MenuItem Header="Settings" Click="SettingsMenu_Click" />
             <MenuItem Header="Quit" Click="QuitMenu_Click" />
