@@ -405,7 +405,7 @@ internal sealed partial class MainWindow : Window
             searchButton.Index,
             searchButton.Query.Label,
             searchButton.Query.Query,
-            searchButton.Query.Basis,
+            searchButton.Query.Intent,
             searchButton.TargetGame,
             searchButton.SearchProfile,
             searchButton.SearchSource,
@@ -545,7 +545,6 @@ internal sealed partial class MainWindow : Window
                 searchContext.SearchPrefix,
                 capturePath,
                 result.Text,
-                result.SearchBasis,
                 result.SearchQueries));
             ClearStatus();
             TrackUsage(
@@ -819,9 +818,9 @@ internal sealed partial class MainWindow : Window
             }
 
             var button = buttons[buttonIndex];
-            button.ToolTip = string.IsNullOrWhiteSpace(searchQuery.Basis)
+            button.ToolTip = string.IsNullOrWhiteSpace(searchQuery.Intent)
                 ? searchQuery.Query
-                : $"{searchQuery.Query}\n{searchQuery.Basis}";
+                : $"{searchQuery.Query}\n{searchQuery.Intent}";
             button.Visibility = Visibility.Visible;
             _searchButtons[button] = new SearchButtonState(
                 operationId,

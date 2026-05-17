@@ -15,9 +15,9 @@ namespace Peek;
 
 internal static class OpenRouterClient
 {
-    private const string TextPromptVersion = "chinese-game-bilibili-search-v7";
-    private const string TextSchemaVersion = "text-result-schema-v4";
-    private const string ImageEditPromptVersion = "image-edit-v2";
+    private const string TextPromptVersion = "chinese-game-bilibili-search-v12";
+    private const string TextSchemaVersion = "text-result-schema-v6";
+    private const string ImageEditPromptVersion = "image-edit-v3";
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(90);
     private static readonly HttpClient HttpClient = new()
     {
@@ -54,7 +54,7 @@ internal static class OpenRouterClient
             {
                 ["require_parameters"] = true
             },
-            ["response_format"] = CreateTextTranslationResponseFormat(),
+            ["response_format"] = CreateTextTranslationResponseFormat(targetLanguage),
             ["messages"] = new object[]
             {
                 new
@@ -116,7 +116,6 @@ internal static class OpenRouterClient
 
         return new TextTranslationResult(
             translation.Text,
-            translation.SearchBasis,
             translation.SearchQueries,
             cost,
             usage,
@@ -320,15 +319,15 @@ internal static class OpenRouterClient
             : $"The selected target game is {targetGame}. The app will prefix every Bilibili search with \"{searchPrefix}\"; do not include that game title in any query.";
 
         return
-            "You are helping a player understand a Chinese game screen capture. " +
-            $"Translate visible Chinese game text into natural {targetLanguage}. Preserve important player-facing details: names, numbers, counts, symbols, punctuation, and useful line breaks. " +
-            "For game-specific names, prefer official localized names when clear; otherwise keep the Chinese name or transliterate rather than inventing a literal name. " +
-            $"Leave text already in {targetLanguage} unchanged, and do not guess unreadable text. " +
-            "Also create Bilibili guide-search queries in Chinese for the same selected content. Think like a player looking for a useful video guide after seeing this UI. " +
-            "Good queries are concise and anchored to distinctive visible clues or direct inferences: quest names, items, NPCs, locations, bosses, objectives, mechanics, or unusual dialogue. " +
-            "Prefer fewer strong queries over filling all 3 slots. Additional queries should offer nearby useful angles while staying close to the same intent. " +
+            "You are helping a player understand a screenshot from a Chinese game. " +
+            $"Translate visible Chinese game text into natural {targetLanguage} for quick play decisions. Keep important game details exact: names, numbers, counts, symbols, punctuation, and useful line breaks. " +
+            $"Use clear official localized game terms in {targetLanguage} when they are obvious; otherwise preserve the Chinese name or transliterate instead of inventing. " +
+            $"Leave text already in {targetLanguage} unchanged. Do not guess unreadable text. " +
+            "Also generate up to three Chinese Bilibili guide searches for the same selected content. " +
             $"{targetGameInstruction} " +
-            "For each query, include a short basis describing the clue or inference behind it. " +
+            "The best query should match what the player would most likely search after seeing this screen; alternatives should cover meaningfully different but still close angles. " +
+            "Use concise Chinese keywords built from distinctive clues such as quests, items, NPCs, locations, bosses, objectives, mechanics, or unusual dialogue. " +
+            $"For each query, write a short search intent in {targetLanguage} explaining what help the player should expect to find. " +
             "Return only valid JSON matching the schema.";
     }
 
@@ -339,16 +338,16 @@ internal static class OpenRouterClient
             : $"The selected target game is {targetGame}. Use that only as context for game-specific terminology.";
 
         return
-            "You are editing a Chinese game screenshot for quick reading while preserving the original UI. " +
+            "You are editing a Chinese game screenshot so the player can read it quickly while the original UI still feels intact. " +
             $"{targetGameInstruction} " +
-            $"Replace visible Chinese text with natural {targetLanguage}. " +
+            $"Replace visible Chinese text with natural {targetLanguage} for quick play decisions. " +
             "Preserve layout, colors, style, names, numbers, counts, symbols, punctuation, line breaks, and all non-text content. " +
-            "For game-specific names, prefer official localized names when clear; otherwise keep the Chinese name or transliterate rather than inventing a literal name. " +
+            $"Use clear official localized game terms in {targetLanguage} when they are obvious; otherwise preserve the Chinese name or transliterate instead of inventing. " +
             $"Leave text already in {targetLanguage} unchanged. Keep translated text compact enough to fit the original UI. " +
             "Do not add commentary, captions, highlights, or new UI. Do not guess unreadable text; leave unreadable text unchanged. Return only the edited image.";
     }
 
-    private static Dictionary<string, object?> CreateTextTranslationResponseFormat() =>
+    private static Dictionary<string, object?> CreateTextTranslationResponseFormat(string targetLanguage) =>
         new()
         {
             ["type"] = "json_schema",
@@ -360,18 +359,13 @@ internal static class OpenRouterClient
                 {
                     ["type"] = "object",
                     ["additionalProperties"] = false,
-                    ["required"] = new[] { "translation", "search_basis", "search_queries" },
+                    ["required"] = new[] { "translation", "search_queries" },
                     ["properties"] = new Dictionary<string, object?>
                     {
                         ["translation"] = new Dictionary<string, object?>
                         {
                             ["type"] = "string",
                             ["description"] = "Natural translated text to display to the user."
-                        },
-                        ["search_basis"] = new Dictionary<string, object?>
-                        {
-                            ["type"] = "string",
-                            ["description"] = "The exact source clues, names, items, NPCs, locations, objectives, or distinctive phrases used to choose the search queries."
                         },
                         ["search_queries"] = new Dictionary<string, object?>
                         {
@@ -383,7 +377,7 @@ internal static class OpenRouterClient
                             {
                                 ["type"] = "object",
                                 ["additionalProperties"] = false,
-                                ["required"] = new[] { "label", "basis", "query" },
+                                ["required"] = new[] { "label", "intent", "query" },
                                 ["properties"] = new Dictionary<string, object?>
                                 {
                                     ["label"] = new Dictionary<string, object?>
@@ -392,10 +386,10 @@ internal static class OpenRouterClient
                                         ["enum"] = new[] { "closest", "alternative", "another_angle" },
                                         ["description"] = "The role of this query in the ordered search set."
                                     },
-                                    ["basis"] = new Dictionary<string, object?>
+                                    ["intent"] = new Dictionary<string, object?>
                                     {
                                         ["type"] = "string",
-                                        ["description"] = "Visible text clue or direct inference that keeps this query close to the selected content."
+                                        ["description"] = $"Short {targetLanguage} search intent explaining what help this Bilibili search should find."
                                     },
                                     ["query"] = new Dictionary<string, object?>
                                     {
@@ -422,7 +416,6 @@ internal static class OpenRouterClient
         {
             var response = JsonSerializer.Deserialize<TextTranslationResponse>(json, ResponseJsonOptions);
             var translation = response?.Translation?.Trim() ?? string.Empty;
-            var searchBasis = SanitizeSearchBasis(response?.SearchBasis);
             var searchQueries = SanitizeSearchQueries(response?.SearchQueries);
 
             if (string.IsNullOrWhiteSpace(translation))
@@ -430,7 +423,7 @@ internal static class OpenRouterClient
                 throw new InvalidOperationException("Translation response did not include translated text.");
             }
 
-            return new ParsedTextTranslation(translation, searchBasis, searchQueries);
+            return new ParsedTextTranslation(translation, searchQueries);
         }
         catch (JsonException ex)
         {
@@ -489,7 +482,7 @@ internal static class OpenRouterClient
 
             cleanQueries.Add(new SearchQueryResult(
                 SanitizeSearchLabel(query.Label),
-                SanitizeSearchBasis(query.Basis),
+                SanitizeSearchIntent(query.Intent),
                 cleanQuery));
             if (cleanQueries.Count >= 3)
             {
@@ -561,13 +554,13 @@ internal static class OpenRouterClient
             : "alternative";
     }
 
-    private static string SanitizeSearchBasis(string? basis)
+    private static string SanitizeSearchIntent(string? intent)
     {
-        basis = basis?
+        intent = intent?
             .Replace('\r', ' ')
             .Replace('\n', ' ')
             .Trim() ?? string.Empty;
-        return basis.Length <= 120 ? basis : basis[..120].Trim();
+        return intent.Length <= 120 ? intent : intent[..120].Trim();
     }
 
     private static string ExtractTextPart(JsonElement element)
@@ -752,9 +745,6 @@ internal sealed class TextTranslationResponse
     [JsonPropertyName("translation")]
     public string? Translation { get; set; }
 
-    [JsonPropertyName("search_basis")]
-    public string? SearchBasis { get; set; }
-
     [JsonPropertyName("search_queries")]
     public List<SearchQueryResponse?>? SearchQueries { get; set; }
 }
@@ -765,8 +755,8 @@ internal sealed class SearchQueryResponse
     [JsonPropertyName("label")]
     public string? Label { get; set; }
 
-    [JsonPropertyName("basis")]
-    public string? Basis { get; set; }
+    [JsonPropertyName("intent")]
+    public string? Intent { get; set; }
 
     [JsonPropertyName("query")]
     public string? Query { get; set; }
@@ -774,19 +764,17 @@ internal sealed class SearchQueryResponse
 
 internal sealed record ParsedTextTranslation(
     string Text,
-    string SearchBasis,
     IReadOnlyList<SearchQueryResult> SearchQueries);
 
 internal sealed record SearchQueryResult(
     string Label,
-    string Basis,
+    string Intent,
     string Query);
 
 internal sealed record TokenUsage(int PromptTokens, int CompletionTokens, int TotalTokens);
 
 internal sealed record TextTranslationResult(
     string Text,
-    string SearchBasis,
     IReadOnlyList<SearchQueryResult> SearchQueries,
     decimal CostUsd,
     TokenUsage Usage,

@@ -109,7 +109,6 @@ internal static class AppLogger
             searchPrefix = entry.SearchPrefix,
             capturePath = entry.CapturePath,
             translation = entry.Translation,
-            searchBasis = entry.SearchBasis,
             searchQueries = entry.SearchQueries
         });
     }
@@ -146,7 +145,7 @@ internal static class AppLogger
             index = entry.Index,
             label = entry.Label,
             query = entry.Query,
-            basis = entry.Basis,
+            intent = entry.Intent,
             targetGame = entry.TargetGame,
             searchProfile = entry.SearchProfile,
             searchSource = entry.SearchSource,
@@ -240,7 +239,6 @@ internal sealed record TextResultLogEntry(
     string SearchPrefix,
     string? CapturePath,
     string Translation,
-    string SearchBasis,
     IReadOnlyList<SearchQueryResult> SearchQueries);
 
 internal sealed record CaptureLogEntry(
@@ -259,7 +257,7 @@ internal sealed record SearchClickLogEntry(
     int Index,
     string Label,
     string Query,
-    string Basis,
+    string Intent,
     string TargetGame,
     string SearchProfile,
     string SearchSource,
