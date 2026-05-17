@@ -2,11 +2,11 @@
 
 Minimal Windows overlay for manually translating a selected game-screen area.
 
-## Download
+## Release
 
-Download `releases/Peek-win-x64.zip`, unzip it, then run `Peek.exe`.
+Build `releases/Peek-win-x64.zip`, unzip it, then run `Peek.exe`.
 
-The zip is self-contained for Windows x64, so it should not require a separate .NET install. Windows SmartScreen may warn because the app is not code-signed.
+The release zip is self-contained for Windows x64, so it should not require a separate .NET install. Windows SmartScreen may warn because the app is not code-signed.
 
 ## How it works
 
@@ -28,7 +28,6 @@ Right-click the move button, then choose `Settings`.
 - Review data: source captures are saved in `data/captures`, and translations/search queries are logged as `text_result` events.
 - Font: Roboto and Roboto Condensed are bundled from Google Fonts under the SIL Open Font License in `Resources/Fonts`; Settings uses regular Roboto and overlay translation text uses Roboto Condensed Semibold.
 - Local data cleanup: delete the `data` folder next to `Peek.exe`
-- Cost tracking: cumulative total is stored locally, and each request is written as a structured `usage` event in the log
 
 ## Run
 
@@ -42,7 +41,5 @@ dotnet run --project .\Peek.csproj
 dotnet publish .\Peek.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
 Compress-Archive -LiteralPath .\bin\Release\net8.0-windows10.0.19041.0\win-x64\publish\Peek.exe -DestinationPath .\releases\Peek-win-x64.zip -CompressionLevel Optimal -Force
 ```
-
-Before pushing code changes that affect the app, rebuild and commit `releases/Peek-win-x64.zip` with the same change.
 
 For strict anti-cheat games, use borderless windowed mode when possible. The app is an external desktop overlay: it does not inject into the game, hook graphics APIs, read or write process memory, install global input hooks, or automate input. It still uses normal Windows screen capture for the selected area, so no app can guarantee compatibility with every anti-cheat.

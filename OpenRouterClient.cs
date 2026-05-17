@@ -6,7 +6,6 @@ using System.Net;
 using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 using System.Drawing.Imaging;
-using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -42,7 +41,7 @@ internal static class OpenRouterClient
             throw new InvalidOperationException("OpenRouter API key is missing.");
         }
 
-        var targetLanguage = string.IsNullOrWhiteSpace(config.TargetLanguage) ? "English" : config.TargetLanguage.Trim();
+        var targetLanguage = AppConfig.NormalizeTargetLanguage(config.TargetLanguage);
         var targetGame = TargetGames.GetDisplayName(config.TargetGame);
         var searchPrefix = TargetGames.GetSearchPrefix(config.TargetGame);
         var imageDataUrl = ToPngDataUrl(bitmap);
@@ -99,9 +98,8 @@ internal static class OpenRouterClient
         var content = ExtractTextContent(message);
         var translation = ParseTextTranslation(content, operationId);
         var providerRequestId = ExtractString(root, "id");
-        var cost = ExtractCost(root);
         var usage = ExtractTokenUsage(root);
-        LogUsage(operationId, providerRequestId, cost, usage);
+        LogUsage(operationId, providerRequestId, usage);
 
         if (string.IsNullOrWhiteSpace(translation.Text))
         {
@@ -111,7 +109,6 @@ internal static class OpenRouterClient
         return new TextTranslationResult(
             translation.Text,
             translation.SearchQueries,
-            cost,
             usage,
             providerRequestId);
     }
@@ -145,12 +142,11 @@ internal static class OpenRouterClient
         return document.RootElement.Clone();
     }
 
-    private static void LogUsage(string operationId, string? providerRequestId, decimal cost, TokenUsage usage)
+    private static void LogUsage(string operationId, string? providerRequestId, TokenUsage usage)
     {
         AppLogger.Info(
             $"operation={operationId} openrouter.usage " +
             $"provider_request_id={providerRequestId ?? "-"} " +
-            $"cost={FormatCost(cost)} " +
             $"prompt_tokens={usage.PromptTokens} " +
             $"completion_tokens={usage.CompletionTokens} " +
             $"total_tokens={usage.TotalTokens}");
@@ -189,39 +185,13 @@ internal static class OpenRouterClient
 
     private static string ExtractTextContent(JsonElement message)
     {
-        if (!message.TryGetProperty("content", out var contentElement))
+        if (!message.TryGetProperty("content", out var contentElement) ||
+            contentElement.ValueKind != JsonValueKind.String)
         {
             return string.Empty;
         }
 
-        if (contentElement.ValueKind == JsonValueKind.String)
-        {
-            return contentElement.GetString() ?? string.Empty;
-        }
-
-        if (contentElement.ValueKind != JsonValueKind.Array)
-        {
-            return string.Empty;
-        }
-
-        var builder = new StringBuilder();
-        foreach (var item in contentElement.EnumerateArray())
-        {
-            var text = ExtractTextPart(item);
-            if (string.IsNullOrWhiteSpace(text))
-            {
-                continue;
-            }
-
-            if (builder.Length > 0)
-            {
-                builder.AppendLine();
-            }
-
-            builder.Append(text);
-        }
-
-        return builder.ToString();
+        return contentElement.GetString() ?? string.Empty;
     }
 
     private static string CreateTextTranslationPrompt(
@@ -306,15 +276,14 @@ internal static class OpenRouterClient
 
     private static ParsedTextTranslation ParseTextTranslation(string content, string operationId)
     {
-        var json = ExtractJsonObject(content);
-        if (string.IsNullOrWhiteSpace(json))
+        if (string.IsNullOrWhiteSpace(content))
         {
             throw new InvalidOperationException("Translation response was not valid JSON.");
         }
 
         try
         {
-            var response = JsonSerializer.Deserialize<TextTranslationResponse>(json, ResponseJsonOptions);
+            var response = JsonSerializer.Deserialize<TextTranslationResponse>(content, ResponseJsonOptions);
             var translation = response?.Translation?.Trim() ?? string.Empty;
             var searchQueries = SanitizeSearchQueries(response?.SearchQueries);
 
@@ -336,26 +305,6 @@ internal static class OpenRouterClient
             });
             throw new InvalidOperationException("Translation response was not valid JSON.", ex);
         }
-    }
-
-    private static string ExtractJsonObject(string content)
-    {
-        content = content.Trim();
-        if (content.StartsWith("```", StringComparison.Ordinal))
-        {
-            var firstLineEnd = content.IndexOf('\n', StringComparison.Ordinal);
-            var lastFence = content.LastIndexOf("```", StringComparison.Ordinal);
-            if (firstLineEnd >= 0 && lastFence > firstLineEnd)
-            {
-                content = content[(firstLineEnd + 1)..lastFence].Trim();
-            }
-        }
-
-        var start = content.IndexOf('{', StringComparison.Ordinal);
-        var end = content.LastIndexOf('}');
-        return start >= 0 && end > start
-            ? content[start..(end + 1)]
-            : string.Empty;
     }
 
     private static IReadOnlyList<SearchQueryResult> SanitizeSearchQueries(IEnumerable<SearchQueryResponse?>? queries)
@@ -381,7 +330,7 @@ internal static class OpenRouterClient
             }
 
             cleanQueries.Add(new SearchQueryResult(
-                SanitizeSearchLabel(query.Label),
+                RequireSearchLabel(query.Label),
                 SanitizeSearchIntent(query.Intent),
                 cleanQuery));
             if (cleanQueries.Count >= 3)
@@ -446,12 +395,15 @@ internal static class OpenRouterClient
         (value >= '\u4E00' && value <= '\u9FFF') ||
         (value >= '\uF900' && value <= '\uFAFF');
 
-    private static string SanitizeSearchLabel(string? label)
+    private static string RequireSearchLabel(string? label)
     {
         label = label?.Trim() ?? string.Empty;
-        return label is "closest" or "alternative" or "another_angle"
-            ? label
-            : "alternative";
+        if (label is "closest" or "alternative" or "another_angle")
+        {
+            return label;
+        }
+
+        throw new InvalidOperationException("Translation response included an invalid search label.");
     }
 
     private static string SanitizeSearchIntent(string? intent)
@@ -461,23 +413,6 @@ internal static class OpenRouterClient
             .Replace('\n', ' ')
             .Trim() ?? string.Empty;
         return intent.Length <= 120 ? intent : intent[..120].Trim();
-    }
-
-    private static string ExtractTextPart(JsonElement element)
-    {
-        if (element.ValueKind == JsonValueKind.String)
-        {
-            return element.GetString() ?? string.Empty;
-        }
-
-        if (element.ValueKind == JsonValueKind.Object &&
-            element.TryGetProperty("text", out var textElement) &&
-            textElement.ValueKind == JsonValueKind.String)
-        {
-            return textElement.GetString() ?? string.Empty;
-        }
-
-        return string.Empty;
     }
 
     private static JsonElement ExtractFirstChoiceMessage(JsonElement root)
@@ -497,22 +432,6 @@ internal static class OpenRouterClient
         }
 
         return message;
-    }
-
-    private static decimal ExtractCost(JsonElement root)
-    {
-        if (!root.TryGetProperty("usage", out var usage) ||
-            !usage.TryGetProperty("cost", out var costElement))
-        {
-            return 0;
-        }
-
-        return costElement.ValueKind switch
-        {
-            JsonValueKind.Number when costElement.TryGetDecimal(out var cost) => cost,
-            JsonValueKind.String when decimal.TryParse(costElement.GetString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var cost) => cost,
-            _ => 0
-        };
     }
 
     private static TokenUsage ExtractTokenUsage(JsonElement root)
@@ -538,7 +457,6 @@ internal static class OpenRouterClient
         return value.ValueKind switch
         {
             JsonValueKind.Number when value.TryGetInt32(out var number) => number,
-            JsonValueKind.String when int.TryParse(value.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var number) => number,
             _ => 0
         };
     }
@@ -578,11 +496,6 @@ internal static class OpenRouterClient
         }
 
         return null;
-    }
-
-    public static string FormatCost(decimal cost)
-    {
-        return cost <= 0 ? "$0.00000000" : string.Create(CultureInfo.InvariantCulture, $"${cost:0.00000000}");
     }
 
     private static string TrimForDisplay(string value)
@@ -630,6 +543,5 @@ internal sealed record TokenUsage(int PromptTokens, int CompletionTokens, int To
 internal sealed record TextTranslationResult(
     string Text,
     IReadOnlyList<SearchQueryResult> SearchQueries,
-    decimal CostUsd,
     TokenUsage Usage,
     string? ProviderRequestId);

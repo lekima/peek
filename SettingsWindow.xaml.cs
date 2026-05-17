@@ -18,22 +18,16 @@ internal sealed partial class SettingsWindow : Window
 
         _config = config;
         ApiKeyBox.Password = config.ApiKey;
-        ModelBox.Text = string.IsNullOrWhiteSpace(config.Model) ? AppConfig.DefaultModel : config.Model;
-        TargetLanguageBox.Text = string.IsNullOrWhiteSpace(config.TargetLanguage) ? "English" : config.TargetLanguage;
+        ModelBox.Text = AppConfig.NormalizeModel(config.Model);
+        TargetLanguageBox.Text = AppConfig.NormalizeTargetLanguage(config.TargetLanguage);
     }
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
         var apiKey = ApiKeyBox.Password.Trim();
-        var targetLanguage = string.IsNullOrWhiteSpace(TargetLanguageBox.Text)
-            ? "English"
-            : TargetLanguageBox.Text.Trim();
-
         _config.ApiKey = apiKey;
-        _config.Model = string.IsNullOrWhiteSpace(ModelBox.Text)
-            ? AppConfig.DefaultModel
-            : ModelBox.Text.Trim();
-        _config.TargetLanguage = targetLanguage;
+        _config.Model = AppConfig.NormalizeModel(ModelBox.Text);
+        _config.TargetLanguage = AppConfig.NormalizeTargetLanguage(TargetLanguageBox.Text);
 
         DialogResult = true;
         Close();

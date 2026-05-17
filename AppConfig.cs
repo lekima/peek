@@ -56,7 +56,12 @@ internal sealed class AppConfig
     public string Model { get; set; } = DefaultModel;
     public string TargetLanguage { get; set; } = "English";
     public TargetGame TargetGame { get; set; } = TargetGame.None;
-    public decimal TotalCostUsd { get; set; }
+
+    public static string NormalizeModel(string value) =>
+        string.IsNullOrWhiteSpace(value) ? DefaultModel : value.Trim();
+
+    public static string NormalizeTargetLanguage(string value) =>
+        string.IsNullOrWhiteSpace(value) ? "English" : value.Trim();
 }
 
 internal static class AppConfigStore
@@ -67,7 +72,6 @@ internal static class AppConfigStore
         public string Model { get; set; } = AppConfig.DefaultModel;
         public string TargetLanguage { get; set; } = "English";
         public string TargetGame { get; set; } = nameof(Peek.TargetGame.None);
-        public decimal TotalCostUsd { get; set; }
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -91,10 +95,9 @@ internal static class AppConfigStore
             return new AppConfig
             {
                 ApiKey = Unprotect(stored.EncryptedApiKey),
-                Model = NormalizeModel(stored.Model),
-                TargetLanguage = NormalizeTargetLanguage(stored.TargetLanguage),
-                TargetGame = NormalizeTargetGame(stored.TargetGame),
-                TotalCostUsd = stored.TotalCostUsd
+                Model = AppConfig.NormalizeModel(stored.Model),
+                TargetLanguage = AppConfig.NormalizeTargetLanguage(stored.TargetLanguage),
+                TargetGame = NormalizeTargetGame(stored.TargetGame)
             };
         }
         catch (IOException)
@@ -132,10 +135,9 @@ internal static class AppConfigStore
         var stored = new StoredAppConfig
         {
             EncryptedApiKey = Protect(config.ApiKey),
-            Model = NormalizeModel(config.Model),
-            TargetLanguage = NormalizeTargetLanguage(config.TargetLanguage),
-            TargetGame = config.TargetGame.ToString(),
-            TotalCostUsd = config.TotalCostUsd
+            Model = AppConfig.NormalizeModel(config.Model),
+            TargetLanguage = AppConfig.NormalizeTargetLanguage(config.TargetLanguage),
+            TargetGame = config.TargetGame.ToString()
         };
 
         var tempPath = ConfigPath + ".tmp";
@@ -163,16 +165,6 @@ internal static class AppConfigStore
         var bytes = Encoding.UTF8.GetBytes(value);
         var encrypted = ProtectedData.Protect(bytes, null, DataProtectionScope.CurrentUser);
         return Convert.ToBase64String(encrypted);
-    }
-
-    private static string NormalizeModel(string value)
-    {
-        return string.IsNullOrWhiteSpace(value) ? AppConfig.DefaultModel : value.Trim();
-    }
-
-    private static string NormalizeTargetLanguage(string value)
-    {
-        return string.IsNullOrWhiteSpace(value) ? "English" : value.Trim();
     }
 
     private static TargetGame NormalizeTargetGame(string value)

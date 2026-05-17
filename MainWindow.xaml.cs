@@ -60,8 +60,7 @@ internal sealed partial class MainWindow : Window
         {
             appDirectory = AppPaths.AppDirectory,
             targetLanguage = _config.TargetLanguage,
-            targetGame = TargetGames.GetDisplayName(_config.TargetGame),
-            totalCostUsd = _config.TotalCostUsd
+            targetGame = TargetGames.GetDisplayName(_config.TargetGame)
         });
     }
 
@@ -494,11 +493,8 @@ internal sealed partial class MainWindow : Window
         var stopwatch = Stopwatch.StartNew();
         var captureWidth = 0;
         var captureHeight = 0;
-        var model = string.IsNullOrWhiteSpace(operationConfig.Model)
-            ? AppConfig.DefaultModel
-            : operationConfig.Model;
+        var model = AppConfig.NormalizeModel(operationConfig.Model);
         string? providerRequestId = null;
-        decimal responseCost = 0;
         var responseUsage = new TokenUsage(0, 0, 0);
         var usageTracked = false;
 
@@ -525,7 +521,6 @@ internal sealed partial class MainWindow : Window
 
             var result = await OpenRouterClient.TranslateImageToTextAsync(bitmap, operationConfig, model, operationId, cancellationToken).ConfigureAwait(true);
             providerRequestId = result.ProviderRequestId;
-            responseCost = result.CostUsd;
             responseUsage = result.Usage;
             stopwatch.Stop();
             cancellationToken.ThrowIfCancellationRequested();
@@ -544,7 +539,6 @@ internal sealed partial class MainWindow : Window
                 operationId,
                 providerRequestId,
                 true,
-                responseCost,
                 captureWidth,
                 captureHeight,
                 stopwatch.ElapsedMilliseconds,
@@ -560,13 +554,12 @@ internal sealed partial class MainWindow : Window
         {
             stopwatch.Stop();
             AppLogger.Info($"operation={operationId} translate.cancelled");
-            if (!usageTracked && (responseCost > 0 || providerRequestId is not null))
+            if (!usageTracked && providerRequestId is not null)
             {
                 TrackUsage(
                     operationId,
                     providerRequestId,
                     false,
-                    responseCost,
                     captureWidth,
                     captureHeight,
                     stopwatch.ElapsedMilliseconds,
@@ -589,7 +582,6 @@ internal sealed partial class MainWindow : Window
                 operationId,
                 providerRequestId,
                 false,
-                responseCost,
                 captureWidth,
                 captureHeight,
                 stopwatch.ElapsedMilliseconds,
@@ -646,13 +638,11 @@ internal sealed partial class MainWindow : Window
             {
                 try
                 {
-                    settingsConfig.TotalCostUsd = _config.TotalCostUsd;
                     AppConfigStore.Save(settingsConfig);
                     _config = settingsConfig;
                     AppLogger.Event("settings_saved", new
                     {
-                        targetLanguage = _config.TargetLanguage,
-                        totalCostUsd = _config.TotalCostUsd
+                        targetLanguage = _config.TargetLanguage
                     });
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or CryptographicException)
@@ -856,11 +846,10 @@ internal sealed partial class MainWindow : Window
         }
     }
 
-    private void TrackUsage(
+    private static void TrackUsage(
         string operationId,
         string? providerRequestId,
         bool success,
-        decimal cost,
         int width,
         int height,
         long elapsedMilliseconds,
@@ -871,19 +860,6 @@ internal sealed partial class MainWindow : Window
         string? errorKind,
         string? errorMessage)
     {
-        if (cost > 0)
-        {
-            _config.TotalCostUsd += cost;
-            try
-            {
-                AppConfigStore.Save(_config);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or CryptographicException)
-            {
-                AppLogger.Error("Could not save total cost.", ex);
-            }
-        }
-
         var entry = new UsageLogEntry(
             DateTimeOffset.Now,
             operationId,
@@ -892,8 +868,6 @@ internal sealed partial class MainWindow : Window
             operationConfig.TargetLanguage,
             targetGame,
             success,
-            cost,
-            _config.TotalCostUsd,
             elapsedMilliseconds,
             width,
             height,
@@ -908,8 +882,6 @@ internal sealed partial class MainWindow : Window
             $"operation={operationId} usage.summary " +
             $"success={success} " +
             $"model={model} " +
-            $"cost={OpenRouterClient.FormatCost(cost)} " +
-            $"total={OpenRouterClient.FormatCost(_config.TotalCostUsd)} " +
             $"duration_ms={elapsedMilliseconds} " +
             $"tokens={usage.TotalTokens} " +
             $"capture={width}x{height}");
@@ -959,10 +931,9 @@ internal sealed partial class MainWindow : Window
         new()
         {
             ApiKey = config.ApiKey,
-            Model = config.Model,
-            TargetLanguage = config.TargetLanguage,
+            Model = AppConfig.NormalizeModel(config.Model),
+            TargetLanguage = AppConfig.NormalizeTargetLanguage(config.TargetLanguage),
             TargetGame = config.TargetGame,
-            TotalCostUsd = config.TotalCostUsd
         };
 
     private void FitResultText()
