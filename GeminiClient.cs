@@ -15,6 +15,7 @@ internal static class GeminiClient
 {
     private const string TextPromptVersion = "chinese-game-bilibili-search-v14";
     private const string TextSchemaVersion = "text-result-schema-v8";
+    private const int TextMaxOutputTokens = 8192;
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(90);
     private static readonly HttpClient HttpClient = new()
     {
@@ -112,7 +113,7 @@ internal static class GeminiClient
             },
             ["generationConfig"] = new Dictionary<string, object?>
             {
-                ["maxOutputTokens"] = 4096,
+                ["maxOutputTokens"] = TextMaxOutputTokens,
                 ["responseMimeType"] = "application/json",
                 ["responseJsonSchema"] = CreateTextTranslationResponseSchema(targetLanguage),
                 ["thinkingConfig"] = new Dictionary<string, object?>
@@ -670,7 +671,7 @@ internal static class GeminiClient
             }
 
             cleanQueries.Add(new SearchQueryResult(
-                RequireSearchLabel(query.Label),
+                NormalizeSearchLabel(query.Label, cleanQueries.Count),
                 SanitizeSearchIntent(query.Intent),
                 cleanQuery));
             if (cleanQueries.Count >= 3)
@@ -735,7 +736,7 @@ internal static class GeminiClient
         (value >= '\u4E00' && value <= '\u9FFF') ||
         (value >= '\uF900' && value <= '\uFAFF');
 
-    private static string RequireSearchLabel(string? label)
+    private static string NormalizeSearchLabel(string? label, int queryIndex)
     {
         label = label?.Trim() ?? string.Empty;
         if (label is "closest" or "alternative" or "another_angle")
@@ -743,7 +744,12 @@ internal static class GeminiClient
             return label;
         }
 
-        throw new InvalidOperationException("Translation response included an invalid search label.");
+        return queryIndex switch
+        {
+            0 => "closest",
+            1 => "alternative",
+            _ => "another_angle"
+        };
     }
 
     private static string SanitizeSearchIntent(string? intent)
