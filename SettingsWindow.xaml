@@ -167,14 +167,14 @@
         </Grid>
 
         <StackPanel>
-            <TextBlock Text="OpenRouter API key"
+            <TextBlock Text="Gemini API key"
                        Style="{StaticResource MutedText}" />
             <PasswordBox x:Name="ApiKeyBox"
                          Margin="0,6,0,0"
                          PasswordChar="*" />
 
             <TextBlock Margin="0,16,0,0"
-                       Text="Model"
+                       Text="Gemini model"
                        Style="{StaticResource MutedText}" />
             <TextBox x:Name="ModelBox"
                      Margin="0,6,0,0" />

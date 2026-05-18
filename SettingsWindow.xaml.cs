@@ -25,6 +25,12 @@ internal sealed partial class SettingsWindow : Window
     private void Save_Click(object sender, RoutedEventArgs e)
     {
         var apiKey = ApiKeyBox.Password.Trim();
+        if (!string.IsNullOrWhiteSpace(apiKey) && !AppConfig.HasGeminiApiKey(apiKey))
+        {
+            MessageBox.Show(this, "Enter a Gemini API key that starts with AIza.", "Settings", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
         _config.ApiKey = apiKey;
         _config.Model = AppConfig.NormalizeModel(ModelBox.Text);
         _config.TargetLanguage = AppConfig.NormalizeTargetLanguage(TargetLanguageBox.Text);

@@ -66,7 +66,7 @@ internal sealed partial class MainWindow : Window
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
-        if (string.IsNullOrWhiteSpace(_config.ApiKey))
+        if (!AppConfig.HasGeminiApiKey(_config.ApiKey))
         {
             OpenSettings();
         }
@@ -467,10 +467,10 @@ internal sealed partial class MainWindow : Window
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(_config.ApiKey))
+        if (!AppConfig.HasGeminiApiKey(_config.ApiKey))
         {
             OpenSettings();
-            if (string.IsNullOrWhiteSpace(_config.ApiKey))
+            if (!AppConfig.HasGeminiApiKey(_config.ApiKey))
             {
                 AppLogger.Event("translate_skipped", new { reason = "api_key_required" });
                 return;
@@ -492,6 +492,7 @@ internal sealed partial class MainWindow : Window
         string? providerRequestId = null;
         var responseUsage = new TokenUsage(0, 0, 0);
         var usageTracked = false;
+        var streamedTextShown = false;
 
         try
         {
@@ -514,7 +515,23 @@ internal sealed partial class MainWindow : Window
             captureHeight = bitmap.Height;
             var capturePath = SaveCapture(operationId, bitmap);
 
-            var result = await OpenRouterClient.TranslateImageToTextAsync(bitmap, operationConfig, model, operationId, cancellationToken).ConfigureAwait(true);
+            var result = await GeminiClient.TranslateImageToTextStreamingAsync(
+                    bitmap,
+                    operationConfig,
+                    model,
+                    operationId,
+                    partialText => Dispatcher.Invoke(
+                        () =>
+                        {
+                            if (!cancellationToken.IsCancellationRequested)
+                            {
+                                streamedTextShown = true;
+                                SetStreamingResultText(partialText);
+                            }
+                        },
+                        DispatcherPriority.Background),
+                    cancellationToken)
+                .ConfigureAwait(true);
             providerRequestId = result.ProviderRequestId;
             responseUsage = result.Usage;
             stopwatch.Stop();
@@ -571,6 +588,11 @@ internal sealed partial class MainWindow : Window
             stopwatch.Stop();
             AppLogger.Error("Translate failed.", ex);
             var shortError = ToShortUserError(ex);
+            if (streamedTextShown)
+            {
+                ClearFailedStreamingResult();
+            }
+
             SetStatus(shortError);
             AppLogger.Info($"operation={operationId} user_error={shortError}");
             TrackUsage(
@@ -689,6 +711,30 @@ internal sealed partial class MainWindow : Window
             TranslateSpinnerRotate.BeginAnimation(RotateTransform.AngleProperty, null);
             TranslateSpinnerRotate.Angle = 0;
         }
+    }
+
+    private void SetStreamingResultText(string text)
+    {
+        if (SearchButtonsPanel.Visibility == Visibility.Visible)
+        {
+            ClearSearchButtons();
+        }
+
+        SetResultTextLines(text);
+        ResultTextPanel.Visibility = Visibility.Visible;
+        ResultPanel.Padding = MaxResultTextPadding;
+        ResultPanel.Visibility = Visibility.Visible;
+        UpdateResultPanelClip();
+        FitResultText();
+        Dispatcher.BeginInvoke(FitResultText, DispatcherPriority.Loaded);
+    }
+
+    private void ClearFailedStreamingResult()
+    {
+        ResultTextPanel.Children.Clear();
+        ResultTextPanel.Visibility = Visibility.Collapsed;
+        ClearSearchButtons();
+        ResultPanel.Visibility = Visibility.Collapsed;
     }
 
     private void SetResultText(
@@ -884,20 +930,27 @@ internal sealed partial class MainWindow : Window
     {
         var message = exception.Message;
 
+        if (message.Contains("401", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("403", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("API key expired", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("API key not valid", StringComparison.OrdinalIgnoreCase))
+        {
+            return "API key rejected";
+        }
+
         if (message.Contains("API key", StringComparison.OrdinalIgnoreCase))
         {
             return "API key required";
         }
 
-        if (message.Contains("401", StringComparison.OrdinalIgnoreCase) ||
-            message.Contains("403", StringComparison.OrdinalIgnoreCase))
-        {
-            return "API key rejected";
-        }
-
         if (message.Contains("429", StringComparison.OrdinalIgnoreCase))
         {
             return "Rate limited";
+        }
+
+        if (message.Contains("MAX_TOKENS", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Response too long";
         }
 
         if (exception is TimeoutException ||

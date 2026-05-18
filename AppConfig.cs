@@ -50,15 +50,24 @@ internal static class TargetGames
 internal sealed class AppConfig
 {
     public const string BilibiliSearchUrlPrefix = "https://search.bilibili.com/all?keyword=";
-    public const string DefaultModel = "google/gemini-3.1-flash-lite";
+    public const string DefaultModel = "gemini-3.1-flash-lite";
 
     public string ApiKey { get; set; } = string.Empty;
     public string Model { get; set; } = DefaultModel;
     public string TargetLanguage { get; set; } = "English";
     public TargetGame TargetGame { get; set; } = TargetGame.None;
 
-    public static string NormalizeModel(string value) =>
-        string.IsNullOrWhiteSpace(value) ? DefaultModel : value.Trim();
+    public static bool HasGeminiApiKey(string? value) =>
+        !string.IsNullOrWhiteSpace(value) &&
+        value.Trim().StartsWith("AIza", StringComparison.OrdinalIgnoreCase);
+
+    public static string NormalizeModel(string? value)
+    {
+        value = value?.Trim() ?? string.Empty;
+        return value.StartsWith("gemini-", StringComparison.OrdinalIgnoreCase)
+            ? value.Trim()
+            : DefaultModel;
+    }
 
     public static string NormalizeTargetLanguage(string value) =>
         string.IsNullOrWhiteSpace(value) ? "English" : value.Trim();

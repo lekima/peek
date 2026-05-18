@@ -12,7 +12,7 @@ The release zip is self-contained for Windows x64, so it should not require a se
 
 - Use the four-button strip to move, translate, clear, and resize.
 - Drag the resize button downward to reveal the capture frame.
-- The app captures only the framed area underneath, sends the image to OpenRouter, then shows translated text inside the frame.
+- The app captures only the framed area underneath, sends the image to the Gemini API, then streams translated text inside the frame.
 - Right-click the move button to choose the target game, open Settings, or quit.
 
 ## Settings
@@ -20,10 +20,10 @@ The release zip is self-contained for Windows x64, so it should not require a se
 Right-click the move button, then choose `Settings`.
 
 - Target language: configurable, default English
-- Model: configurable OpenRouter model id, default `google/gemini-3.1-flash-lite`
+- Model: configurable Gemini model id, default `gemini-3.1-flash-lite`
 - Search: search buttons open Bilibili Chinese search.
 - Target game: selected from the move-button context menu; choose `Any game` for no added prefix. Current games are Roco Kingdom: World, Honor of Kings: World, Honor of Kings: Chess, and Honor of Kings.
-- API key storage: encrypted for the current Windows user with DPAPI in `data/settings.json`
+- API key storage: Gemini API keys are encrypted for the current Windows user with DPAPI in `data/settings.json`
 - Log: `data/peek.log.jsonl`
 - Review data: source captures are saved in `data/captures`, and translations/search queries are logged as `text_result` events.
 - Font: Roboto and Roboto Condensed are bundled from Google Fonts under the SIL Open Font License in `Resources/Fonts`; Settings uses regular Roboto and overlay translation text uses Roboto Condensed Semibold.
