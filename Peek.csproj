@@ -11,6 +11,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Remove="data\**" />
+    <None Remove="data\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="System.Drawing.Common" Version="10.0.8" />
   </ItemGroup>
 
@@ -21,5 +26,9 @@
     <None Include="Resources\Fonts\Roboto-OFL.txt" />
     <None Include="Resources\Fonts\RobotoCondensed-OFL.txt" />
   </ItemGroup>
+
+  <Target Name="RemoveRuntimeDataFromPublishOutput" AfterTargets="Publish">
+    <RemoveDir Directories="$(PublishDir)data" />
+  </Target>
 
 </Project>
