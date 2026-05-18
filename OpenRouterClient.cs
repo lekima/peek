@@ -14,8 +14,8 @@ namespace Peek;
 
 internal static class OpenRouterClient
 {
-    private const string TextPromptVersion = "chinese-game-bilibili-search-v12";
-    private const string TextSchemaVersion = "text-result-schema-v6";
+    private const string TextPromptVersion = "chinese-game-bilibili-search-v14";
+    private const string TextSchemaVersion = "text-result-schema-v8";
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(90);
     private static readonly HttpClient HttpClient = new()
     {
@@ -200,14 +200,15 @@ internal static class OpenRouterClient
 
         return
             "You are helping a player understand a screenshot from a Chinese game. " +
-            $"Translate visible Chinese game text into natural {targetLanguage} for quick play decisions. Keep important game details exact: names, numbers, counts, symbols, punctuation, and useful line breaks. " +
-            $"Use clear official localized game terms in {targetLanguage} when they are obvious; otherwise preserve the Chinese name or transliterate instead of inventing. " +
+            $"For the translation field, act as a player-facing localization layer over the screenshot, not as an OCR transcript or bilingual note. The player can already see the Chinese source in the image, so the translation should read like natural {targetLanguage} game UI or dialogue for quick play decisions. " +
+            "Keep decision-critical details exact: names, numbers, counts, symbols, punctuation, and useful line breaks. " +
+            $"Use clear official localized game terms in {targetLanguage} when they are obvious. For unfamiliar proper names, choose a stable readable rendering; for unfamiliar mechanics, items, quests, or objectives, choose a concise meaning-first rendering that helps the player act. " +
             $"Leave text already in {targetLanguage} unchanged. Do not guess unreadable text. " +
-            "Also generate up to three Chinese Bilibili guide searches for the same selected content. " +
+            "For search_queries, generate up to three Chinese Bilibili guide searches for the same selected content. " +
             $"{targetGameInstruction} " +
             "The best query should match what the player would most likely search after seeing this screen; alternatives should cover meaningfully different but still close angles. " +
-            "Broaden alternatives by changing the search strategy, not by replacing distinctive names or terms with nearby guesses; if a term is uncertain, preserve the visible Chinese wording. " +
-            "Use concise Chinese keywords built from distinctive clues such as quests, items, NPCs, locations, bosses, objectives, mechanics, or unusual dialogue. " +
+            "Broaden alternatives by changing the search strategy, not by replacing distinctive names or terms with nearby guesses; if a query term is uncertain, preserve the visible Chinese wording in the query. " +
+            "Use compact Chinese search phrases built from the fewest distinctive visible clues that would find a relevant guide, such as an exact quest, item, NPC, location, boss, mechanic, objective, or unusual dialogue. " +
             $"For each query, write a short search intent in {targetLanguage} explaining what help the player should expect to find. " +
             "Return only valid JSON matching the schema.";
     }
@@ -230,7 +231,7 @@ internal static class OpenRouterClient
                         ["translation"] = new Dictionary<string, object?>
                         {
                             ["type"] = "string",
-                            ["description"] = "Natural translated text to display to the user."
+                            ["description"] = $"Player-facing localized text in {targetLanguage}; readable as game UI or dialogue, not bilingual notes or OCR."
                         },
                         ["search_queries"] = new Dictionary<string, object?>
                         {
@@ -259,7 +260,7 @@ internal static class OpenRouterClient
                                     ["query"] = new Dictionary<string, object?>
                                     {
                                         ["type"] = "string",
-                                        ["description"] = "Concise Chinese gaming-guide search keywords for Bilibili. Use 2 to 6 keywords. Keep close to the selected text. Do not include the game title prefix."
+                                        ["description"] = "Compact Chinese Bilibili search phrase. Prefer the fewest distinctive visible clues that would find a relevant guide, such as an exact quest, item, NPC, location, boss, mechanic, or objective. Do not include the game title prefix."
                                     }
                                 }
                             }
@@ -356,7 +357,7 @@ internal static class OpenRouterClient
             return string.Empty;
         }
 
-        return cleanQuery.Length <= 40 ? cleanQuery : cleanQuery[..40].Trim();
+        return cleanQuery;
     }
 
     private static string CompactSpacesBetweenChineseCharacters(string value)
