@@ -642,7 +642,10 @@ internal sealed partial class MainWindow : Window
                             if (!cancellationToken.IsCancellationRequested)
                             {
                                 streamedTextShown = true;
-                                SetStreamingResultText(partialText);
+                                SetStreamingResultText(
+                                    partialText,
+                                    operationConfig.Mode,
+                                    operationConfig.TargetLanguage);
                             }
                         },
                         DispatcherPriority.Background),
@@ -652,7 +655,14 @@ internal sealed partial class MainWindow : Window
             responseUsage = result.Usage;
             stopwatch.Stop();
             cancellationToken.ThrowIfCancellationRequested();
-            SetResultText(operationId, result.Text, result.SearchQueries, targetGame, searchPrefix);
+            SetResultText(
+                operationId,
+                result.Text,
+                result.SearchQueries,
+                targetGame,
+                searchPrefix,
+                operationConfig.Mode,
+                operationConfig.TargetLanguage);
             AppLogger.TextResult(new TextResultLogEntry(
                 DateTimeOffset.Now,
                 operationId,
@@ -946,16 +956,19 @@ internal sealed partial class MainWindow : Window
         }
     }
 
-    private void SetStreamingResultText(string text)
+    private void SetStreamingResultText(
+        string text,
+        AppMode operationMode,
+        string operationTargetLanguage)
     {
         if (SearchButtonsPanel.Visibility == Visibility.Visible)
         {
             ClearSearchButtons();
         }
 
-        if (_config.Mode == AppMode.Chat)
+        if (operationMode == AppMode.Chat)
         {
-            ShowReplyComposer(false);
+            ShowReplyComposer(false, operationTargetLanguage);
         }
         else
         {
@@ -985,14 +998,16 @@ internal sealed partial class MainWindow : Window
         string text,
         IReadOnlyList<SearchQueryResult> searchQueries,
         string targetGame,
-        string searchPrefix)
+        string searchPrefix,
+        AppMode operationMode,
+        string operationTargetLanguage)
     {
         SetResultTextLines(text);
         ResultTextPanel.Visibility = Visibility.Visible;
-        if (_config.Mode == AppMode.Chat)
+        if (operationMode == AppMode.Chat)
         {
             ClearSearchButtons();
-            ShowReplyComposer();
+            ShowReplyComposer(true, operationTargetLanguage);
         }
         else
         {
@@ -1036,12 +1051,12 @@ internal sealed partial class MainWindow : Window
         ShowReplyComposer(focus);
     }
 
-    private void ShowReplyComposer(bool focus = true)
+    private void ShowReplyComposer(bool focus = true, string? targetLanguage = null)
     {
         ResultPanel.Padding = MaxResultTextPadding;
         ResultPanel.Visibility = Visibility.Visible;
         ReplyComposerPanel.Visibility = Visibility.Visible;
-        ReplyTextBox.ToolTip = $"Type in {AppConfig.NormalizeTargetLanguage(_config.TargetLanguage)}";
+        ReplyTextBox.ToolTip = $"Type in {AppConfig.NormalizeTargetLanguage(targetLanguage ?? _config.TargetLanguage)}";
         UpdateReplyComposerMargin();
         FitResultText();
         if (!focus)

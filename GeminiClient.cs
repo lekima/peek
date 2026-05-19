@@ -308,6 +308,11 @@ internal static class GeminiClient
 
                 if (!line.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
                 {
+                    if (line.StartsWith(':'))
+                    {
+                        continue;
+                    }
+
                     if (eventData.Length > 0 && !IsSseFieldLine(line))
                     {
                         eventData.Append(line);
