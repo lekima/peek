@@ -48,6 +48,7 @@ internal sealed partial class MainWindow : Window
     private bool _isTranslating;
     private bool _isReplyTranslating;
     private SettingsWindow? _settingsWindow;
+    private DisplayedResultState? _displayedResult;
     private readonly DispatcherTimer _statusClearTimer = new()
     {
         Interval = TimeSpan.FromSeconds(2.5)
@@ -295,6 +296,7 @@ internal sealed partial class MainWindow : Window
     {
         FrameBorder.Visibility = Visibility.Collapsed;
         ResultPanel.Visibility = Visibility.Collapsed;
+        _displayedResult = null;
         ClearSearchButtons();
         HideReplyComposer();
         ResizeCornerButton.Visibility = Visibility.Collapsed;
@@ -986,6 +988,7 @@ internal sealed partial class MainWindow : Window
 
     private void ClearFailedStreamingResult()
     {
+        _displayedResult = null;
         ResultTextPanel.Children.Clear();
         ResultTextPanel.Visibility = Visibility.Collapsed;
         ClearSearchButtons();
@@ -1002,6 +1005,13 @@ internal sealed partial class MainWindow : Window
         AppMode operationMode,
         string operationTargetLanguage)
     {
+        _displayedResult = new DisplayedResultState(
+            operationMode,
+            operationTargetLanguage,
+            string.Empty,
+            Array.Empty<SearchQueryResult>(),
+            targetGame,
+            searchPrefix);
         SetResultTextLines(text);
         ResultTextPanel.Visibility = Visibility.Visible;
         if (operationMode == AppMode.Chat)
@@ -1024,20 +1034,41 @@ internal sealed partial class MainWindow : Window
 
     private void ApplyModeToVisibleResult()
     {
-        if (_config.Mode == AppMode.Chat && FrameBorder.Visibility == Visibility.Visible)
+        if (ResultPanel.Visibility != Visibility.Visible || ResultTextPanel.Visibility != Visibility.Visible)
         {
-            ClearSearchButtons();
-            ShowReplyComposer(true);
+            if (_config.Mode == AppMode.Chat && FrameBorder.Visibility == Visibility.Visible)
+            {
+                ClearSearchButtons();
+                ShowReplyComposer(true);
+            }
+            else
+            {
+                HideReplyComposer();
+                ResultPanel.Visibility = Visibility.Collapsed;
+            }
+
             return;
         }
 
-        if (ResultPanel.Visibility != Visibility.Visible || ResultTextPanel.Visibility != Visibility.Visible)
+        if (_displayedResult is null)
         {
             HideReplyComposer();
             return;
         }
 
+        if (_displayedResult.Mode == AppMode.Chat)
+        {
+            ClearSearchButtons();
+            ShowReplyComposer(true, _displayedResult.TargetLanguage);
+            return;
+        }
+
         HideReplyComposer();
+        SetSearchButtons(
+            _displayedResult.OperationId,
+            _displayedResult.SearchQueries,
+            _displayedResult.TargetGame,
+            _displayedResult.SearchPrefix);
     }
 
     private void ShowDefaultChatComposerIfNeeded(bool focus)
@@ -1078,6 +1109,11 @@ internal sealed partial class MainWindow : Window
     {
         ReplyComposerPanel.Visibility = Visibility.Collapsed;
         ReplyTextBox.Clear();
+        if (ResultTextPanel.Visibility != Visibility.Visible || ResultTextPanel.Children.Count == 0)
+        {
+            ResultPanel.Visibility = Visibility.Collapsed;
+        }
+
         FitResultText();
     }
 
@@ -1103,6 +1139,7 @@ internal sealed partial class MainWindow : Window
 
     private void ClearResult()
     {
+        _displayedResult = null;
         ResultTextPanel.Children.Clear();
         ResultTextPanel.Visibility = Visibility.Collapsed;
         HideReplyComposer();
@@ -1433,3 +1470,11 @@ internal sealed record SearchButtonState(
     SearchQueryResult Query,
     string TargetGame,
     string Url);
+
+internal sealed record DisplayedResultState(
+    AppMode Mode,
+    string TargetLanguage,
+    string OperationId,
+    IReadOnlyList<SearchQueryResult> SearchQueries,
+    string TargetGame,
+    string SearchPrefix);
