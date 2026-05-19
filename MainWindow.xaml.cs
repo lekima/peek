@@ -1050,16 +1050,17 @@ internal sealed partial class MainWindow : Window
             return;
         }
 
-        if (_displayedResult is null)
+        if (_config.Mode == AppMode.Chat)
         {
-            HideReplyComposer();
+            ClearSearchButtons();
+            ShowReplyComposer(true, _config.TargetLanguage);
             return;
         }
 
-        if (_displayedResult.Mode == AppMode.Chat)
+        if (_displayedResult is null)
         {
             ClearSearchButtons();
-            ShowReplyComposer(true, _displayedResult.TargetLanguage);
+            HideReplyComposer();
             return;
         }
 
