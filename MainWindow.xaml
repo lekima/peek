@@ -63,6 +63,62 @@
             <Setter Property="FontWeight" Value="Bold" />
             <Setter Property="ToolTip" Value="Search" />
         </Style>
+
+        <Style x:Key="ReplyButton" TargetType="Button" BasedOn="{StaticResource OverlayButton}">
+            <Setter Property="Width" Value="32" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="ToolTip" Value="Translate to Chinese and copy" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderThickness="0"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#FFFFC65F" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#FFFFC65F" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ReplyTextBox" TargetType="TextBox">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="4,4" />
+            <Setter Property="AcceptsReturn" Value="False" />
+            <Setter Property="TextWrapping" Value="NoWrap" />
+            <Setter Property="HorizontalScrollBarVisibility" Value="Hidden" />
+            <Setter Property="VerticalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="Background" Value="#FF202020" />
+            <Setter Property="Foreground" Value="#FFF2F2F2" />
+            <Setter Property="BorderBrush" Value="#FFFFC65F" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CaretBrush" Value="#FFFFC65F" />
+            <Setter Property="ToolTip" Value="Type a reply" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Margin="{TemplateBinding Padding}" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid Background="Transparent">
@@ -85,6 +141,11 @@
                         Visibility="Collapsed"
                         SizeChanged="ResultPanel_SizeChanged">
                     <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
                         <StackPanel x:Name="ResultTextPanel"
                                     Visibility="Collapsed">
                             <StackPanel.Resources>
@@ -96,6 +157,49 @@
                                     <Setter Property="TextTrimming" Value="CharacterEllipsis" />
                                 </Style>
                             </StackPanel.Resources>
+                        </StackPanel>
+
+                        <StackPanel x:Name="ReplyComposerPanel"
+                                    Grid.Row="1"
+                                    Margin="-4,12,-4,0"
+                                    Visibility="Collapsed">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBox x:Name="ReplyTextBox"
+                                         Style="{StaticResource ReplyTextBox}"
+                                         KeyDown="ReplyTextBox_KeyDown" />
+                                <Button x:Name="ReplySendButton"
+                                        Grid.Column="1"
+                                        Margin="4,0,0,0"
+                                        HorizontalAlignment="Right"
+                                        Style="{StaticResource ReplyButton}"
+                                        Click="ReplySendButton_Click">
+                                    <Grid Width="12"
+                                          Height="12">
+                                        <Path x:Name="ReplySendIcon"
+                                              Fill="#E6080808"
+                                              Data="M 1 1 L 11 6 L 1 11 L 2.8 6 Z" />
+                                        <Grid x:Name="ReplySpinner"
+                                              Width="10"
+                                              Height="10"
+                                              Visibility="Collapsed"
+                                              RenderTransformOrigin="0.5,0.5">
+                                            <Grid.RenderTransform>
+                                                <RotateTransform x:Name="ReplySpinnerRotate" Angle="0" />
+                                            </Grid.RenderTransform>
+                                            <Path Stroke="#E6080808"
+                                                  StrokeThickness="1.4"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round"
+                                                  Data="M 5 1 A 4 4 0 1 1 2.2 7.8" />
+                                        </Grid>
+                                    </Grid>
+                                </Button>
+                            </Grid>
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -149,8 +253,11 @@
                 <Grid Width="10"
                       Height="10">
                     <Path x:Name="TranslateIcon"
-                          Fill="#E6080808"
-                          Data="M 2.5 1.5 L 8 5 L 2.5 8.5 Z" />
+                          Stroke="#E6080808"
+                          StrokeThickness="1.6"
+                          StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round"
+                          Data="M 2 2 L 8 2 M 5 2 L 5 8" />
                     <Grid x:Name="TranslateSpinner"
                           Width="8"
                           Height="8"
@@ -199,11 +306,11 @@
         </StackPanel>
 
         <Border x:Name="StatusLabel"
-                Margin="0,2,4,0"
+                Margin="0,0,0,2"
                 Padding="6,0"
                 MinHeight="18"
-                HorizontalAlignment="Right"
-                VerticalAlignment="Top"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Bottom"
                 Background="#DDFFC65F"
                 CornerRadius="3"
                 Visibility="Collapsed"
@@ -216,9 +323,9 @@
         </Border>
 
         <StackPanel x:Name="SearchButtonsPanel"
-                    Margin="0,0,0,2"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Bottom"
+                    Margin="0,2,4,0"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
                     Orientation="Horizontal"
                     Visibility="Collapsed">
             <Button x:Name="SearchButton1"

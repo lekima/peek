@@ -37,6 +37,7 @@ internal sealed partial class MainWindow : Window
 
     private AppConfig _config = AppConfigStore.Load();
     private CancellationTokenSource? _translationCancellation;
+    private CancellationTokenSource? _replyCancellation;
     private Point? _dragStartCursor;
     private Point? _dragStartWindowPosition;
     private Point? _resizeStartCursor;
@@ -45,7 +46,12 @@ internal sealed partial class MainWindow : Window
     private bool _resizeButtonDragged;
     private bool _resizeExpandedDuringInteraction;
     private bool _isTranslating;
+    private bool _isReplyTranslating;
     private SettingsWindow? _settingsWindow;
+    private readonly DispatcherTimer _statusClearTimer = new()
+    {
+        Interval = TimeSpan.FromSeconds(2.5)
+    };
     private readonly Dictionary<System.Windows.Controls.Button, SearchButtonState> _searchButtons = [];
     private readonly DoubleAnimation _spinnerAnimation = new(0, 360, TimeSpan.FromMilliseconds(700))
     {
@@ -55,12 +61,15 @@ internal sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        _statusClearTimer.Tick += StatusClearTimer_Tick;
         InitializeTargetGameMenu();
+        InitializeAppModeMenu();
         AppLogger.Event("app_start", new
         {
             appDirectory = AppPaths.AppDirectory,
             targetLanguage = _config.TargetLanguage,
-            targetGame = TargetGames.GetDisplayName(_config.TargetGame)
+            targetGame = TargetGames.GetDisplayName(_config.TargetGame),
+            mode = AppModes.GetDisplayName(_config.Mode)
         });
     }
 
@@ -102,7 +111,8 @@ internal sealed partial class MainWindow : Window
             IsPointInside(ClearButton, windowPoint) ||
             IsPointInside(ResizeRowButton, windowPoint) ||
             IsPointInside(ResizeCornerButton, windowPoint) ||
-            IsPointInside(SearchButtonsPanel, windowPoint);
+            IsPointInside(SearchButtonsPanel, windowPoint) ||
+            IsPointInside(ReplyComposerPanel, windowPoint);
     }
 
     private bool IsPointInside(FrameworkElement element, Point windowPoint)
@@ -277,6 +287,7 @@ internal sealed partial class MainWindow : Window
         ResizeCornerButton.Visibility = Visibility.Visible;
         Width = Math.Max(CollapsedWidth, nextWidth);
         Height = nextHeight;
+        ShowDefaultChatComposerIfNeeded(false);
         FitResultText();
     }
 
@@ -285,6 +296,7 @@ internal sealed partial class MainWindow : Window
         FrameBorder.Visibility = Visibility.Collapsed;
         ResultPanel.Visibility = Visibility.Collapsed;
         ClearSearchButtons();
+        HideReplyComposer();
         ResizeCornerButton.Visibility = Visibility.Collapsed;
         ResizeRowButton.Visibility = Visibility.Visible;
         Width = CollapsedWidth;
@@ -327,6 +339,12 @@ internal sealed partial class MainWindow : Window
             _translationCancellation?.Cancel();
         }
 
+        if (_isReplyTranslating)
+        {
+            AppLogger.Event("reply_translate_cancel_requested", new { reason = "clear_button" });
+            _replyCancellation?.Cancel();
+        }
+
         AppLogger.Event("result_clear", new { hadResult = ResultPanel.Visibility == Visibility.Visible });
         ClearResult();
     }
@@ -350,6 +368,49 @@ internal sealed partial class MainWindow : Window
             searchButton.TargetGame,
             searchButton.Url));
         OpenUrl(searchButton.Url);
+    }
+
+    private async void ReplySendButton_Click(object sender, RoutedEventArgs e)
+    {
+        await TranslateReplyToChineseAsync().ConfigureAwait(true);
+    }
+
+    private async void ReplyTextBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            await TranslateReplyToChineseAsync().ConfigureAwait(true);
+            return;
+        }
+
+        if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            HideReplyComposer();
+        }
+    }
+
+    private void InitializeAppModeMenu()
+    {
+        if (DragButton.ContextMenu is not { } menu)
+        {
+            return;
+        }
+
+        foreach (var mode in AppModes.MenuModes.Reverse())
+        {
+            var item = new MenuItem
+            {
+                Header = AppModes.GetDisplayName(mode),
+                IsCheckable = true,
+                Tag = mode.ToString()
+            };
+            item.Click += AppModeMenu_Click;
+            menu.Items.Insert(0, item);
+        }
+
+        menu.Items.Insert(AppModes.MenuModes.Count, new Separator());
     }
 
     private void InitializeTargetGameMenu()
@@ -380,7 +441,42 @@ internal sealed partial class MainWindow : Window
 
     private void WindowMenu_Opened(object sender, RoutedEventArgs e)
     {
+        UpdateAppModeMenuChecks();
         UpdateTargetGameMenuChecks();
+    }
+
+    private void AppModeMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string tag } ||
+            !Enum.TryParse<AppMode>(tag, true, out var mode) ||
+            !Enum.IsDefined(mode) ||
+            _config.Mode == mode)
+        {
+            UpdateAppModeMenuChecks();
+            return;
+        }
+
+        var previousMode = _config.Mode;
+        try
+        {
+            _config.Mode = mode;
+            AppConfigStore.Save(_config);
+            ApplyModeToVisibleResult();
+            AppLogger.Event("mode_changed", new
+            {
+                mode = AppModes.GetDisplayName(_config.Mode)
+            });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or CryptographicException)
+        {
+            _config.Mode = previousMode;
+            AppLogger.Error("Could not save mode.", ex);
+            MessageBox.Show(this, ex.Message, "Mode", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            UpdateAppModeMenuChecks();
+        }
     }
 
     private void TargetGameMenu_Click(object sender, RoutedEventArgs e)
@@ -413,6 +509,26 @@ internal sealed partial class MainWindow : Window
         finally
         {
             UpdateTargetGameMenuChecks();
+        }
+    }
+
+    private void UpdateAppModeMenuChecks()
+    {
+        if (DragButton.ContextMenu is not { } menu)
+        {
+            return;
+        }
+
+        foreach (var item in menu.Items.OfType<MenuItem>())
+        {
+            if (item.Tag is string tag &&
+                Enum.TryParse<AppMode>(tag, true, out var mode) &&
+                Enum.IsDefined(mode))
+            {
+                var isSelected = _config.Mode == mode;
+                item.IsChecked = isSelected;
+                item.FontWeight = isSelected ? FontWeights.Bold : FontWeights.Normal;
+            }
         }
     }
 
@@ -620,12 +736,109 @@ internal sealed partial class MainWindow : Window
         }
     }
 
+    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "This is the UI operation boundary; failures are logged and shown as a short status.")]
+    private async Task TranslateReplyToChineseAsync()
+    {
+        if (_isReplyTranslating)
+        {
+            return;
+        }
+
+        var replyText = ReplyTextBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(replyText))
+        {
+            SetStatus("Reply is empty");
+            return;
+        }
+
+        if (!AppConfig.HasGeminiApiKey(_config.ApiKey))
+        {
+            OpenSettings();
+            if (!AppConfig.HasGeminiApiKey(_config.ApiKey))
+            {
+                AppLogger.Event("reply_translate_skipped", new { reason = "api_key_required" });
+                return;
+            }
+        }
+
+        _replyCancellation?.Dispose();
+        _replyCancellation = new CancellationTokenSource();
+        var cancellationSource = _replyCancellation;
+        var cancellationToken = cancellationSource.Token;
+        var operationConfig = CloneConfig(_config);
+        var operationId = Guid.NewGuid().ToString("N")[..12];
+        var model = AppConfig.NormalizeModel(operationConfig.Model);
+
+        try
+        {
+            AppLogger.Event("reply_translate_start", new
+            {
+                operationId,
+                model,
+                sourceLanguage = operationConfig.TargetLanguage,
+                targetLanguage = "Chinese Simplified"
+            });
+
+            SetReplyBusy(true);
+            ClearStatus();
+
+            var result = await GeminiClient.TranslateReplyToChineseStreamingAsync(
+                    replyText,
+                    operationConfig,
+                    model,
+                    operationId,
+                    _ => { },
+                    cancellationToken)
+                .ConfigureAwait(true);
+
+            cancellationToken.ThrowIfCancellationRequested();
+            Clipboard.SetText(result.Text);
+            ReplyTextBox.Clear();
+            SetStatus("Copied to clipboard ✓");
+            AppLogger.Event("reply_translate_copied", new
+            {
+                operationId,
+                model,
+                sourceLanguage = operationConfig.TargetLanguage,
+                translation = result.Text,
+                promptTokens = result.Usage.PromptTokens,
+                completionTokens = result.Usage.CompletionTokens,
+                totalTokens = result.Usage.TotalTokens
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            AppLogger.Info($"operation={operationId} reply_translate.cancelled");
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error("Reply translation failed.", ex);
+            var shortError = ToShortUserError(ex);
+            SetStatus(shortError);
+            AppLogger.Info($"operation={operationId} reply_translate.user_error={shortError}");
+        }
+        finally
+        {
+            SetReplyBusy(false);
+            if (ReferenceEquals(_replyCancellation, cancellationSource))
+            {
+                _replyCancellation.Dispose();
+                _replyCancellation = null;
+            }
+        }
+    }
+
     protected override void OnClosed(EventArgs e)
     {
         AppLogger.Event("app_closed", new { reason = "window_closed" });
         _translationCancellation?.Cancel();
         _translationCancellation?.Dispose();
         _translationCancellation = null;
+        _replyCancellation?.Cancel();
+        _replyCancellation?.Dispose();
+        _replyCancellation = null;
+        _statusClearTimer.Stop();
+        _statusClearTimer.Tick -= StatusClearTimer_Tick;
 
         base.OnClosed(e);
     }
@@ -640,7 +853,8 @@ internal sealed partial class MainWindow : Window
 
         AppLogger.Event("settings_opened", new
         {
-            targetLanguage = _config.TargetLanguage
+            targetLanguage = _config.TargetLanguage,
+            mode = AppModes.GetDisplayName(_config.Mode)
         });
 
         var settingsConfig = CloneConfig(_config);
@@ -659,7 +873,8 @@ internal sealed partial class MainWindow : Window
                     _config = settingsConfig;
                     AppLogger.Event("settings_saved", new
                     {
-                        targetLanguage = _config.TargetLanguage
+                        targetLanguage = _config.TargetLanguage,
+                        mode = AppModes.GetDisplayName(_config.Mode)
                     });
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or CryptographicException)
@@ -713,11 +928,38 @@ internal sealed partial class MainWindow : Window
         }
     }
 
+    private void SetReplyBusy(bool busy)
+    {
+        _isReplyTranslating = busy;
+        ReplySendButton.IsEnabled = !busy;
+        ReplySpinner.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
+        ReplySendIcon.Visibility = busy ? Visibility.Collapsed : Visibility.Visible;
+
+        if (busy)
+        {
+            ReplySpinnerRotate.BeginAnimation(RotateTransform.AngleProperty, _spinnerAnimation);
+        }
+        else
+        {
+            ReplySpinnerRotate.BeginAnimation(RotateTransform.AngleProperty, null);
+            ReplySpinnerRotate.Angle = 0;
+        }
+    }
+
     private void SetStreamingResultText(string text)
     {
         if (SearchButtonsPanel.Visibility == Visibility.Visible)
         {
             ClearSearchButtons();
+        }
+
+        if (_config.Mode == AppMode.Chat)
+        {
+            ShowReplyComposer(false);
+        }
+        else
+        {
+            HideReplyComposer();
         }
 
         SetResultTextLines(text);
@@ -734,6 +976,7 @@ internal sealed partial class MainWindow : Window
         ResultTextPanel.Children.Clear();
         ResultTextPanel.Visibility = Visibility.Collapsed;
         ClearSearchButtons();
+        HideReplyComposer();
         ResultPanel.Visibility = Visibility.Collapsed;
     }
 
@@ -746,7 +989,17 @@ internal sealed partial class MainWindow : Window
     {
         SetResultTextLines(text);
         ResultTextPanel.Visibility = Visibility.Visible;
-        SetSearchButtons(operationId, searchQueries, targetGame, searchPrefix);
+        if (_config.Mode == AppMode.Chat)
+        {
+            ClearSearchButtons();
+            ShowReplyComposer();
+        }
+        else
+        {
+            HideReplyComposer();
+            SetSearchButtons(operationId, searchQueries, targetGame, searchPrefix);
+        }
+
         ResultPanel.Padding = MaxResultTextPadding;
         ResultPanel.Visibility = Visibility.Visible;
         UpdateResultPanelClip();
@@ -754,22 +1007,90 @@ internal sealed partial class MainWindow : Window
         Dispatcher.BeginInvoke(FitResultText, DispatcherPriority.Loaded);
     }
 
+    private void ApplyModeToVisibleResult()
+    {
+        if (_config.Mode == AppMode.Chat && FrameBorder.Visibility == Visibility.Visible)
+        {
+            ClearSearchButtons();
+            ShowReplyComposer(true);
+            return;
+        }
+
+        if (ResultPanel.Visibility != Visibility.Visible || ResultTextPanel.Visibility != Visibility.Visible)
+        {
+            HideReplyComposer();
+            return;
+        }
+
+        HideReplyComposer();
+    }
+
+    private void ShowDefaultChatComposerIfNeeded(bool focus)
+    {
+        if (_config.Mode != AppMode.Chat || ReplyComposerPanel.Visibility == Visibility.Visible)
+        {
+            return;
+        }
+
+        ClearSearchButtons();
+        ShowReplyComposer(focus);
+    }
+
+    private void ShowReplyComposer(bool focus = true)
+    {
+        ResultPanel.Padding = MaxResultTextPadding;
+        ResultPanel.Visibility = Visibility.Visible;
+        ReplyComposerPanel.Visibility = Visibility.Visible;
+        ReplyTextBox.ToolTip = $"Type in {AppConfig.NormalizeTargetLanguage(_config.TargetLanguage)}";
+        UpdateReplyComposerMargin();
+        FitResultText();
+        if (!focus)
+        {
+            return;
+        }
+
+        Dispatcher.BeginInvoke(
+            () =>
+            {
+                ReplyTextBox.Focus();
+                Keyboard.Focus(ReplyTextBox);
+                FitResultText();
+            },
+            DispatcherPriority.Loaded);
+    }
+
+    private void HideReplyComposer()
+    {
+        ReplyComposerPanel.Visibility = Visibility.Collapsed;
+        ReplyTextBox.Clear();
+        FitResultText();
+    }
+
     private void SetStatus(string text)
     {
+        _statusClearTimer.Stop();
         StatusText.Text = text;
         StatusLabel.Visibility = Visibility.Visible;
+        _statusClearTimer.Start();
     }
 
     private void ClearStatus()
     {
+        _statusClearTimer.Stop();
         StatusText.Text = string.Empty;
         StatusLabel.Visibility = Visibility.Collapsed;
+    }
+
+    private void StatusClearTimer_Tick(object? sender, EventArgs e)
+    {
+        ClearStatus();
     }
 
     private void ClearResult()
     {
         ResultTextPanel.Children.Clear();
         ResultTextPanel.Visibility = Visibility.Collapsed;
+        HideReplyComposer();
         ClearStatus();
         CollapseFrame();
     }
@@ -980,6 +1301,7 @@ internal sealed partial class MainWindow : Window
             Model = AppConfig.NormalizeModel(config.Model),
             TargetLanguage = AppConfig.NormalizeTargetLanguage(config.TargetLanguage),
             TargetGame = config.TargetGame,
+            Mode = config.Mode,
         };
 
     private void FitResultText()
@@ -997,9 +1319,17 @@ internal sealed partial class MainWindow : Window
         for (var fontSize = MaxResultFontSize; fontSize >= MinResultFontSize; fontSize -= 0.5)
         {
             ResultPanel.Padding = GetResultTextPadding(fontSize);
+            UpdateReplyComposerMargin();
             ApplyResultTextLayout(fontSize, TextTrimming.None);
             var availableWidth = Math.Max(1, ResultPanel.ActualWidth - ResultPanel.Padding.Left - ResultPanel.Padding.Right);
             var availableHeight = Math.Max(1, ResultPanel.ActualHeight - ResultPanel.Padding.Top - ResultPanel.Padding.Bottom);
+            if (ReplyComposerPanel.Visibility == Visibility.Visible)
+            {
+                availableHeight = Math.Max(
+                    1,
+                    availableHeight - ReplyComposerPanel.ActualHeight - ReplyComposerPanel.Margin.Top);
+            }
+
             ResultTextPanel.Measure(new Size(availableWidth, double.PositiveInfinity));
 
             if (ResultTextPanel.DesiredSize.Width <= availableWidth &&
@@ -1010,7 +1340,18 @@ internal sealed partial class MainWindow : Window
         }
 
         ResultPanel.Padding = MinResultTextPadding;
+        UpdateReplyComposerMargin();
         ApplyResultTextLayout(MinResultFontSize, TextTrimming.CharacterEllipsis);
+    }
+
+    private void UpdateReplyComposerMargin()
+    {
+        var horizontalOffset = ResultPanel.Padding.Bottom - ResultPanel.Padding.Left;
+        ReplyComposerPanel.Margin = new Thickness(
+            horizontalOffset,
+            ReplyComposerPanel.Margin.Top,
+            horizontalOffset,
+            0);
     }
 
     private void SetResultTextLines(string text)

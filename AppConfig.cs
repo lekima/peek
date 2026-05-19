@@ -47,6 +47,28 @@ internal static class TargetGames
         };
 }
 
+internal enum AppMode
+{
+    Game,
+    Chat
+}
+
+internal static class AppModes
+{
+    public static IReadOnlyList<AppMode> MenuModes { get; } =
+    [
+        AppMode.Game,
+        AppMode.Chat
+    ];
+
+    public static string GetDisplayName(AppMode mode) =>
+        mode switch
+        {
+            AppMode.Chat => "Chat mode",
+            _ => "Game mode"
+        };
+}
+
 internal sealed class AppConfig
 {
     public const string BilibiliSearchUrlPrefix = "https://search.bilibili.com/all?keyword=";
@@ -56,6 +78,7 @@ internal sealed class AppConfig
     public string Model { get; set; } = DefaultModel;
     public string TargetLanguage { get; set; } = "English";
     public TargetGame TargetGame { get; set; } = TargetGame.None;
+    public AppMode Mode { get; set; } = AppMode.Game;
 
     public static bool HasGeminiApiKey(string? value) =>
         !string.IsNullOrWhiteSpace(value) &&
@@ -81,6 +104,7 @@ internal static class AppConfigStore
         public string Model { get; set; } = AppConfig.DefaultModel;
         public string TargetLanguage { get; set; } = "English";
         public string TargetGame { get; set; } = nameof(Peek.TargetGame.None);
+        public string Mode { get; set; } = nameof(AppMode.Game);
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -106,7 +130,8 @@ internal static class AppConfigStore
                 ApiKey = Unprotect(stored.EncryptedApiKey),
                 Model = AppConfig.NormalizeModel(stored.Model),
                 TargetLanguage = AppConfig.NormalizeTargetLanguage(stored.TargetLanguage),
-                TargetGame = NormalizeTargetGame(stored.TargetGame)
+                TargetGame = NormalizeTargetGame(stored.TargetGame),
+                Mode = NormalizeMode(stored.Mode)
             };
         }
         catch (IOException)
@@ -146,7 +171,8 @@ internal static class AppConfigStore
             EncryptedApiKey = Protect(config.ApiKey),
             Model = AppConfig.NormalizeModel(config.Model),
             TargetLanguage = AppConfig.NormalizeTargetLanguage(config.TargetLanguage),
-            TargetGame = config.TargetGame.ToString()
+            TargetGame = config.TargetGame.ToString(),
+            Mode = config.Mode.ToString()
         };
 
         var tempPath = ConfigPath + ".tmp";
@@ -182,6 +208,14 @@ internal static class AppConfigStore
             Enum.IsDefined(targetGame)
             ? targetGame
             : TargetGame.None;
+    }
+
+    private static AppMode NormalizeMode(string value)
+    {
+        return Enum.TryParse<AppMode>(value, true, out var mode) &&
+            Enum.IsDefined(mode)
+            ? mode
+            : AppMode.Game;
     }
 
     private static string Unprotect(string value)
