@@ -1008,8 +1008,8 @@ internal sealed partial class MainWindow : Window
         _displayedResult = new DisplayedResultState(
             operationMode,
             operationTargetLanguage,
-            string.Empty,
-            Array.Empty<SearchQueryResult>(),
+            operationId,
+            searchQueries,
             targetGame,
             searchPrefix);
         SetResultTextLines(text);
