@@ -181,7 +181,7 @@
 
         <Border x:Name="SkillResultPanel"
                 Margin="0,22,4,0"
-                Padding="8"
+                Padding="8,8,0,8"
                 Background="#E6111111"
                 CornerRadius="4"
                 ClipToBounds="True"
