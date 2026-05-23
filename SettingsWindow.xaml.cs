@@ -19,6 +19,7 @@ internal sealed partial class SettingsWindow : Window
         _config = config;
         ApiKeyBox.Password = config.ApiKey;
         TargetLanguageBox.SelectedValue = AppConfig.NormalizeTargetLanguage(config.TargetLanguage);
+        DiagnosticsBox.IsChecked = config.DiagnosticsEnabled;
         LastUpdatedText.Text = AppInfo.LastUpdated;
     }
 
@@ -33,6 +34,7 @@ internal sealed partial class SettingsWindow : Window
 
         _config.ApiKey = apiKey;
         _config.TargetLanguage = AppConfig.NormalizeTargetLanguage(TargetLanguageBox.SelectedValue as string);
+        _config.DiagnosticsEnabled = DiagnosticsBox.IsChecked == true;
 
         DialogResult = true;
         Close();
@@ -55,6 +57,18 @@ internal sealed partial class SettingsWindow : Window
         {
             MessageBox.Show(this, ex.Message, "Log", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
+    }
+
+    private void ClearData_Click(object sender, RoutedEventArgs e)
+    {
+        AppDataMaintenance.ClearSensitiveData();
+        AppLogger.Info("Sensitive local data cleared from settings.");
+        MessageBox.Show(
+            this,
+            "Saved captures and logs were cleared.",
+            "Settings",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
     }
 
     private static void OpenFile(string path)

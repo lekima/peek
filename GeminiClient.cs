@@ -43,7 +43,7 @@ internal static class GeminiClient
         }
 
         var targetLanguage = AppConfig.NormalizeTargetLanguage(config.TargetLanguage);
-        var imageData = ToPngBase64(bitmap);
+        var imageData = await ToPngBase64Async(bitmap, cancellationToken).ConfigureAwait(false);
         var payload = CreateTextTranslationPayload(targetLanguage, imageData);
 
         AppLogger.Event("ai_request", new
@@ -99,7 +99,7 @@ internal static class GeminiClient
             throw new InvalidOperationException("Gemini API key is missing.");
         }
 
-        var imageData = ToPngBase64(bitmap);
+        var imageData = await ToPngBase64Async(bitmap, cancellationToken).ConfigureAwait(false);
         var payload = CreateSkillExtractionPayload(imageData);
 
         AppLogger.Event("ai_request", new
@@ -449,12 +449,17 @@ internal static class GeminiClient
         return true;
     }
 
-    private static string ToPngBase64(Bitmap bitmap)
-    {
-        using var stream = new MemoryStream();
-        bitmap.Save(stream, ImageFormat.Png);
-        return Convert.ToBase64String(stream.ToArray());
-    }
+    private static Task<string> ToPngBase64Async(Bitmap bitmap, CancellationToken cancellationToken) =>
+        Task.Run(
+            () =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                using var stream = new MemoryStream();
+                bitmap.Save(stream, ImageFormat.Png);
+                cancellationToken.ThrowIfCancellationRequested();
+                return Convert.ToBase64String(stream.ToArray());
+            },
+            cancellationToken);
 
     private static string ExtractDeltaContent(JsonElement root)
     {
@@ -792,7 +797,8 @@ internal static class GeminiClient
             {
                 operationId,
                 error = ex.Message,
-                contentPreview = TrimForDisplay(content)
+                contentPreview = AppLogger.IncludeSensitiveData ? TrimForDisplay(content) : null,
+                contentLength = content.Length
             });
             throw new InvalidOperationException("Translation response was not valid JSON.", ex);
         }
@@ -817,7 +823,8 @@ internal static class GeminiClient
             {
                 operationId,
                 error = ex.Message,
-                contentPreview = TrimForDisplay(content)
+                contentPreview = AppLogger.IncludeSensitiveData ? TrimForDisplay(content) : null,
+                contentLength = content.Length
             });
             throw new InvalidOperationException("Skill extraction response was not valid JSON.", ex);
         }

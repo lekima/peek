@@ -13,6 +13,7 @@ internal static class AppLogger
         AppPaths.DataDirectory;
 
     public static string LogPath => Path.Combine(LogDirectory, "peek.log.jsonl");
+    public static bool IncludeSensitiveData { get; set; }
 
     public static void Event(string eventName, object data)
     {
@@ -90,9 +91,11 @@ internal static class AppLogger
             model = entry.Model,
             targetLanguage = entry.TargetLanguage,
             targetGame = entry.TargetGame,
-            capturePath = entry.CapturePath,
-            translation = entry.Translation,
-            searchQueries = entry.SearchQueries
+            capturePath = IncludeSensitiveData ? entry.CapturePath : null,
+            translation = IncludeSensitiveData ? entry.Translation : null,
+            translationLength = entry.Translation.Length,
+            searchQueries = IncludeSensitiveData ? entry.SearchQueries : null,
+            searchQueryCount = entry.SearchQueries.Count
         });
     }
 
@@ -126,11 +129,35 @@ internal static class AppLogger
             operationId = entry.OperationId,
             index = entry.Index,
             label = entry.Label,
-            query = entry.Query,
-            intent = entry.Intent,
+            query = IncludeSensitiveData ? entry.Query : null,
+            queryLength = entry.Query.Length,
+            intent = IncludeSensitiveData ? entry.Intent : null,
             targetGame = entry.TargetGame,
-            url = entry.Url
+            url = IncludeSensitiveData ? entry.Url : null
         });
+    }
+
+    public static void ClearLogs()
+    {
+        try
+        {
+            lock (Lock)
+            {
+                if (!Directory.Exists(LogDirectory))
+                {
+                    return;
+                }
+
+                foreach (var path in Directory.EnumerateFiles(LogDirectory, "peek*.log.jsonl"))
+                {
+                    File.Delete(path);
+                }
+            }
+        }
+        catch
+        {
+            // Clearing local history should never interrupt the app.
+        }
     }
 
     [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Logging must never interrupt the overlay or translation flow.")]

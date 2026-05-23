@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.ComponentModel;
 using System.Globalization;
 using System.Security;
 using System.Security.Cryptography;
@@ -28,6 +29,11 @@ internal sealed partial class MainWindow : Window
     private const double CollapsedWidth = 106;
     private const double CollapsedHeight = 24;
     private const double FrameRevealHeight = 48;
+    private const double FrameHorizontalNonCaptureWidth = 4;
+    private const double FrameVerticalNonCaptureHeight = 44;
+    private const int MaxCapturePixelWidth = 2560;
+    private const int MaxCapturePixelHeight = 1440;
+    private const long MaxCapturePixels = (long)MaxCapturePixelWidth * MaxCapturePixelHeight;
     private const double SkillCardVerticalBreakpoint = 260;
     private const double SkillIconSize = 72;
     private const double SkillBadgeHeight = 24;
@@ -79,6 +85,7 @@ internal sealed partial class MainWindow : Window
     private bool _isTranslating;
     private bool _isCheckingSkills;
     private bool _isShowingSkillResult;
+    private bool _isClosing;
     private SettingsWindow? _settingsWindow;
     private readonly DispatcherTimer _statusClearTimer = new()
     {
@@ -93,11 +100,18 @@ internal sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        AppLogger.IncludeSensitiveData = _config.DiagnosticsEnabled;
+        if (!_config.DiagnosticsEnabled)
+        {
+            AppDataMaintenance.ClearSensitiveData();
+        }
+
         _statusClearTimer.Tick += StatusClearTimer_Tick;
         AppLogger.Event("app_start", new
         {
             appDirectory = AppPaths.AppDirectory,
             targetLanguage = _config.TargetLanguage,
+            diagnosticsEnabled = _config.DiagnosticsEnabled,
             targetGame = RocoGame.DisplayName
         });
     }
@@ -297,8 +311,13 @@ internal sealed partial class MainWindow : Window
 
     private void ApplyResizeDelta(Vector delta)
     {
-        var nextWidth = Math.Max(MinWidth, _resizeStartWindowSize.Width + delta.X);
-        var nextHeight = Math.Max(MinHeight, _resizeStartWindowSize.Height + delta.Y);
+        var maxWindowSize = GetMaxCaptureWindowSize();
+        var nextWidth = Math.Min(
+            maxWindowSize.Width,
+            Math.Max(MinWidth, _resizeStartWindowSize.Width + delta.X));
+        var nextHeight = Math.Min(
+            maxWindowSize.Height,
+            Math.Max(MinHeight, _resizeStartWindowSize.Height + delta.Y));
 
         if (nextHeight <= FrameRevealHeight)
         {
@@ -363,6 +382,23 @@ internal sealed partial class MainWindow : Window
         }
 
         return compositionTarget.TransformFromDevice.Transform(screenPoint);
+    }
+
+    private Size GetMaxCaptureWindowSize()
+    {
+        var maxFrameSize = new Point(MaxCapturePixelWidth, MaxCapturePixelHeight);
+        if (PresentationSource.FromVisual(this)?.CompositionTarget is { } compositionTarget)
+        {
+            maxFrameSize = compositionTarget.TransformFromDevice.Transform(maxFrameSize);
+        }
+
+        return new Size(
+            Math.Max(
+                CollapsedWidth,
+                Math.Min(SystemParameters.VirtualScreenWidth, maxFrameSize.X + FrameHorizontalNonCaptureWidth)),
+            Math.Max(
+                MinHeight,
+                Math.Min(SystemParameters.VirtualScreenHeight, maxFrameSize.Y + FrameVerticalNonCaptureHeight)));
     }
 
     private async void TranslateButton_Click(object sender, RoutedEventArgs e)
@@ -499,22 +535,27 @@ internal sealed partial class MainWindow : Window
             using var bitmap = await CaptureFrameWithoutOverlayAsync(cancellationToken).ConfigureAwait(true);
             captureWidth = bitmap.Width;
             captureHeight = bitmap.Height;
-            var capturePath = SaveCapture(operationId, bitmap);
+            var capturePath = await SaveCaptureAsync(
+                    operationId,
+                    bitmap,
+                    operationConfig.DiagnosticsEnabled,
+                    FrameBorder.ActualWidth,
+                    FrameBorder.ActualHeight,
+                    cancellationToken)
+                .ConfigureAwait(true);
 
             var result = await GeminiClient.TranslateImageToTextStreamingAsync(
                     bitmap,
                     operationConfig,
                     model,
                     operationId,
-                    partialText => Dispatcher.Invoke(
+                    partialText => InvokeUiDuringOperation(
                         () =>
                         {
-                            if (!cancellationToken.IsCancellationRequested)
-                            {
-                                streamedTextShown = true;
-                                SetStreamingResultText(partialText);
-                            }
+                            streamedTextShown = true;
+                            SetStreamingResultText(partialText);
                         },
+                        cancellationToken,
                         DispatcherPriority.Background),
                     cancellationToken)
                 .ConfigureAwait(true);
@@ -522,10 +563,14 @@ internal sealed partial class MainWindow : Window
             responseUsage = result.Usage;
             stopwatch.Stop();
             cancellationToken.ThrowIfCancellationRequested();
-            SetResultText(
-                operationId,
-                result.Text,
-                result.SearchQueries);
+            if (!_isClosing)
+            {
+                SetResultText(
+                    operationId,
+                    result.Text,
+                    result.SearchQueries);
+            }
+
             AppLogger.TextResult(new TextResultLogEntry(
                 DateTimeOffset.Now,
                 operationId,
@@ -535,7 +580,11 @@ internal sealed partial class MainWindow : Window
                 capturePath,
                 result.Text,
                 result.SearchQueries));
-            ClearStatus();
+            if (!_isClosing)
+            {
+                ClearStatus();
+            }
+
             TrackUsage(
                 operationId,
                 providerRequestId,
@@ -577,12 +626,16 @@ internal sealed partial class MainWindow : Window
             stopwatch.Stop();
             AppLogger.Error("Translate failed.", ex);
             var shortError = ToShortUserError(ex);
-            if (streamedTextShown)
+            if (!_isClosing && streamedTextShown)
             {
                 ClearFailedStreamingResult();
             }
 
-            SetStatus(shortError);
+            if (!_isClosing)
+            {
+                SetStatus(shortError);
+            }
+
             AppLogger.Info($"operation={operationId} user_error={shortError}");
             TrackUsage(
                 operationId,
@@ -600,7 +653,11 @@ internal sealed partial class MainWindow : Window
         }
         finally
         {
-            SetBusy(false);
+            if (!_isClosing)
+            {
+                SetBusy(false);
+            }
+
             if (ReferenceEquals(_translationCancellation, cancellationSource))
             {
                 _translationCancellation.Dispose();
@@ -674,7 +731,14 @@ internal sealed partial class MainWindow : Window
             using var bitmap = await CaptureFrameWithoutOverlayAsync(cancellationToken).ConfigureAwait(true);
             captureWidth = bitmap.Width;
             captureHeight = bitmap.Height;
-            var capturePath = SaveCapture(operationId, bitmap);
+            var capturePath = await SaveCaptureAsync(
+                    operationId,
+                    bitmap,
+                    operationConfig.DiagnosticsEnabled,
+                    FrameBorder.ActualWidth,
+                    FrameBorder.ActualHeight,
+                    cancellationToken)
+                .ConfigureAwait(true);
 
             var result = await GeminiClient.ExtractVisibleSkillNamesStreamingAsync(
                     bitmap,
@@ -689,19 +753,31 @@ internal sealed partial class MainWindow : Window
             cancellationToken.ThrowIfCancellationRequested();
 
             var lookup = SkillDatabase.Lookup(result.SkillNames);
-            SetSkillResult(lookup, operationConfig.TargetLanguage);
+            if (!_isClosing)
+            {
+                SetSkillResult(lookup, operationConfig.TargetLanguage);
+            }
+
             AppLogger.Event("skill_check_result", new
             {
                 operationId,
                 model,
                 targetLanguage = operationConfig.TargetLanguage,
                 targetGame,
-                capturePath,
-                extracted = result.SkillNames,
-                matched = lookup.Matched.Select(skill => new { skill.Id, skill.NameZh }).ToArray(),
-                unmatched = lookup.Unmatched
+                capturePath = AppLogger.IncludeSensitiveData ? capturePath : null,
+                extracted = AppLogger.IncludeSensitiveData ? result.SkillNames : null,
+                extractedCount = result.SkillNames.Count,
+                matched = AppLogger.IncludeSensitiveData
+                    ? lookup.Matched.Select(skill => new { skill.Id, skill.NameZh }).Cast<object>().ToArray()
+                    : lookup.Matched.Select(skill => new { skill.Id }).Cast<object>().ToArray(),
+                unmatched = AppLogger.IncludeSensitiveData ? lookup.Unmatched : null,
+                unmatchedCount = lookup.Unmatched.Count
             });
-            ClearStatus();
+            if (!_isClosing)
+            {
+                ClearStatus();
+            }
+
             TrackUsage(
                 operationId,
                 providerRequestId,
@@ -748,7 +824,11 @@ internal sealed partial class MainWindow : Window
                 shortError = "Skill check failed";
             }
 
-            SetStatus(shortError);
+            if (!_isClosing)
+            {
+                SetStatus(shortError);
+            }
+
             AppLogger.Info($"operation={operationId} skill_check.user_error={shortError}");
             TrackUsage(
                 operationId,
@@ -766,7 +846,11 @@ internal sealed partial class MainWindow : Window
         }
         finally
         {
-            SetSkillBusy(false);
+            if (!_isClosing)
+            {
+                SetSkillBusy(false);
+            }
+
             if (ReferenceEquals(_skillCancellation, cancellationSource))
             {
                 _skillCancellation.Dispose();
@@ -775,15 +859,19 @@ internal sealed partial class MainWindow : Window
         }
     }
 
+    protected override void OnClosing(CancelEventArgs e)
+    {
+        _isClosing = true;
+        _translationCancellation?.Cancel();
+        _skillCancellation?.Cancel();
+        base.OnClosing(e);
+    }
+
     protected override void OnClosed(EventArgs e)
     {
         AppLogger.Event("app_closed", new { reason = "window_closed" });
         _translationCancellation?.Cancel();
-        _translationCancellation?.Dispose();
-        _translationCancellation = null;
         _skillCancellation?.Cancel();
-        _skillCancellation?.Dispose();
-        _skillCancellation = null;
         _statusClearTimer.Stop();
         _statusClearTimer.Tick -= StatusClearTimer_Tick;
 
@@ -820,9 +908,16 @@ internal sealed partial class MainWindow : Window
 
                 AppConfigStore.Save(settingsConfig);
                 _config = settingsConfig;
+                AppLogger.IncludeSensitiveData = _config.DiagnosticsEnabled;
+                if (!_config.DiagnosticsEnabled)
+                {
+                    AppDataMaintenance.ClearSensitiveData();
+                }
+
                 AppLogger.Event("settings_saved", new
                 {
-                    targetLanguage = _config.TargetLanguage
+                    targetLanguage = _config.TargetLanguage,
+                    diagnosticsEnabled = _config.DiagnosticsEnabled
                 });
                 return;
             }
@@ -840,6 +935,7 @@ internal sealed partial class MainWindow : Window
     private async Task<Drawing.Bitmap> CaptureFrameWithoutOverlayAsync(CancellationToken cancellationToken)
     {
         var bounds = ScreenCaptureService.GetVisualScreenBounds(this, FrameBorder);
+        ValidateCaptureBounds(bounds);
         var previousVisibility = Visibility;
         var previousHitTestVisible = IsHitTestVisible;
         Visibility = Visibility.Hidden;
@@ -849,17 +945,93 @@ internal sealed partial class MainWindow : Window
         {
             await Task.Delay(50, cancellationToken).ConfigureAwait(true);
             cancellationToken.ThrowIfCancellationRequested();
-            return ScreenCaptureService.CaptureScreenBounds(bounds);
+            return await Task.Run(
+                    () =>
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        var bitmap = ScreenCaptureService.CaptureScreenBounds(bounds);
+                        if (cancellationToken.IsCancellationRequested)
+                        {
+                            bitmap.Dispose();
+                            cancellationToken.ThrowIfCancellationRequested();
+                        }
+
+                        return bitmap;
+                    },
+                    cancellationToken)
+                .ConfigureAwait(true);
         }
         finally
         {
-            Visibility = previousVisibility;
-            IsHitTestVisible = previousHitTestVisible;
+            if (!_isClosing)
+            {
+                Visibility = previousVisibility;
+                IsHitTestVisible = previousHitTestVisible;
+            }
+        }
+    }
+
+    private void InvokeUiDuringOperation(
+        Action action,
+        CancellationToken cancellationToken,
+        DispatcherPriority priority = DispatcherPriority.Normal)
+    {
+        if (_isClosing ||
+            cancellationToken.IsCancellationRequested ||
+            Dispatcher.HasShutdownStarted ||
+            Dispatcher.HasShutdownFinished)
+        {
+            return;
+        }
+
+        try
+        {
+            if (Dispatcher.CheckAccess())
+            {
+                if (!_isClosing && !cancellationToken.IsCancellationRequested)
+                {
+                    action();
+                }
+
+                return;
+            }
+
+            Dispatcher.Invoke(
+                () =>
+                {
+                    if (!_isClosing && !cancellationToken.IsCancellationRequested)
+                    {
+                        action();
+                    }
+                },
+                priority);
+        }
+        catch (Exception ex) when (
+            (ex is InvalidOperationException or TaskCanceledException) ||
+            _isClosing ||
+            Dispatcher.HasShutdownStarted ||
+            Dispatcher.HasShutdownFinished)
+        {
+        }
+    }
+
+    private static void ValidateCaptureBounds(Rect bounds)
+    {
+        if (bounds.Width > MaxCapturePixelWidth ||
+            bounds.Height > MaxCapturePixelHeight ||
+            bounds.Width * bounds.Height > MaxCapturePixels)
+        {
+            throw new InvalidOperationException("Capture area is too large.");
         }
     }
 
     private void SetBusy(bool busy)
     {
+        if (_isClosing)
+        {
+            return;
+        }
+
         _isTranslating = busy;
         TranslateButton.IsEnabled = !busy;
         SkillButton.IsEnabled = !busy && !_isCheckingSkills;
@@ -880,6 +1052,11 @@ internal sealed partial class MainWindow : Window
 
     private void SetSkillBusy(bool busy)
     {
+        if (_isClosing)
+        {
+            return;
+        }
+
         _isCheckingSkills = busy;
         SkillButton.IsEnabled = !busy;
         TranslateButton.IsEnabled = !busy && !_isTranslating;
@@ -1000,7 +1177,7 @@ internal sealed partial class MainWindow : Window
         AppLogger.Event("skills_unmatched", new
         {
             count = unmatched.Count,
-            names = unmatched
+            names = AppLogger.IncludeSensitiveData ? unmatched : null
         });
     }
 
@@ -1422,6 +1599,11 @@ internal sealed partial class MainWindow : Window
 
     private void SetStatus(string text)
     {
+        if (_isClosing)
+        {
+            return;
+        }
+
         _statusClearTimer.Stop();
         StatusText.Text = text;
         StatusLabel.Visibility = Visibility.Visible;
@@ -1431,6 +1613,11 @@ internal sealed partial class MainWindow : Window
 
     private void ClearStatus()
     {
+        if (_isClosing)
+        {
+            return;
+        }
+
         _statusClearTimer.Stop();
         StatusText.Text = string.Empty;
         StatusLabel.Visibility = Visibility.Collapsed;
@@ -1536,9 +1723,9 @@ internal sealed partial class MainWindow : Window
         AppLogger.Event("skill_search_click", new
         {
             skillId = skill.Id,
-            skillNameZh = skill.NameZh,
+            skillNameZh = AppLogger.IncludeSensitiveData ? skill.NameZh : null,
             searchPrefix = RocoGame.SearchPrefix,
-            searchUrl
+            searchUrl = AppLogger.IncludeSensitiveData ? searchUrl : null
         });
         OpenUrl(searchUrl);
     }
@@ -1568,11 +1755,49 @@ internal sealed partial class MainWindow : Window
         catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
         {
             AppLogger.Error("Could not open search link.", ex);
-            SetStatus("Could not open link");
+            if (!_isClosing)
+            {
+                SetStatus("Could not open link");
+            }
         }
     }
 
-    private string? SaveCapture(string operationId, Drawing.Bitmap bitmap)
+    private static Task<string?> SaveCaptureAsync(
+        string operationId,
+        Drawing.Bitmap bitmap,
+        bool persistCapture,
+        double frameWidth,
+        double frameHeight,
+        CancellationToken cancellationToken)
+    {
+        if (!persistCapture)
+        {
+            AppLogger.Event("capture", new
+            {
+                operationId,
+                saved = false,
+                width = bitmap.Width,
+                height = bitmap.Height,
+                frameWidth,
+                frameHeight
+            });
+            return Task.FromResult<string?>(null);
+        }
+
+        return Task.Run(
+            () =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return SaveCapture(operationId, bitmap, frameWidth, frameHeight);
+            },
+            cancellationToken);
+    }
+
+    private static string? SaveCapture(
+        string operationId,
+        Drawing.Bitmap bitmap,
+        double frameWidth,
+        double frameHeight)
     {
         try
         {
@@ -1586,8 +1811,8 @@ internal sealed partial class MainWindow : Window
                 path,
                 bitmap.Width,
                 bitmap.Height,
-                FrameBorder.ActualWidth,
-                FrameBorder.ActualHeight));
+                frameWidth,
+                frameHeight));
             return path;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or System.Runtime.InteropServices.ExternalException)
@@ -1665,10 +1890,32 @@ internal sealed partial class MainWindow : Window
             return "Response too long";
         }
 
+        if (message.Contains("too large", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Area too large";
+        }
+
+        if (message.Contains("outside the screen", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Area off screen";
+        }
+
         if (exception is TimeoutException ||
             message.Contains("timed out", StringComparison.OrdinalIgnoreCase))
         {
             return "Timed out";
+        }
+
+        if (message.Contains("prompt blocked", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("blocked", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("SAFETY", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Content blocked";
+        }
+
+        if (message.Contains("RECITATION", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Response blocked";
         }
 
         if (message.Contains("400", StringComparison.OrdinalIgnoreCase) ||
@@ -1690,6 +1937,7 @@ internal sealed partial class MainWindow : Window
         {
             ApiKey = config.ApiKey,
             TargetLanguage = AppConfig.NormalizeTargetLanguage(config.TargetLanguage),
+            DiagnosticsEnabled = config.DiagnosticsEnabled
         };
 
     private void FitResultText()

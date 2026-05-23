@@ -24,11 +24,11 @@ internal static class ScreenCaptureService
         var heightDip = Math.Max(1, visual.ActualHeight);
         var size = transform.Transform(new Point(widthDip, heightDip));
 
-        return new Rect(
+        return ClampToVirtualScreen(new Rect(
             Math.Round(topLeft.X),
             Math.Round(topLeft.Y),
             Math.Max(1, Math.Round(size.X)),
-            Math.Max(1, Math.Round(size.Y)));
+            Math.Max(1, Math.Round(size.Y))));
     }
 
     public static Bitmap CaptureScreenBounds(Rect bounds)
@@ -51,5 +51,29 @@ internal static class ScreenCaptureService
             bitmap.Dispose();
             throw;
         }
+    }
+
+    private static Rect ClampToVirtualScreen(Rect bounds)
+    {
+        var virtualScreen = new Rect(
+            SystemParameters.VirtualScreenLeft,
+            SystemParameters.VirtualScreenTop,
+            SystemParameters.VirtualScreenWidth,
+            SystemParameters.VirtualScreenHeight);
+        var left = Math.Max(bounds.Left, virtualScreen.Left);
+        var top = Math.Max(bounds.Top, virtualScreen.Top);
+        var right = Math.Min(bounds.Right, virtualScreen.Right);
+        var bottom = Math.Min(bounds.Bottom, virtualScreen.Bottom);
+
+        if (right <= left || bottom <= top)
+        {
+            throw new InvalidOperationException("Capture area is outside the screen.");
+        }
+
+        return new Rect(
+            Math.Round(left),
+            Math.Round(top),
+            Math.Max(1, Math.Round(right - left)),
+            Math.Max(1, Math.Round(bottom - top)));
     }
 }

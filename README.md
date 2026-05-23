@@ -25,15 +25,16 @@ Settings are available from the move-button right-click menu.
 
 - `Gemini API key`: stored encrypted for the current Windows user with DPAPI.
 - `Target language`: fixed dropdown with `English` and `Vietnamese`.
+- `Save diagnostic screenshots and result text`: off by default; when enabled, raw captures and model text are retained for troubleshooting.
 - `Last updated`: app-level bundled data date from `AppInfo`.
 
 Runtime data is stored under the current Windows user's local app data folder, normally `%LOCALAPPDATA%\Peek`:
 
 - `settings.json`: encrypted settings.
-- `peek.log.jsonl`: app log.
-- `captures/`: screenshots captured for translation or skill checking.
+- `peek.log.jsonl`: app log. Raw translated text and search terms are redacted unless diagnostics are enabled.
+- `captures/`: saved screenshots, only when diagnostics are enabled.
 
-Delete the local app data folder to reset settings, logs, and captures.
+Use `Clear data` in settings, or delete the local app data folder, to reset logs and saved captures.
 
 ## Bundled Data
 

@@ -19,6 +19,7 @@ internal sealed class AppConfig
 
     public string ApiKey { get; set; } = string.Empty;
     public string TargetLanguage { get; set; } = "English";
+    public bool DiagnosticsEnabled { get; set; }
 
     public static bool HasGeminiApiKey(string? value) =>
         !string.IsNullOrWhiteSpace(value) &&
@@ -43,6 +44,7 @@ internal static class AppConfigStore
     {
         public string EncryptedApiKey { get; set; } = string.Empty;
         public string TargetLanguage { get; set; } = "English";
+        public bool DiagnosticsEnabled { get; set; }
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -66,7 +68,8 @@ internal static class AppConfigStore
             return new AppConfig
             {
                 ApiKey = Unprotect(stored.EncryptedApiKey),
-                TargetLanguage = AppConfig.NormalizeTargetLanguage(stored.TargetLanguage)
+                TargetLanguage = AppConfig.NormalizeTargetLanguage(stored.TargetLanguage),
+                DiagnosticsEnabled = stored.DiagnosticsEnabled
             };
         }
         catch (IOException)
@@ -104,7 +107,8 @@ internal static class AppConfigStore
         var stored = new StoredAppConfig
         {
             EncryptedApiKey = Protect(config.ApiKey),
-            TargetLanguage = AppConfig.NormalizeTargetLanguage(config.TargetLanguage)
+            TargetLanguage = AppConfig.NormalizeTargetLanguage(config.TargetLanguage),
+            DiagnosticsEnabled = config.DiagnosticsEnabled
         };
 
         var tempPath = ConfigPath + ".tmp";
