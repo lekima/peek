@@ -27,6 +27,10 @@ internal sealed partial class MainWindow : Window
     private const double CollapsedHeight = 24;
     private const double FrameRevealHeight = 48;
     private const double SkillCardVerticalBreakpoint = 320;
+    private const double SkillInfoIconSlotSize = 20;
+    private const double SkillElementIconSize = 18;
+    private const double SkillCategoryIconSize = 20;
+    private const double SkillValueIconSize = 15;
     private const double MaxResultFontSize = 24;
     private const double MinResultFontSize = 10;
     private const double MaxResultLineGap = 12;
@@ -1144,26 +1148,22 @@ internal sealed partial class MainWindow : Window
             Margin = new Thickness(0, 2, 0, 0)
         };
 
-        var elementIcon = new Image
+        var (elementSlot, elementIcon) = CreateSkillInfoImageSlot(
+            SkillElementIconSize,
+            new Thickness(0, 0, 6, 0),
+            SkillDatabase.GetElementLabel(skill.Element, targetLanguage));
+        if (!TrySetVectorIcon(elementIcon, GetElementIconPath(skill.Element)))
         {
-            Width = 20,
-            Height = 20,
-            Margin = new Thickness(0, 0, 8, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-            Stretch = Stretch.Uniform,
-            ToolTip = SkillDatabase.GetElementLabel(skill.Element, targetLanguage)
-        };
-        TrySetSkillImage(elementIcon, skill.ElementIcon);
-        panel.Children.Add(elementIcon);
+            TrySetSkillImage(elementIcon, skill.ElementIcon);
+        }
+        panel.Children.Add(elementSlot);
 
-        var categoryIcon = CreateVectorIcon(GetSkillCategoryIconPath(skill.Category), 17, new Thickness(0, 0, 8, 0));
-        categoryIcon.ToolTip = SkillDatabase.GetCategoryLabel(skill.Category, targetLanguage);
-        panel.Children.Add(categoryIcon);
+        panel.Children.Add(CreateVectorIconSlot(GetSkillCategoryIconPath(skill.Category), SkillCategoryIconSize, new Thickness(0, 0, 8, 0), SkillDatabase.GetCategoryLabel(skill.Category, targetLanguage)));
 
-        panel.Children.Add(CreateVectorIcon("/Resources/EnergyStar.xaml", 13, new Thickness(0, 0, 3, 0)));
+        panel.Children.Add(CreateVectorIconSlot("/Resources/EnergyStar.xaml", SkillValueIconSize, new Thickness(0, 0, 3, 0), "Energy"));
         panel.Children.Add(CreateSkillInfoText(skill.Energy?.ToString() ?? "-", new Thickness(0, 0, 8, 0)));
 
-        panel.Children.Add(CreateVectorIcon("/Resources/SkillMeta/Power.xaml", 13, new Thickness(0, 0, 3, 0)));
+        panel.Children.Add(CreateVectorIconSlot("/Resources/SkillMeta/Power.xaml", SkillValueIconSize, new Thickness(0, 0, 3, 0), "Power"));
         panel.Children.Add(CreateSkillInfoText(skill.Power?.ToString() ?? "-", new Thickness(0, 0, 8, 0)));
 
         if (skill.Accuracy is not null)
@@ -1192,6 +1192,38 @@ internal sealed partial class MainWindow : Window
             Margin = margin,
             TextWrapping = TextWrapping.Wrap
         };
+    }
+
+    private static (FrameworkElement Slot, Image Image) CreateSkillInfoImageSlot(
+        double imageSize,
+        Thickness margin,
+        string tooltip)
+    {
+        var image = new Image
+        {
+            Width = imageSize,
+            Height = imageSize,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Stretch = Stretch.Uniform
+        };
+        var slot = new Grid
+        {
+            Width = SkillInfoIconSlotSize,
+            Height = SkillInfoIconSlotSize,
+            Margin = margin,
+            VerticalAlignment = VerticalAlignment.Center,
+            ToolTip = tooltip
+        };
+        slot.Children.Add(image);
+        return (slot, image);
+    }
+
+    private static FrameworkElement CreateVectorIconSlot(string resourcePath, double imageSize, Thickness margin, string tooltip)
+    {
+        var (slot, image) = CreateSkillInfoImageSlot(imageSize, margin, tooltip);
+        TrySetVectorIcon(image, resourcePath);
+        return slot;
     }
 
     private static Image CreateVectorIcon(string resourcePath, double size, Thickness margin)
@@ -1228,6 +1260,35 @@ internal sealed partial class MainWindow : Window
             "defense" => "/Resources/SkillMeta/Defense.xaml",
             _ => "/Resources/SkillMeta/Status.xaml"
         };
+    }
+
+    private static string GetElementIconPath(string element)
+    {
+        return string.IsNullOrWhiteSpace(element)
+            ? string.Empty
+            : $"/Resources/Elements/{element}.xaml";
+    }
+
+    private static bool TrySetVectorIcon(Image image, string resourcePath)
+    {
+        if (string.IsNullOrWhiteSpace(resourcePath))
+        {
+            return false;
+        }
+
+        try
+        {
+            image.Source = (ImageSource)Application.LoadComponent(new Uri(resourcePath, UriKind.Relative));
+            return true;
+        }
+        catch (IOException)
+        {
+        }
+        catch (InvalidOperationException)
+        {
+        }
+
+        return false;
     }
 
     private static void TrySetSkillImage(Image image, string path)

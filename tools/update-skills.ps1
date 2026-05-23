@@ -17,8 +17,10 @@ $RepoRoot = Split-Path -Parent $ScriptRoot
 $DataPath = Join-Path $RepoRoot "Resources\Data\skills.json"
 $SkillIconDir = Join-Path $RepoRoot "Resources\Skills"
 $ElementIconDir = Join-Path $RepoRoot "Resources\Elements"
+$SkillMetaIconDir = Join-Path $RepoRoot "Resources\SkillMeta"
 $SkillApiUrl = "https://wikiroco.com/api/skills"
 $AttributeApiUrl = "https://wikiroco.com/api/attributes"
+$RocomwikiIconBaseUrl = "https://rocomwiki.app/icons"
 $HttpClient = [System.Net.Http.HttpClient]::new()
 $HttpClient.Timeout = [TimeSpan]::FromSeconds($IconDownloadTimeoutSec)
 
@@ -33,6 +35,25 @@ $CategoryMap = @{
     "魔攻" = "special"
     "状态" = "status"
     "防御" = "defense"
+}
+
+$SkillMetaIconMap = @{
+    "Physical.xaml" = @{
+        Url = "$RocomwikiIconBaseUrl/stats/atk.svg"
+        Brush = "#FFFF715F"
+    }
+    "Magic.xaml" = @{
+        Url = "$RocomwikiIconBaseUrl/stats/spa.svg"
+        Brush = "#FF9C8CFF"
+    }
+    "Defense.xaml" = @{
+        Url = "$RocomwikiIconBaseUrl/stats/def.svg"
+        Brush = "#FF65D18D"
+    }
+    "Status.xaml" = @{
+        Url = "$RocomwikiIconBaseUrl/skill-categories/status.svg"
+        Brush = "#FFFFD76B"
+    }
 }
 
 function Get-JsonProperty($Object, [string]$Name, $Default = $null) {
@@ -201,6 +222,113 @@ function Get-ImageSize([string]$Path) {
     }
     finally {
         $stream.Dispose()
+    }
+}
+
+function Escape-Xaml([string]$Value) {
+    return [System.Security.SecurityElement]::Escape($Value)
+}
+
+function Convert-SvgToDrawingImageXaml([string]$SvgText, [string]$FallbackBrush) {
+    [xml]$xml = $SvgText
+    $svg = $xml.DocumentElement
+    $viewBox = [string]$svg.GetAttribute("viewBox")
+    if ([string]::IsNullOrWhiteSpace($viewBox)) {
+        throw "SVG is missing a viewBox."
+    }
+
+    $parts = @($viewBox -split "[,\s]+" | Where-Object { $_ -ne "" })
+    if ($parts.Count -ne 4) {
+        throw "Unsupported SVG viewBox: $viewBox"
+    }
+
+    $culture = [Globalization.CultureInfo]::InvariantCulture
+    $x = [double]::Parse($parts[0], $culture)
+    $y = [double]::Parse($parts[1], $culture)
+    $width = [double]::Parse($parts[2], $culture)
+    $height = [double]::Parse($parts[3], $culture)
+    $viewportGeometry = "M {0} {1} L {2} {1} L {2} {3} L {0} {3} Z" -f
+        $x.ToString($culture),
+        $y.ToString($culture),
+        ($x + $width).ToString($culture),
+        ($y + $height).ToString($culture)
+
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $lines.Add('<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">')
+    $lines.Add('  <DrawingImage.Drawing>')
+    $lines.Add('    <DrawingGroup>')
+    $lines.Add(('      <GeometryDrawing Brush="Transparent" Geometry="{0}" />' -f $viewportGeometry))
+
+    foreach ($node in $svg.ChildNodes) {
+        if ($node.NodeType -ne [System.Xml.XmlNodeType]::Element) {
+            continue
+        }
+
+        $fill = [string]$node.GetAttribute("fill")
+        if ([string]::IsNullOrWhiteSpace($fill) -or $fill -eq "currentColor") {
+            $fill = $FallbackBrush
+        }
+
+        $fill = Escape-Xaml $fill
+        if ($node.LocalName -eq "circle") {
+            $cx = Escape-Xaml ([string]$node.GetAttribute("cx"))
+            $cy = Escape-Xaml ([string]$node.GetAttribute("cy"))
+            $radius = Escape-Xaml ([string]$node.GetAttribute("r"))
+            $lines.Add(('      <GeometryDrawing Brush="{0}">' -f $fill))
+            $lines.Add('        <GeometryDrawing.Geometry>')
+            $lines.Add(('          <EllipseGeometry Center="{0},{1}" RadiusX="{2}" RadiusY="{2}" />' -f $cx, $cy, $radius))
+            $lines.Add('        </GeometryDrawing.Geometry>')
+            $lines.Add('      </GeometryDrawing>')
+            continue
+        }
+
+        if ($node.LocalName -ne "path") {
+            throw "Unsupported SVG node: $($node.LocalName)"
+        }
+
+        $geometry = Escape-Xaml ([string]$node.GetAttribute("d"))
+        $transform = [string]$node.GetAttribute("transform")
+        $translate = [regex]::Match($transform, "^translate\(([-0-9.]+)\s+([-0-9.]+)\)$")
+        if ($translate.Success) {
+            $lines.Add('      <DrawingGroup>')
+            $lines.Add('        <DrawingGroup.Transform>')
+            $lines.Add(('          <TranslateTransform X="{0}" Y="{1}" />' -f $translate.Groups[1].Value, $translate.Groups[2].Value))
+            $lines.Add('        </DrawingGroup.Transform>')
+            $lines.Add(('        <GeometryDrawing Brush="{0}" Geometry="{1}" />' -f $fill, $geometry))
+            $lines.Add('      </DrawingGroup>')
+        }
+        else {
+            $lines.Add(('      <GeometryDrawing Brush="{0}" Geometry="{1}" />' -f $fill, $geometry))
+        }
+    }
+
+    $lines.Add('    </DrawingGroup>')
+    $lines.Add('  </DrawingImage.Drawing>')
+    $lines.Add('</DrawingImage>')
+    return ($lines -join "`r`n") + "`r`n"
+}
+
+function Save-RemoteSvgAsXaml([string]$Url, [string]$OutputPath, [string]$FallbackBrush) {
+    $svg = $HttpClient.GetStringAsync($Url).GetAwaiter().GetResult()
+    $xaml = Convert-SvgToDrawingImageXaml $svg $FallbackBrush
+    $directory = Split-Path -Parent $OutputPath
+    New-Item -ItemType Directory -Force -Path $directory | Out-Null
+    Set-Content -LiteralPath $OutputPath -Value $xaml -Encoding UTF8
+}
+
+function Update-RocomwikiIconResources([bool]$Force) {
+    foreach ($element in @($ElementMap.Values | Sort-Object -Unique)) {
+        $path = Join-Path $ElementIconDir "$element.xaml"
+        if ($Force -or !(Test-Path $path)) {
+            Save-RemoteSvgAsXaml "$RocomwikiIconBaseUrl/elements/$element.svg" $path "#FFFFFFFF"
+        }
+    }
+
+    foreach ($entry in $SkillMetaIconMap.GetEnumerator()) {
+        $path = Join-Path $SkillMetaIconDir $entry.Key
+        if ($Force -or !(Test-Path $path)) {
+            Save-RemoteSvgAsXaml ([string]$entry.Value.Url) $path ([string]$entry.Value.Brush)
+        }
     }
 }
 
@@ -395,6 +523,20 @@ function Test-SkillDatabase([string]$Path, [bool]$RequireTranslations) {
         }
     }
 
+    foreach ($element in @($ElementMap.Values | Sort-Object -Unique)) {
+        $elementVectorIcon = Join-Path $ElementIconDir "$element.xaml"
+        if (!(Test-Path $elementVectorIcon)) {
+            $errors.Add("Missing rocomwiki element vector icon: Resources/Elements/$element.xaml")
+        }
+    }
+
+    foreach ($entry in $SkillMetaIconMap.GetEnumerator()) {
+        $metaIcon = Join-Path $SkillMetaIconDir $entry.Key
+        if (!(Test-Path $metaIcon)) {
+            $errors.Add("Missing rocomwiki skill metadata icon: Resources/SkillMeta/$($entry.Key)")
+        }
+    }
+
     if ($errors.Count -gt 0) {
         $errors | ForEach-Object { Write-Error $_ }
         throw "Skill database validation failed with $($errors.Count) error(s)."
@@ -408,7 +550,8 @@ if ($ValidateOnly) {
     return
 }
 
-New-Item -ItemType Directory -Force -Path $SkillIconDir, $ElementIconDir | Out-Null
+New-Item -ItemType Directory -Force -Path $SkillIconDir, $ElementIconDir, $SkillMetaIconDir | Out-Null
+Update-RocomwikiIconResources $RefreshIcons
 
 $existingData = Get-Content -LiteralPath $DataPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $existingById = @{}

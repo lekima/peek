@@ -1,0 +1,31 @@
+﻿<DrawingImage xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <DrawingImage.Drawing>
+    <DrawingGroup>
+      <GeometryDrawing Brush="Transparent" Geometry="M 0 0 L 60 0 L 60 60 L 0 60 Z" />
+      <GeometryDrawing Brush="#9fcf22">
+        <GeometryDrawing.Geometry>
+          <EllipseGeometry Center="30,30" RadiusX="28" RadiusY="28" />
+        </GeometryDrawing.Geometry>
+      </GeometryDrawing>
+      <DrawingGroup>
+        <DrawingGroup.Transform>
+          <TranslateTransform X="-1.00" Y="-0.50" />
+        </DrawingGroup.Transform>
+        <GeometryDrawing Brush="#f2eddd" Geometry="M39,25 L37,26 L34,27 L33,29 L33,38 L34,45 L35,47 L38,48 L40,47 L44,43 L46,39 L46,35 L46,32 L46,29 L44,27 L42,25 Z M21,24 L17,28 L16,30 L16,38 L19,44 L22,47 L24,48 L27,48 L28,46 L29,41 L29,28 L27,26 L25,26 L23,24 Z M27,14 L28,17 L25,19 L26,22 L28,23 L34,23 L38,20 L35,18 L35,14 L33,17 L28,16 Z" />
+      </DrawingGroup>
+      <DrawingGroup>
+        <DrawingGroup.Transform>
+          <TranslateTransform X="-1.00" Y="-0.50" />
+        </DrawingGroup.Transform>
+        <GeometryDrawing Brush="#d8e2ae" Geometry="M18,37 L16,39 L17,41 L20,41 L18,39 Z M34,26 L33,28 L30,29 L30,39 L30,36 L32,35 L32,29 Z M24,20 L25,22 L24,24 L26,25 L27,23 Z M34,14 L33,16 L35,17 L35,15 L36,13 Z M27,13 L27,16 L26,18 L29,16 Z" />
+      </DrawingGroup>
+      <DrawingGroup>
+        <DrawingGroup.Transform>
+          <TranslateTransform X="-1.00" Y="-0.50" />
+        </DrawingGroup.Transform>
+        <GeometryDrawing Brush="#bbd770" Geometry="M38,22 L37,24 L42,23 L46,27 L42,23 Z" />
+      </DrawingGroup>
+    </DrawingGroup>
+  </DrawingImage.Drawing>
+</DrawingImage>
+

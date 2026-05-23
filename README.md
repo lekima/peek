@@ -26,7 +26,7 @@ Right-click the move button, then choose `Settings`.
 - API key storage: Gemini API keys are encrypted for the current Windows user with DPAPI in `data/settings.json`
 - Log: `data/peek.log.jsonl`
 - Review data: source captures are saved in `data/captures`, and read translations/search queries are logged as `text_result` events.
-- Skill data: bundled from `wikiroco.com` under `Resources/Data/skills.json`; skill icons are bundled under `Resources/Skills`.
+- Skill data: bundled from `wikiroco.com` under `Resources/Data/skills.json`; skill icons are bundled under `Resources/Skills`, and skill-card element/type icons are bundled from `rocomwiki.app`.
 - Font: Roboto and Roboto Condensed are bundled from Google Fonts under the SIL Open Font License in `Resources/Fonts`; Settings uses regular Roboto and overlay translation text uses Roboto Condensed Semibold.
 - Local data cleanup: delete the `data` folder next to `Peek.exe`
 
@@ -70,11 +70,11 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\update-skills.ps1 -Transla
 
 The updater:
 
-- Fetches `https://wikiroco.com/api/skills` and `https://wikiroco.com/api/attributes`
+- Fetches `https://wikiroco.com/api/skills`, `https://wikiroco.com/api/attributes`, and rocomwiki icon assets
 - Regenerates `Resources/Data/skills.json`
 - Downloads missing or changed skill icons
 - Normalizes all skill icons to `128x128`
-- Updates element icons
+- Updates database element PNGs and skill-card element/type vector icons
 - Stores `source_hash` and `source_icon_url` for future change detection
 - Preserves EN/VI translations when `name_zh`, `description_zh`, stats, element, and category are unchanged
 - Calls Gemini only for new/changed skills when `-TranslateChanged` is used
