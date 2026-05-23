@@ -195,7 +195,7 @@
                     <Style TargetType="{x:Type ScrollBar}" BasedOn="{StaticResource ThinDarkScrollBar}" />
                 </ScrollViewer.Resources>
                 <StackPanel x:Name="SkillResultContent"
-                            Margin="0,0,8,0" />
+                            Margin="0,0,3,0" />
             </ScrollViewer>
         </Border>
 
