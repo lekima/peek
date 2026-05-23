@@ -1012,8 +1012,8 @@ internal sealed partial class MainWindow : Window
         FrameBorder.Visibility = Visibility.Collapsed;
         FrameBorder.BorderThickness = HiddenFrameBorderThickness;
         ResultPanel.Visibility = Visibility.Collapsed;
-        ResizeCornerButton.Visibility = Visibility.Collapsed;
-        ResizeRowButton.Visibility = Visibility.Visible;
+        ResizeCornerButton.Visibility = Visibility.Visible;
+        ResizeRowButton.Visibility = Visibility.Collapsed;
         SkillResultPanel.Visibility = Visibility.Visible;
     }
 
