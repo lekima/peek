@@ -1152,10 +1152,7 @@ internal sealed partial class MainWindow : Window
             SkillElementIconSize,
             new Thickness(0, 0, 6, 0),
             SkillDatabase.GetElementLabel(skill.Element, targetLanguage));
-        if (!TrySetVectorIcon(elementIcon, GetElementIconPath(skill.Element)))
-        {
-            TrySetSkillImage(elementIcon, skill.ElementIcon);
-        }
+        TrySetVectorIcon(elementIcon, GetElementIconPath(skill.Element));
         panel.Children.Add(elementSlot);
 
         panel.Children.Add(CreateVectorIconSlot(GetSkillCategoryIconPath(skill.Category), SkillCategoryIconSize, new Thickness(0, 0, 8, 0), SkillDatabase.GetCategoryLabel(skill.Category, targetLanguage)));

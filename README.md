@@ -70,11 +70,11 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\update-skills.ps1 -Transla
 
 The updater:
 
-- Fetches `https://wikiroco.com/api/skills`, `https://wikiroco.com/api/attributes`, and rocomwiki icon assets
+- Fetches `https://wikiroco.com/api/skills` and rocomwiki icon assets
 - Regenerates `Resources/Data/skills.json`
 - Downloads missing or changed skill icons
 - Normalizes all skill icons to `128x128`
-- Updates database element PNGs and skill-card element/type vector icons
+- Updates skill-card element/type vector icons
 - Stores `source_hash` and `source_icon_url` for future change detection
 - Preserves EN/VI translations when `name_zh`, `description_zh`, stats, element, and category are unchanged
 - Calls Gemini only for new/changed skills when `-TranslateChanged` is used

@@ -19,7 +19,6 @@ $SkillIconDir = Join-Path $RepoRoot "Resources\Skills"
 $ElementIconDir = Join-Path $RepoRoot "Resources\Elements"
 $SkillMetaIconDir = Join-Path $RepoRoot "Resources\SkillMeta"
 $SkillApiUrl = "https://wikiroco.com/api/skills"
-$AttributeApiUrl = "https://wikiroco.com/api/attributes"
 $RocomwikiIconBaseUrl = "https://rocomwiki.app/icons"
 $HttpClient = [System.Net.Http.HttpClient]::new()
 $HttpClient.Timeout = [TimeSpan]::FromSeconds($IconDownloadTimeoutSec)
@@ -513,11 +512,6 @@ function Test-SkillDatabase([string]$Path, [bool]$RequireTranslations) {
             $errors.Add("Skill icon must be 128x128: $($skill.icon) is $($size.Width)x$($size.Height)")
         }
 
-        $elementIcon = Join-Path $RepoRoot ([string]$skill.element_icon)
-        if (!(Test-Path $elementIcon)) {
-            $errors.Add("Missing element icon: $($skill.id) -> $($skill.element_icon)")
-        }
-
         if ($RequireTranslations -and !(Test-LocalizationSet $skill.localized)) {
             $errors.Add("Missing EN/VI localization: $($skill.id) $($skill.name_zh)")
         }
@@ -562,31 +556,6 @@ foreach ($skill in @($existingData.skills)) {
 Write-Host "Fetching skills from $SkillApiUrl"
 $skillResponse = Invoke-RestMethod -Uri $SkillApiUrl
 $sourceSkills = @($skillResponse.items)
-
-Write-Host "Fetching element icons from $AttributeApiUrl"
-$attributeResponse = Invoke-RestMethod -Uri $AttributeApiUrl
-if ($attributeResponse -is [array]) {
-    $attributes = $attributeResponse
-}
-elseif ($null -ne (Get-JsonProperty $attributeResponse "items")) {
-    $attributes = @($attributeResponse.items)
-}
-else {
-    $attributes = @($attributeResponse)
-}
-foreach ($attribute in $attributes) {
-    $elementName = [string]$attribute.attr_name
-    if (!$ElementMap.ContainsKey($elementName)) {
-        Write-Warning "Unknown element from attributes API: $elementName"
-        continue
-    }
-
-    $element = $ElementMap[$elementName]
-    $elementPath = Join-Path $ElementIconDir "$element.png"
-    if ($RefreshIcons -or !(Test-Path $elementPath)) {
-        Save-RemoteImageAsPng ([string]$attribute.attr_image) $elementPath 64 64
-    }
-}
 
 $newSkills = [System.Collections.Generic.List[object]]::new()
 $translationQueue = [System.Collections.Generic.List[object]]::new()
@@ -640,7 +609,6 @@ foreach ($source in $sourceSkills) {
         name_zh = $nameZh
         aliases_zh = @()
         element = $element
-        element_icon = "Resources/Elements/$element.png"
         category = $category
         energy = $source.consume
         power = $source.power

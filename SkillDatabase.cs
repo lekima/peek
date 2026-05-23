@@ -214,9 +214,6 @@ internal sealed class SkillEntry
     [JsonPropertyName("element")]
     public string Element { get; set; } = string.Empty;
 
-    [JsonPropertyName("element_icon")]
-    public string ElementIcon { get; set; } = string.Empty;
-
     [JsonPropertyName("category")]
     public string Category { get; set; } = string.Empty;
 
