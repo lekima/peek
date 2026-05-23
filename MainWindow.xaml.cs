@@ -1213,9 +1213,15 @@ internal sealed partial class MainWindow : Window
             Orientation = Orientation.Horizontal,
             VerticalAlignment = VerticalAlignment.Center
         };
-        var (_, elementIcon) = CreateSkillInfoImageSlot(SkillBadgeElementIconSize, new Thickness(), string.Empty);
+        var elementIcon = new Image
+        {
+            Width = SkillBadgeElementIconSize,
+            Height = SkillBadgeElementIconSize,
+            Margin = new Thickness(0, 0, 5, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Stretch = Stretch.Uniform
+        };
         SetVectorIcon(elementIcon, GetElementIconPath(skill.Element));
-        elementIcon.Margin = new Thickness(0, 0, 5, 0);
         panel.Children.Add(elementIcon);
         panel.Children.Add(new TextBlock
         {
