@@ -944,11 +944,13 @@ internal sealed partial class MainWindow : Window
         SetActionButtonsVisible(false);
         SkillResultContent.Children.Clear();
 
-        if (lookup.Matched.Count == 0 && lookup.Unmatched.Count == 0)
+        if (lookup.Matched.Count == 0)
         {
             SkillResultContent.Children.Add(new TextBlock
             {
-                Text = "No visible skills found.",
+                Text = lookup.Unmatched.Count == 0
+                    ? "No visible skills found."
+                    : "No matching skills found.",
                 Foreground = new SolidColorBrush(Color.FromRgb(255, 198, 95)),
                 FontFamily = FontFamily,
                 FontSize = 13,
@@ -1221,7 +1223,7 @@ internal sealed partial class MainWindow : Window
         _statusClearTimer.Stop();
         StatusText.Text = text;
         StatusLabel.Visibility = Visibility.Visible;
-        ClearButton.Visibility = Visibility.Visible;
+        UpdateClearButtonVisibility();
         _statusClearTimer.Start();
     }
 
@@ -1255,8 +1257,7 @@ internal sealed partial class MainWindow : Window
     {
         ClearButton.Visibility =
             ResultPanel.Visibility == Visibility.Visible ||
-            SkillResultPanel.Visibility == Visibility.Visible ||
-            StatusLabel.Visibility == Visibility.Visible
+            SkillResultPanel.Visibility == Visibility.Visible
                 ? Visibility.Visible
                 : Visibility.Collapsed;
     }

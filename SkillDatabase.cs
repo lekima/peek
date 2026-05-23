@@ -68,7 +68,7 @@ internal static class SkillDatabase
             : skill.Localized?.En;
 
         return string.IsNullOrWhiteSpace(localization?.Name) ||
-            string.IsNullOrWhiteSpace(localization.Description)
+            localization.Description is null
                 ? null
                 : localization;
     }
