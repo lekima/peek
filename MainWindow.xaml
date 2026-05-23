@@ -81,15 +81,15 @@
                     <ControlTemplate TargetType="{x:Type Thumb}">
                         <Border x:Name="ThumbRoot"
                                 Margin="1,2"
-                                Background="#FF2A2A2A"
+                                Background="#CCFFC65F"
                                 CornerRadius="2"
                                 SnapsToDevicePixels="True" />
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ThumbRoot" Property="Background" Value="#FF333333" />
+                                <Setter TargetName="ThumbRoot" Property="Background" Value="#E6FFC65F" />
                             </Trigger>
                             <Trigger Property="IsDragging" Value="True">
-                                <Setter TargetName="ThumbRoot" Property="Background" Value="#FF3A3A3A" />
+                                <Setter TargetName="ThumbRoot" Property="Background" Value="#FFFFC65F" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
