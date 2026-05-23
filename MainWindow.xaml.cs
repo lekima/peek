@@ -1063,10 +1063,9 @@ internal sealed partial class MainWindow : Window
         {
             Padding = new Thickness(10),
             Margin = new Thickness(0, 0, 0, 8),
-            Background = new SolidColorBrush(Color.FromArgb(110, 34, 34, 34)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(120, 255, 198, 95)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(4)
+            Background = new SolidColorBrush(Color.FromArgb(130, 44, 44, 44)),
+            BorderThickness = new Thickness(0),
+            CornerRadius = new CornerRadius(6)
         };
 
         bool? isVertical = null;
@@ -1157,22 +1156,38 @@ internal sealed partial class MainWindow : Window
     {
         var title = new TextBlock
         {
-            Foreground = new SolidColorBrush(Color.FromRgb(255, 198, 95)),
+            Foreground = Brushes.White,
             FontFamily = FontFamily,
             FontSize = 16,
             FontWeight = FontWeights.Bold,
             TextWrapping = TextWrapping.Wrap
         };
         title.Inlines.Add(new Run(localizedName));
-        title.Inlines.Add(new InlineUIContainer(CreateVectorIcon(
-            GetSkillCategoryIconPath(skill.Category),
-            SkillCategoryIconSize,
-            new Thickness(6, 0, 0, -2)))
+        title.Inlines.Add(new InlineUIContainer(CreateSkillTypeBadge(skill, targetLanguage))
         {
             BaselineAlignment = BaselineAlignment.Center
         });
-        title.ToolTip = SkillDatabase.GetCategoryLabel(skill.Category, targetLanguage);
         return title;
+    }
+
+    private FrameworkElement CreateSkillTypeBadge(SkillEntry skill, string targetLanguage)
+    {
+        var badge = new Border
+        {
+            Background = new SolidColorBrush(GetSkillCategoryColor(skill.Category)),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(4, 2, 4, 2),
+            Margin = new Thickness(6, 0, 0, -2),
+            VerticalAlignment = VerticalAlignment.Center,
+            ToolTip = SkillDatabase.GetCategoryLabel(skill.Category, targetLanguage)
+        };
+
+        badge.Child = CreateVectorIcon(
+            GetSkillCategoryIconPath(skill.Category),
+            14,
+            new Thickness(),
+            Brushes.White);
+        return badge;
     }
 
     private bool ShouldUseVerticalSkillCardLayout(double cardWidth) =>
@@ -1240,7 +1255,7 @@ internal sealed partial class MainWindow : Window
     {
         var badge = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(96, 96, 96)),
+            Background = new SolidColorBrush(Color.FromRgb(78, 78, 78)),
             CornerRadius = new CornerRadius(9),
             Padding = new Thickness(4, 1, 5, 1),
             MinWidth = 24,
@@ -1295,7 +1310,7 @@ internal sealed partial class MainWindow : Window
         return (slot, image);
     }
 
-    private static Image CreateVectorIcon(string resourcePath, double size, Thickness margin)
+    private static Image CreateVectorIcon(string resourcePath, double size, Thickness margin, Brush? tintBrush = null)
     {
         var image = new Image
         {
@@ -1306,7 +1321,7 @@ internal sealed partial class MainWindow : Window
             Stretch = Stretch.Uniform
         };
 
-        SetVectorIcon(image, resourcePath);
+        SetVectorIcon(image, resourcePath, tintBrush);
         return image;
     }
 
@@ -1321,6 +1336,17 @@ internal sealed partial class MainWindow : Window
         };
     }
 
+    private static Color GetSkillCategoryColor(string category)
+    {
+        return category switch
+        {
+            "physical" => Color.FromRgb(255, 113, 95),
+            "special" => Color.FromRgb(156, 140, 255),
+            "defense" => Color.FromRgb(101, 209, 141),
+            _ => Color.FromRgb(255, 215, 107)
+        };
+    }
+
     private static string GetElementIconPath(string element)
     {
         return $"/Resources/Elements/{element}.xaml";
@@ -1331,9 +1357,43 @@ internal sealed partial class MainWindow : Window
         return ElementColors[element];
     }
 
-    private static void SetVectorIcon(Image image, string resourcePath)
+    private static void SetVectorIcon(Image image, string resourcePath, Brush? tintBrush = null)
     {
-        image.Source = (ImageSource)Application.LoadComponent(new Uri(resourcePath, UriKind.Relative));
+        var source = (ImageSource)Application.LoadComponent(new Uri(resourcePath, UriKind.Relative));
+        if (tintBrush is not null && source is DrawingImage drawingImage)
+        {
+            var tinted = drawingImage.CloneCurrentValue();
+            TintDrawing(tinted.Drawing, tintBrush);
+            source = tinted;
+        }
+
+        image.Source = source;
+    }
+
+    private static void TintDrawing(System.Windows.Media.Drawing? drawing, Brush brush)
+    {
+        switch (drawing)
+        {
+            case GeometryDrawing geometryDrawing:
+                if (!IsTransparentBrush(geometryDrawing.Brush))
+                {
+                    geometryDrawing.Brush = brush;
+                }
+
+                break;
+            case DrawingGroup drawingGroup:
+                foreach (var child in drawingGroup.Children)
+                {
+                    TintDrawing(child, brush);
+                }
+
+                break;
+        }
+    }
+
+    private static bool IsTransparentBrush(Brush? brush)
+    {
+        return brush is SolidColorBrush solidColorBrush && solidColorBrush.Color.A == 0;
     }
 
     private static void TrySetSkillImage(Image image, string path)
