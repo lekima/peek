@@ -26,8 +26,6 @@ internal sealed partial class MainWindow : Window
     private const double CollapsedWidth = 106;
     private const double CollapsedHeight = 24;
     private const double FrameRevealHeight = 48;
-    private const double SkillResultWidth = 400;
-    private const double MaxSkillResultHeight = 640;
     private const double MaxResultFontSize = 24;
     private const double MinResultFontSize = 10;
     private const double MaxResultLineGap = 12;
@@ -35,7 +33,6 @@ internal sealed partial class MainWindow : Window
     private static readonly Thickness MaxResultTextPadding = new(14, 12, 14, 10);
     private static readonly Thickness MinResultTextPadding = new(6, 6, 6, 4);
     private static readonly Thickness VisibleFrameBorderThickness = new(1);
-    private static readonly Thickness HiddenFrameBorderThickness = new(0);
     private const int WmNcHitTest = 0x0084;
     private const nint HtClient = 1;
     private const nint HtTransparent = -1;
@@ -972,7 +969,6 @@ internal sealed partial class MainWindow : Window
         LogUnmatchedSkills(lookup.Unmatched);
 
         TrimLastSkillResultChildMargin();
-        Dispatcher.BeginInvoke(ResizeWindowToSkillResults, DispatcherPriority.Loaded);
     }
 
     private static void LogUnmatchedSkills(IReadOnlyList<string> unmatched)
@@ -998,33 +994,12 @@ internal sealed partial class MainWindow : Window
 
     private void UseSkillResultPresentation()
     {
-        FrameBorder.Visibility = Visibility.Collapsed;
-        FrameBorder.BorderThickness = HiddenFrameBorderThickness;
+        FrameBorder.Visibility = Visibility.Visible;
+        FrameBorder.BorderThickness = VisibleFrameBorderThickness;
         ResultPanel.Visibility = Visibility.Collapsed;
         ResizeCornerButton.Visibility = Visibility.Visible;
         ResizeRowButton.Visibility = Visibility.Collapsed;
         SkillResultPanel.Visibility = Visibility.Visible;
-    }
-
-    private void ResizeWindowToSkillResults()
-    {
-        if (!_isShowingSkillResult || SkillResultPanel.Visibility != Visibility.Visible)
-        {
-            return;
-        }
-
-        Width = SkillResultWidth;
-        var contentWidth = Math.Max(
-            1,
-            Width - SkillResultPanel.Margin.Left - SkillResultPanel.Margin.Right - SkillResultPanel.Padding.Left - SkillResultPanel.Padding.Right);
-        SkillResultContent.Measure(new Size(contentWidth, double.PositiveInfinity));
-        var verticalMargins = SkillResultPanel.Margin.Top + SkillResultPanel.Margin.Bottom;
-        var contentHeight = SkillResultContent.DesiredSize.Height +
-            SkillResultPanel.Padding.Top +
-            SkillResultPanel.Padding.Bottom;
-        var panelHeight = Math.Min(MaxSkillResultHeight, Math.Ceiling(contentHeight));
-        SkillResultPanel.Height = panelHeight;
-        Height = verticalMargins + panelHeight;
     }
 
     private void TrimLastSkillResultChildMargin()
@@ -1046,7 +1021,6 @@ internal sealed partial class MainWindow : Window
     {
         _isShowingSkillResult = false;
         SkillResultContent.Children.Clear();
-        SkillResultPanel.ClearValue(HeightProperty);
         SkillResultPanel.Visibility = Visibility.Collapsed;
         UseCaptureFramePresentation();
         FrameBorder.Visibility = Visibility.Visible;

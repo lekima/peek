@@ -176,27 +176,27 @@
 
                     </Grid>
                 </Border>
-            </Grid>
-        </Border>
 
-        <Border x:Name="SkillResultPanel"
-                Margin="0,22,4,0"
-                Padding="8,8,0,8"
-                Background="#E6111111"
-                CornerRadius="4"
-                ClipToBounds="True"
-                SnapsToDevicePixels="True"
-                Visibility="Collapsed">
-            <ScrollViewer x:Name="SkillResultScrollViewer"
-                          VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollBarVisibility="Disabled"
-                          PanningMode="VerticalOnly">
-                <ScrollViewer.Resources>
-                    <Style TargetType="{x:Type ScrollBar}" BasedOn="{StaticResource ThinDarkScrollBar}" />
-                </ScrollViewer.Resources>
-                <StackPanel x:Name="SkillResultContent"
-                            Margin="0,0,3,0" />
-            </ScrollViewer>
+                <Border x:Name="SkillResultPanel"
+                        Margin="0"
+                        Padding="8,8,0,8"
+                        Background="#E6111111"
+                        CornerRadius="3"
+                        ClipToBounds="True"
+                        SnapsToDevicePixels="True"
+                        Visibility="Collapsed">
+                    <ScrollViewer x:Name="SkillResultScrollViewer"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  PanningMode="VerticalOnly">
+                        <ScrollViewer.Resources>
+                            <Style TargetType="{x:Type ScrollBar}" BasedOn="{StaticResource ThinDarkScrollBar}" />
+                        </ScrollViewer.Resources>
+                        <StackPanel x:Name="SkillResultContent"
+                                    Margin="0,0,3,0" />
+                    </ScrollViewer>
+                </Border>
+            </Grid>
         </Border>
 
         <StackPanel Margin="0,2,0,0"
