@@ -53,7 +53,6 @@ internal sealed partial class MainWindow : Window
     private bool _isTranslating;
     private bool _isCheckingSkills;
     private bool _isShowingSkillResult;
-    private Size? _lastCaptureFrameSize;
     private SettingsWindow? _settingsWindow;
     private DisplayedResultState? _displayedResult;
     private readonly DispatcherTimer _statusClearTimer = new()
@@ -211,11 +210,6 @@ internal sealed partial class MainWindow : Window
 
     private void ResizeButton_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (_isShowingSkillResult)
-        {
-            RestoreCaptureFrameFromSkillResult();
-        }
-
         if (sender == ResizeRowButton)
         {
             ResizeRowButton.Visibility = Visibility.Collapsed;
@@ -946,11 +940,6 @@ internal sealed partial class MainWindow : Window
     {
         _displayedResult = null;
         _isShowingSkillResult = true;
-        if (FrameBorder.Visibility == Visibility.Visible)
-        {
-            _lastCaptureFrameSize = new Size(Width, Height);
-        }
-
         UseSkillResultPresentation();
         ClearSearchButtons();
         ResultTextPanel.Children.Clear();
@@ -1064,12 +1053,6 @@ internal sealed partial class MainWindow : Window
         ResizeCornerButton.Visibility = Visibility.Visible;
         ResizeRowButton.Visibility = Visibility.Collapsed;
         SetActionButtonsVisible(true);
-
-        if (_lastCaptureFrameSize is { } size)
-        {
-            Width = size.Width;
-            Height = size.Height;
-        }
     }
 
     private FrameworkElement CreateSkillCard(SkillEntry skill, string targetLanguage)
