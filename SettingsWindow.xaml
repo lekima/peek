@@ -10,7 +10,9 @@
         WindowStartupLocation="CenterOwner"
         Background="#161616"
         Foreground="#F2F2F2"
-        FontWeight="Normal">
+        FontWeight="Normal"
+        TextOptions.TextFormattingMode="Ideal"
+        TextOptions.TextRenderingMode="Auto">
     <Window.Resources>
         <Style TargetType="TextBlock">
             <Setter Property="FontSize" Value="13" />

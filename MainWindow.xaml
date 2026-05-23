@@ -15,6 +15,8 @@
         Topmost="True"
         ShowInTaskbar="True"
         FontWeight="Normal"
+        TextOptions.TextFormattingMode="Ideal"
+        TextOptions.TextRenderingMode="Auto"
         WindowStartupLocation="CenterScreen"
         SourceInitialized="Window_SourceInitialized"
         Loaded="Window_Loaded">

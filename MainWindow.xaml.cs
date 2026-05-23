@@ -1241,9 +1241,6 @@ internal sealed partial class MainWindow : Window
             BorderThickness = new Thickness(0),
             CornerRadius = new CornerRadius(6)
         };
-        TextOptions.SetTextFormattingMode(card, TextFormattingMode.Ideal);
-        TextOptions.SetTextRenderingMode(card, TextRenderingMode.Grayscale);
-
         SkillCardLayoutMode? currentMode = null;
         void UpdateLayout(double width)
         {
