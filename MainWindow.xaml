@@ -81,15 +81,15 @@
                     <ControlTemplate TargetType="{x:Type Thumb}">
                         <Border x:Name="ThumbRoot"
                                 Margin="1,2"
-                                Background="#CCFFC65F"
+                                Background="#CCB8B8B8"
                                 CornerRadius="2"
                                 SnapsToDevicePixels="True" />
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ThumbRoot" Property="Background" Value="#E6FFC65F" />
+                                <Setter TargetName="ThumbRoot" Property="Background" Value="#E6C8C8C8" />
                             </Trigger>
                             <Trigger Property="IsDragging" Value="True">
-                                <Setter TargetName="ThumbRoot" Property="Background" Value="#FFFFC65F" />
+                                <Setter TargetName="ThumbRoot" Property="Background" Value="#FFD6D6D6" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -98,14 +98,14 @@
         </Style>
 
         <Style x:Key="ThinDarkScrollBar" TargetType="{x:Type ScrollBar}">
-            <Setter Property="Width" Value="5" />
-            <Setter Property="MinWidth" Value="5" />
+            <Setter Property="Width" Value="4" />
+            <Setter Property="MinWidth" Value="4" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type ScrollBar}">
                         <Grid x:Name="Root"
-                              Width="5"
+                              Width="4"
                               Background="Transparent"
                               SnapsToDevicePixels="True">
                             <Track x:Name="PART_Track"
@@ -196,7 +196,7 @@
                             <Style TargetType="{x:Type ScrollBar}" BasedOn="{StaticResource ThinDarkScrollBar}" />
                         </ScrollViewer.Resources>
                         <StackPanel x:Name="SkillResultContent"
-                                    Margin="0,0,3,0" />
+                                    Margin="0,0,4,0" />
                     </ScrollViewer>
                 </Border>
             </Grid>

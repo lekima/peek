@@ -1162,7 +1162,7 @@ internal sealed partial class MainWindow : Window
             Foreground = Brushes.White,
             FontFamily = FontFamily,
             FontSize = 13,
-            FontWeight = FontWeights.Bold,
+            FontWeight = FontWeights.SemiBold,
             TextWrapping = TextWrapping.Wrap
         };
     }
@@ -1207,7 +1207,7 @@ internal sealed partial class MainWindow : Window
             Foreground = Brushes.White,
             FontFamily = FontFamily,
             FontSize = 12,
-            FontWeight = FontWeights.Bold,
+            FontWeight = FontWeights.SemiBold,
             VerticalAlignment = VerticalAlignment.Center
         });
         badge.Child = panel;
@@ -1268,7 +1268,7 @@ internal sealed partial class MainWindow : Window
             Foreground = Brushes.White,
             FontFamily = FontFamily,
             FontSize = 14,
-            FontWeight = FontWeights.Bold,
+            FontWeight = FontWeights.SemiBold,
             VerticalAlignment = VerticalAlignment.Center
         });
         badge.Child = panel;
@@ -1302,7 +1302,7 @@ internal sealed partial class MainWindow : Window
             Foreground = Brushes.White,
             FontFamily = FontFamily,
             FontSize = 12,
-            FontWeight = FontWeights.Bold,
+            FontWeight = FontWeights.SemiBold,
             VerticalAlignment = VerticalAlignment.Center
         });
         badge.Child = panel;

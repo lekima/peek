@@ -25,7 +25,7 @@
     <Resource Include="Resources\Data\skills.json" />
     <Resource Include="Resources\EnergyStar.xaml" />
     <Resource Include="Resources\Elements\*.xaml" />
-    <Resource Include="Resources\Fonts\Roboto-Regular.ttf" />
+    <Resource Include="Resources\Fonts\Roboto-Variable.ttf" />
     <Resource Include="Resources\Fonts\RobotoCondensed-SemiBold.ttf" />
     <Resource Include="Resources\SkillMeta\*.xaml" />
     <Resource Include="Resources\Skills\*.png" />
