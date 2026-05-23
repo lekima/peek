@@ -8,6 +8,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using System.IO;
 using Drawing = System.Drawing;
@@ -22,22 +23,26 @@ namespace Peek;
 [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "Instantiated by WPF from App.xaml StartupUri.")]
 internal sealed partial class MainWindow : Window
 {
-    private const double CollapsedWidth = 84;
+    private const double CollapsedWidth = 106;
     private const double CollapsedHeight = 24;
     private const double FrameRevealHeight = 48;
+    private const double MinSkillResultWidth = 460;
+    private const double MaxSkillResultHeight = 640;
     private const double MaxResultFontSize = 24;
     private const double MinResultFontSize = 10;
     private const double MaxResultLineGap = 12;
     private const double MinResultLineGap = 4;
     private static readonly Thickness MaxResultTextPadding = new(14, 12, 14, 10);
     private static readonly Thickness MinResultTextPadding = new(6, 6, 6, 4);
+    private static readonly Thickness VisibleFrameBorderThickness = new(1);
+    private static readonly Thickness HiddenFrameBorderThickness = new(0);
     private const int WmNcHitTest = 0x0084;
     private const nint HtClient = 1;
     private const nint HtTransparent = -1;
 
     private AppConfig _config = AppConfigStore.Load();
     private CancellationTokenSource? _translationCancellation;
-    private CancellationTokenSource? _replyCancellation;
+    private CancellationTokenSource? _skillCancellation;
     private Point? _dragStartCursor;
     private Point? _dragStartWindowPosition;
     private Point? _resizeStartCursor;
@@ -46,7 +51,8 @@ internal sealed partial class MainWindow : Window
     private bool _resizeButtonDragged;
     private bool _resizeExpandedDuringInteraction;
     private bool _isTranslating;
-    private bool _isReplyTranslating;
+    private bool _isCheckingSkills;
+    private bool _isShowingSkillResult;
     private SettingsWindow? _settingsWindow;
     private DisplayedResultState? _displayedResult;
     private readonly DispatcherTimer _statusClearTimer = new()
@@ -63,14 +69,11 @@ internal sealed partial class MainWindow : Window
     {
         InitializeComponent();
         _statusClearTimer.Tick += StatusClearTimer_Tick;
-        InitializeTargetGameMenu();
-        InitializeAppModeMenu();
         AppLogger.Event("app_start", new
         {
             appDirectory = AppPaths.AppDirectory,
             targetLanguage = _config.TargetLanguage,
-            targetGame = TargetGames.GetDisplayName(_config.TargetGame),
-            mode = AppModes.GetDisplayName(_config.Mode)
+            targetGame = RocoGame.DisplayName
         });
     }
 
@@ -109,11 +112,12 @@ internal sealed partial class MainWindow : Window
     {
         return IsPointInside(DragButton, windowPoint) ||
             IsPointInside(TranslateButton, windowPoint) ||
+            IsPointInside(SkillButton, windowPoint) ||
             IsPointInside(ClearButton, windowPoint) ||
             IsPointInside(ResizeRowButton, windowPoint) ||
             IsPointInside(ResizeCornerButton, windowPoint) ||
             IsPointInside(SearchButtonsPanel, windowPoint) ||
-            IsPointInside(ReplyComposerPanel, windowPoint);
+            IsPointInside(SkillResultPanel, windowPoint);
     }
 
     private bool IsPointInside(FrameworkElement element, Point windowPoint)
@@ -206,6 +210,11 @@ internal sealed partial class MainWindow : Window
 
     private void ResizeButton_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        if (_isShowingSkillResult)
+        {
+            ClearSkillResultPresentation();
+        }
+
         if (sender == ResizeRowButton)
         {
             ResizeRowButton.Visibility = Visibility.Collapsed;
@@ -284,21 +293,30 @@ internal sealed partial class MainWindow : Window
 
         _resizeExpandedDuringInteraction = true;
         FrameBorder.Visibility = Visibility.Visible;
+        if (!_isShowingSkillResult)
+        {
+            UseCaptureFramePresentation();
+        }
+
         ResizeRowButton.Visibility = Visibility.Collapsed;
         ResizeCornerButton.Visibility = Visibility.Visible;
         Width = Math.Max(CollapsedWidth, nextWidth);
         Height = nextHeight;
-        ShowDefaultChatComposerIfNeeded(false);
         FitResultText();
     }
 
     private void CollapseFrame()
     {
         FrameBorder.Visibility = Visibility.Collapsed;
+        UseCaptureFramePresentation();
+        SkillResultPanel.Visibility = Visibility.Collapsed;
+        SkillResultContent.Children.Clear();
         ResultPanel.Visibility = Visibility.Collapsed;
         _displayedResult = null;
+        _isShowingSkillResult = false;
+        ClearButton.Visibility = Visibility.Collapsed;
+        SetActionButtonsVisible(true);
         ClearSearchButtons();
-        HideReplyComposer();
         ResizeCornerButton.Visibility = Visibility.Collapsed;
         ResizeRowButton.Visibility = Visibility.Visible;
         Width = CollapsedWidth;
@@ -333,6 +351,11 @@ internal sealed partial class MainWindow : Window
         await TranslateCurrentAreaAsync().ConfigureAwait(true);
     }
 
+    private async void SkillButton_Click(object sender, RoutedEventArgs e)
+    {
+        await CheckVisibleSkillsAsync().ConfigureAwait(true);
+    }
+
     private void ClearButton_Click(object sender, RoutedEventArgs e)
     {
         if (_isTranslating)
@@ -341,10 +364,10 @@ internal sealed partial class MainWindow : Window
             _translationCancellation?.Cancel();
         }
 
-        if (_isReplyTranslating)
+        if (_isCheckingSkills)
         {
-            AppLogger.Event("reply_translate_cancel_requested", new { reason = "clear_button" });
-            _replyCancellation?.Cancel();
+            AppLogger.Event("skill_check_cancel_requested", new { reason = "clear_button" });
+            _skillCancellation?.Cancel();
         }
 
         AppLogger.Event("result_clear", new { hadResult = ResultPanel.Visibility == Visibility.Visible });
@@ -372,188 +395,6 @@ internal sealed partial class MainWindow : Window
         OpenUrl(searchButton.Url);
     }
 
-    private async void ReplySendButton_Click(object sender, RoutedEventArgs e)
-    {
-        await TranslateReplyToChineseAsync().ConfigureAwait(true);
-    }
-
-    private async void ReplyTextBox_KeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key == Key.Enter)
-        {
-            e.Handled = true;
-            await TranslateReplyToChineseAsync().ConfigureAwait(true);
-            return;
-        }
-
-        if (e.Key == Key.Escape)
-        {
-            e.Handled = true;
-            HideReplyComposer();
-        }
-    }
-
-    private void InitializeAppModeMenu()
-    {
-        if (DragButton.ContextMenu is not { } menu)
-        {
-            return;
-        }
-
-        foreach (var mode in AppModes.MenuModes.Reverse())
-        {
-            var item = new MenuItem
-            {
-                Header = AppModes.GetDisplayName(mode),
-                IsCheckable = true,
-                Tag = mode.ToString()
-            };
-            item.Click += AppModeMenu_Click;
-            menu.Items.Insert(0, item);
-        }
-
-        menu.Items.Insert(AppModes.MenuModes.Count, new Separator());
-    }
-
-    private void InitializeTargetGameMenu()
-    {
-        if (DragButton.ContextMenu is not { } menu)
-        {
-            return;
-        }
-
-        var insertIndex = 0;
-        while (insertIndex < menu.Items.Count && menu.Items[insertIndex] is not Separator)
-        {
-            insertIndex++;
-        }
-
-        foreach (var game in TargetGames.MenuGames.Reverse())
-        {
-            var item = new MenuItem
-            {
-                Header = TargetGames.GetDisplayName(game),
-                IsCheckable = true,
-                Tag = game.ToString()
-            };
-            item.Click += TargetGameMenu_Click;
-            menu.Items.Insert(insertIndex, item);
-        }
-    }
-
-    private void WindowMenu_Opened(object sender, RoutedEventArgs e)
-    {
-        UpdateAppModeMenuChecks();
-        UpdateTargetGameMenuChecks();
-    }
-
-    private void AppModeMenu_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not MenuItem { Tag: string tag } ||
-            !Enum.TryParse<AppMode>(tag, true, out var mode) ||
-            !Enum.IsDefined(mode) ||
-            _config.Mode == mode)
-        {
-            UpdateAppModeMenuChecks();
-            return;
-        }
-
-        var previousMode = _config.Mode;
-        try
-        {
-            _config.Mode = mode;
-            AppConfigStore.Save(_config);
-            ApplyModeToVisibleResult();
-            AppLogger.Event("mode_changed", new
-            {
-                mode = AppModes.GetDisplayName(_config.Mode)
-            });
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or CryptographicException)
-        {
-            _config.Mode = previousMode;
-            AppLogger.Error("Could not save mode.", ex);
-            MessageBox.Show(this, ex.Message, "Mode", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
-        finally
-        {
-            UpdateAppModeMenuChecks();
-        }
-    }
-
-    private void TargetGameMenu_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not MenuItem { Tag: string tag } ||
-            !Enum.TryParse<TargetGame>(tag, true, out var targetGame) ||
-            !Enum.IsDefined(targetGame) ||
-            _config.TargetGame == targetGame)
-        {
-            UpdateTargetGameMenuChecks();
-            return;
-        }
-
-        var previousTargetGame = _config.TargetGame;
-        try
-        {
-            _config.TargetGame = targetGame;
-            AppConfigStore.Save(_config);
-            AppLogger.Event("target_game_changed", new
-            {
-                targetGame = TargetGames.GetDisplayName(_config.TargetGame)
-            });
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or CryptographicException)
-        {
-            _config.TargetGame = previousTargetGame;
-            AppLogger.Error("Could not save target game.", ex);
-            MessageBox.Show(this, ex.Message, "Target game", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
-        finally
-        {
-            UpdateTargetGameMenuChecks();
-        }
-    }
-
-    private void UpdateAppModeMenuChecks()
-    {
-        if (DragButton.ContextMenu is not { } menu)
-        {
-            return;
-        }
-
-        foreach (var item in menu.Items.OfType<MenuItem>())
-        {
-            if (item.Tag is string tag &&
-                Enum.TryParse<AppMode>(tag, true, out var mode) &&
-                Enum.IsDefined(mode))
-            {
-                var isSelected = _config.Mode == mode;
-                item.IsChecked = isSelected;
-                item.FontWeight = isSelected ? FontWeights.Bold : FontWeights.Normal;
-            }
-        }
-    }
-
-    private void UpdateTargetGameMenuChecks()
-    {
-        if (DragButton.ContextMenu is not { } menu)
-        {
-            return;
-        }
-
-        foreach (var item in menu.Items.OfType<MenuItem>())
-        {
-            if (item.Tag is string tag &&
-                Enum.TryParse<TargetGame>(tag, true, out var targetGame) &&
-                Enum.IsDefined(targetGame))
-            {
-                var isSelected = _config.TargetGame == targetGame;
-                item.IsChecked = isSelected;
-                item.FontWeight = isSelected ? FontWeights.Bold : FontWeights.Normal;
-            }
-        }
-    }
-
     private void SettingsMenu_Click(object sender, RoutedEventArgs e)
     {
         OpenSettings();
@@ -567,7 +408,7 @@ internal sealed partial class MainWindow : Window
     [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "This is the UI operation boundary; failures are logged and shown as a short status.")]
     private async Task TranslateCurrentAreaAsync()
     {
-        if (_isTranslating)
+        if (_isTranslating || _isCheckingSkills)
         {
             return;
         }
@@ -600,8 +441,8 @@ internal sealed partial class MainWindow : Window
         var cancellationSource = _translationCancellation;
         var cancellationToken = cancellationSource.Token;
         var operationConfig = CloneConfig(_config);
-        var targetGame = TargetGames.GetDisplayName(operationConfig.TargetGame);
-        var searchPrefix = TargetGames.GetSearchPrefix(operationConfig.TargetGame);
+        var targetGame = RocoGame.DisplayName;
+        var searchPrefix = RocoGame.SearchPrefix;
         var operationId = Guid.NewGuid().ToString("N")[..12];
         var stopwatch = Stopwatch.StartNew();
         var captureWidth = 0;
@@ -644,10 +485,7 @@ internal sealed partial class MainWindow : Window
                             if (!cancellationToken.IsCancellationRequested)
                             {
                                 streamedTextShown = true;
-                                SetStreamingResultText(
-                                    partialText,
-                                    operationConfig.Mode,
-                                    operationConfig.TargetLanguage);
+                                SetStreamingResultText(partialText);
                             }
                         },
                         DispatcherPriority.Background),
@@ -662,9 +500,7 @@ internal sealed partial class MainWindow : Window
                 result.Text,
                 result.SearchQueries,
                 targetGame,
-                searchPrefix,
-                operationConfig.Mode,
-                operationConfig.TargetLanguage);
+                searchPrefix);
             AppLogger.TextResult(new TextResultLogEntry(
                 DateTimeOffset.Now,
                 operationId,
@@ -749,17 +585,23 @@ internal sealed partial class MainWindow : Window
     }
 
     [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "This is the UI operation boundary; failures are logged and shown as a short status.")]
-    private async Task TranslateReplyToChineseAsync()
+    private async Task CheckVisibleSkillsAsync()
     {
-        if (_isReplyTranslating)
+        if (_isTranslating || _isCheckingSkills)
         {
             return;
         }
 
-        var replyText = ReplyTextBox.Text.Trim();
-        if (string.IsNullOrWhiteSpace(replyText))
+        if (FrameBorder.Visibility != Visibility.Visible ||
+            FrameBorder.ActualWidth < 8 ||
+            FrameBorder.ActualHeight < 8)
         {
-            SetStatus("Reply is empty");
+            AppLogger.Event("skill_check_skipped", new
+            {
+                reason = "frame_collapsed_or_too_small",
+                frameWidth = FrameBorder.ActualWidth,
+                frameHeight = FrameBorder.ActualHeight
+            });
             return;
         }
 
@@ -768,74 +610,142 @@ internal sealed partial class MainWindow : Window
             OpenSettings();
             if (!AppConfig.HasGeminiApiKey(_config.ApiKey))
             {
-                AppLogger.Event("reply_translate_skipped", new { reason = "api_key_required" });
+                AppLogger.Event("skill_check_skipped", new { reason = "api_key_required" });
                 return;
             }
         }
 
-        _replyCancellation?.Dispose();
-        _replyCancellation = new CancellationTokenSource();
-        var cancellationSource = _replyCancellation;
+        _skillCancellation?.Dispose();
+        _skillCancellation = new CancellationTokenSource();
+        var cancellationSource = _skillCancellation;
         var cancellationToken = cancellationSource.Token;
         var operationConfig = CloneConfig(_config);
+        var targetGame = RocoGame.DisplayName;
         var operationId = Guid.NewGuid().ToString("N")[..12];
+        var stopwatch = Stopwatch.StartNew();
+        var captureWidth = 0;
+        var captureHeight = 0;
         var model = AppConfig.NormalizeModel(operationConfig.Model);
+        string? providerRequestId = null;
+        var responseUsage = new TokenUsage(0, 0, 0);
+        var usageTracked = false;
 
         try
         {
-            AppLogger.Event("reply_translate_start", new
+            AppLogger.Event("skill_check_start", new
             {
                 operationId,
                 model,
-                sourceLanguage = operationConfig.TargetLanguage,
-                targetLanguage = "Chinese Simplified"
+                targetLanguage = operationConfig.TargetLanguage,
+                targetGame,
+                windowLeft = Left,
+                windowTop = Top,
+                frameWidth = FrameBorder.ActualWidth,
+                frameHeight = FrameBorder.ActualHeight
             });
-
-            SetReplyBusy(true);
+            SetSkillBusy(true);
             ClearStatus();
 
-            var result = await GeminiClient.TranslateReplyToChineseStreamingAsync(
-                    replyText,
+            using var bitmap = await CaptureFrameWithoutOverlayAsync(cancellationToken).ConfigureAwait(true);
+            captureWidth = bitmap.Width;
+            captureHeight = bitmap.Height;
+            var capturePath = SaveCapture(operationId, bitmap);
+
+            var result = await GeminiClient.ExtractVisibleSkillNamesStreamingAsync(
+                    bitmap,
                     operationConfig,
                     model,
                     operationId,
-                    _ => { },
                     cancellationToken)
                 .ConfigureAwait(true);
-
+            providerRequestId = result.ProviderRequestId;
+            responseUsage = result.Usage;
+            stopwatch.Stop();
             cancellationToken.ThrowIfCancellationRequested();
-            Clipboard.SetText(result.Text);
-            ReplyTextBox.Clear();
-            SetStatus("Copied to clipboard ✓");
-            AppLogger.Event("reply_translate_copied", new
+
+            var lookup = SkillDatabase.Lookup(result.SkillNames);
+            SetSkillResult(lookup, operationConfig.TargetLanguage);
+            AppLogger.Event("skill_check_result", new
             {
                 operationId,
                 model,
-                sourceLanguage = operationConfig.TargetLanguage,
-                translation = result.Text,
-                promptTokens = result.Usage.PromptTokens,
-                completionTokens = result.Usage.CompletionTokens,
-                totalTokens = result.Usage.TotalTokens
+                targetLanguage = operationConfig.TargetLanguage,
+                targetGame,
+                capturePath,
+                extracted = result.SkillNames,
+                matched = lookup.Matched.Select(skill => new { skill.Id, skill.NameZh }).ToArray(),
+                unmatched = lookup.Unmatched
             });
+            ClearStatus();
+            TrackUsage(
+                operationId,
+                providerRequestId,
+                true,
+                captureWidth,
+                captureHeight,
+                stopwatch.ElapsedMilliseconds,
+                responseUsage,
+                model,
+                operationConfig,
+                targetGame,
+                null,
+                null);
+            usageTracked = true;
         }
         catch (OperationCanceledException)
         {
-            AppLogger.Info($"operation={operationId} reply_translate.cancelled");
+            stopwatch.Stop();
+            AppLogger.Info($"operation={operationId} skill_check.cancelled");
+            if (!usageTracked && providerRequestId is not null)
+            {
+                TrackUsage(
+                    operationId,
+                    providerRequestId,
+                    false,
+                    captureWidth,
+                    captureHeight,
+                    stopwatch.ElapsedMilliseconds,
+                    responseUsage,
+                    model,
+                    operationConfig,
+                    targetGame,
+                    nameof(OperationCanceledException),
+                    "Cancelled");
+            }
         }
         catch (Exception ex)
         {
-            AppLogger.Error("Reply translation failed.", ex);
+            stopwatch.Stop();
+            AppLogger.Error("Skill check failed.", ex);
             var shortError = ToShortUserError(ex);
+            if (string.Equals(shortError, "Translation failed", StringComparison.Ordinal))
+            {
+                shortError = "Skill check failed";
+            }
+
             SetStatus(shortError);
-            AppLogger.Info($"operation={operationId} reply_translate.user_error={shortError}");
+            AppLogger.Info($"operation={operationId} skill_check.user_error={shortError}");
+            TrackUsage(
+                operationId,
+                providerRequestId,
+                false,
+                captureWidth,
+                captureHeight,
+                stopwatch.ElapsedMilliseconds,
+                responseUsage,
+                model,
+                operationConfig,
+                targetGame,
+                ex.GetType().Name,
+                shortError);
         }
         finally
         {
-            SetReplyBusy(false);
-            if (ReferenceEquals(_replyCancellation, cancellationSource))
+            SetSkillBusy(false);
+            if (ReferenceEquals(_skillCancellation, cancellationSource))
             {
-                _replyCancellation.Dispose();
-                _replyCancellation = null;
+                _skillCancellation.Dispose();
+                _skillCancellation = null;
             }
         }
     }
@@ -846,9 +756,9 @@ internal sealed partial class MainWindow : Window
         _translationCancellation?.Cancel();
         _translationCancellation?.Dispose();
         _translationCancellation = null;
-        _replyCancellation?.Cancel();
-        _replyCancellation?.Dispose();
-        _replyCancellation = null;
+        _skillCancellation?.Cancel();
+        _skillCancellation?.Dispose();
+        _skillCancellation = null;
         _statusClearTimer.Stop();
         _statusClearTimer.Tick -= StatusClearTimer_Tick;
 
@@ -865,8 +775,7 @@ internal sealed partial class MainWindow : Window
 
         AppLogger.Event("settings_opened", new
         {
-            targetLanguage = _config.TargetLanguage,
-            mode = AppModes.GetDisplayName(_config.Mode)
+            targetLanguage = _config.TargetLanguage
         });
 
         var settingsConfig = CloneConfig(_config);
@@ -885,8 +794,7 @@ internal sealed partial class MainWindow : Window
                     _config = settingsConfig;
                     AppLogger.Event("settings_saved", new
                     {
-                        targetLanguage = _config.TargetLanguage,
-                        mode = AppModes.GetDisplayName(_config.Mode)
+                        targetLanguage = _config.TargetLanguage
                     });
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or CryptographicException)
@@ -926,6 +834,7 @@ internal sealed partial class MainWindow : Window
     {
         _isTranslating = busy;
         TranslateButton.IsEnabled = !busy;
+        SkillButton.IsEnabled = !busy && !_isCheckingSkills;
         TranslateSpinner.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         TranslateIcon.Visibility = busy ? Visibility.Collapsed : Visibility.Visible;
 
@@ -940,47 +849,42 @@ internal sealed partial class MainWindow : Window
         }
     }
 
-    private void SetReplyBusy(bool busy)
+    private void SetSkillBusy(bool busy)
     {
-        _isReplyTranslating = busy;
-        ReplySendButton.IsEnabled = !busy;
-        ReplySpinner.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
-        ReplySendIcon.Visibility = busy ? Visibility.Collapsed : Visibility.Visible;
+        _isCheckingSkills = busy;
+        SkillButton.IsEnabled = !busy;
+        TranslateButton.IsEnabled = !busy && !_isTranslating;
+        SkillSpinner.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
+        SkillIcon.Visibility = busy ? Visibility.Collapsed : Visibility.Visible;
 
         if (busy)
         {
-            ReplySpinnerRotate.BeginAnimation(RotateTransform.AngleProperty, _spinnerAnimation);
+            SkillSpinnerRotate.BeginAnimation(RotateTransform.AngleProperty, _spinnerAnimation);
         }
         else
         {
-            ReplySpinnerRotate.BeginAnimation(RotateTransform.AngleProperty, null);
-            ReplySpinnerRotate.Angle = 0;
+            SkillSpinnerRotate.BeginAnimation(RotateTransform.AngleProperty, null);
+            SkillSpinnerRotate.Angle = 0;
         }
     }
 
-    private void SetStreamingResultText(
-        string text,
-        AppMode operationMode,
-        string operationTargetLanguage)
+    private void SetStreamingResultText(string text)
     {
+        _isShowingSkillResult = false;
+        UseCaptureFramePresentation();
+        SkillResultContent.Children.Clear();
+
         if (SearchButtonsPanel.Visibility == Visibility.Visible)
         {
             ClearSearchButtons();
-        }
-
-        if (operationMode == AppMode.Chat)
-        {
-            ShowReplyComposer(false, operationTargetLanguage);
-        }
-        else
-        {
-            HideReplyComposer();
         }
 
         SetResultTextLines(text);
         ResultTextPanel.Visibility = Visibility.Visible;
         ResultPanel.Padding = MaxResultTextPadding;
         ResultPanel.Visibility = Visibility.Visible;
+        ClearButton.Visibility = Visibility.Visible;
+        SetActionButtonsVisible(false);
         UpdateResultPanelClip();
         FitResultText();
         Dispatcher.BeginInvoke(FitResultText, DispatcherPriority.Loaded);
@@ -989,11 +893,14 @@ internal sealed partial class MainWindow : Window
     private void ClearFailedStreamingResult()
     {
         _displayedResult = null;
+        _isShowingSkillResult = false;
+        UseCaptureFramePresentation();
+        SkillResultContent.Children.Clear();
         ResultTextPanel.Children.Clear();
         ResultTextPanel.Visibility = Visibility.Collapsed;
         ClearSearchButtons();
-        HideReplyComposer();
         ResultPanel.Visibility = Visibility.Collapsed;
+        UpdateClearButtonVisibility();
     }
 
     private void SetResultText(
@@ -1001,121 +908,312 @@ internal sealed partial class MainWindow : Window
         string text,
         IReadOnlyList<SearchQueryResult> searchQueries,
         string targetGame,
-        string searchPrefix,
-        AppMode operationMode,
-        string operationTargetLanguage)
+        string searchPrefix)
     {
         _displayedResult = new DisplayedResultState(
-            operationMode,
-            operationTargetLanguage,
             operationId,
             searchQueries,
             targetGame,
             searchPrefix);
+        _isShowingSkillResult = false;
+        UseCaptureFramePresentation();
+        SkillResultContent.Children.Clear();
         SetResultTextLines(text);
         ResultTextPanel.Visibility = Visibility.Visible;
-        if (operationMode == AppMode.Chat)
-        {
-            ClearSearchButtons();
-            ShowReplyComposer(true, operationTargetLanguage);
-        }
-        else
-        {
-            HideReplyComposer();
-            SetSearchButtons(operationId, searchQueries, targetGame, searchPrefix);
-        }
+        SetSearchButtons(operationId, searchQueries, targetGame, searchPrefix);
 
         ResultPanel.Padding = MaxResultTextPadding;
         ResultPanel.Visibility = Visibility.Visible;
+        ClearButton.Visibility = Visibility.Visible;
+        SetActionButtonsVisible(false);
         UpdateResultPanelClip();
         FitResultText();
         Dispatcher.BeginInvoke(FitResultText, DispatcherPriority.Loaded);
     }
 
-    private void ApplyModeToVisibleResult()
+    private void SetSkillResult(SkillLookupResult lookup, string targetLanguage)
     {
-        if (ResultPanel.Visibility != Visibility.Visible || ResultTextPanel.Visibility != Visibility.Visible)
-        {
-            if (_config.Mode == AppMode.Chat && FrameBorder.Visibility == Visibility.Visible)
-            {
-                ClearSearchButtons();
-                ShowReplyComposer(true);
-            }
-            else
-            {
-                HideReplyComposer();
-                ResultPanel.Visibility = Visibility.Collapsed;
-            }
-
-            return;
-        }
-
-        if (_config.Mode == AppMode.Chat)
-        {
-            ClearSearchButtons();
-            ShowReplyComposer(true, _config.TargetLanguage);
-            return;
-        }
-
-        if (_displayedResult is null)
-        {
-            ClearSearchButtons();
-            HideReplyComposer();
-            return;
-        }
-
-        HideReplyComposer();
-        SetSearchButtons(
-            _displayedResult.OperationId,
-            _displayedResult.SearchQueries,
-            _displayedResult.TargetGame,
-            _displayedResult.SearchPrefix);
-    }
-
-    private void ShowDefaultChatComposerIfNeeded(bool focus)
-    {
-        if (_config.Mode != AppMode.Chat || ReplyComposerPanel.Visibility == Visibility.Visible)
-        {
-            return;
-        }
-
+        _displayedResult = null;
+        _isShowingSkillResult = true;
+        UseSkillResultPresentation();
         ClearSearchButtons();
-        ShowReplyComposer(focus);
+        ResultTextPanel.Children.Clear();
+        ResultTextPanel.Visibility = Visibility.Collapsed;
+        ResultPanel.Visibility = Visibility.Collapsed;
+        ClearButton.Visibility = Visibility.Visible;
+        SetActionButtonsVisible(false);
+        SkillResultContent.Children.Clear();
+
+        if (lookup.Matched.Count == 0 && lookup.Unmatched.Count == 0)
+        {
+            SkillResultContent.Children.Add(new TextBlock
+            {
+                Text = "No visible skills found.",
+                Foreground = new SolidColorBrush(Color.FromRgb(255, 198, 95)),
+                FontFamily = FontFamily,
+                FontSize = 13,
+                FontWeight = FontWeights.Bold,
+                TextWrapping = TextWrapping.Wrap
+            });
+        }
+
+        foreach (var skill in lookup.Matched)
+        {
+            SkillResultContent.Children.Add(CreateSkillCard(skill, targetLanguage));
+        }
+
+        LogUnmatchedSkills(lookup.Unmatched);
+
+        TrimLastSkillResultChildMargin();
+        Dispatcher.BeginInvoke(ResizeWindowToSkillResults, DispatcherPriority.Loaded);
     }
 
-    private void ShowReplyComposer(bool focus = true, string? targetLanguage = null)
+    private static void LogUnmatchedSkills(IReadOnlyList<string> unmatched)
     {
-        ResultPanel.Padding = MaxResultTextPadding;
-        ResultPanel.Visibility = Visibility.Visible;
-        ReplyComposerPanel.Visibility = Visibility.Visible;
-        ReplyTextBox.ToolTip = $"Type in {AppConfig.NormalizeTargetLanguage(targetLanguage ?? _config.TargetLanguage)}";
-        UpdateReplyComposerMargin();
-        FitResultText();
-        if (!focus)
+        if (unmatched.Count == 0)
         {
             return;
         }
 
-        Dispatcher.BeginInvoke(
-            () =>
-            {
-                ReplyTextBox.Focus();
-                Keyboard.Focus(ReplyTextBox);
-                FitResultText();
-            },
-            DispatcherPriority.Loaded);
+        AppLogger.Event("skills_unmatched", new
+        {
+            count = unmatched.Count,
+            names = unmatched
+        });
     }
 
-    private void HideReplyComposer()
+    private void UseCaptureFramePresentation()
     {
-        ReplyComposerPanel.Visibility = Visibility.Collapsed;
-        ReplyTextBox.Clear();
-        if (ResultTextPanel.Visibility != Visibility.Visible || ResultTextPanel.Children.Count == 0)
+        FrameBorder.BorderThickness = VisibleFrameBorderThickness;
+        ResultPanel.CornerRadius = new CornerRadius(3);
+        SkillResultPanel.Visibility = Visibility.Collapsed;
+    }
+
+    private void UseSkillResultPresentation()
+    {
+        FrameBorder.Visibility = Visibility.Collapsed;
+        FrameBorder.BorderThickness = HiddenFrameBorderThickness;
+        ResultPanel.Visibility = Visibility.Collapsed;
+        ResizeCornerButton.Visibility = Visibility.Collapsed;
+        ResizeRowButton.Visibility = Visibility.Collapsed;
+        SkillResultPanel.Visibility = Visibility.Visible;
+    }
+
+    private void ResizeWindowToSkillResults()
+    {
+        if (!_isShowingSkillResult || SkillResultPanel.Visibility != Visibility.Visible)
         {
-            ResultPanel.Visibility = Visibility.Collapsed;
+            return;
         }
 
-        FitResultText();
+        Width = Math.Max(MinSkillResultWidth, Width);
+        var contentWidth = Math.Max(
+            1,
+            Width - SkillResultPanel.Margin.Left - SkillResultPanel.Margin.Right - SkillResultPanel.Padding.Left - SkillResultPanel.Padding.Right);
+        SkillResultContent.Measure(new Size(contentWidth, double.PositiveInfinity));
+        var verticalMargins = SkillResultPanel.Margin.Top + SkillResultPanel.Margin.Bottom;
+        var contentHeight = SkillResultContent.DesiredSize.Height +
+            SkillResultPanel.Padding.Top +
+            SkillResultPanel.Padding.Bottom;
+        var panelHeight = Math.Min(MaxSkillResultHeight, Math.Ceiling(contentHeight));
+        SkillResultPanel.Height = panelHeight;
+        Height = verticalMargins + panelHeight;
+    }
+
+    private void TrimLastSkillResultChildMargin()
+    {
+        if (SkillResultContent.Children.Count == 0 ||
+            SkillResultContent.Children[^1] is not FrameworkElement element)
+        {
+            return;
+        }
+
+        element.Margin = new Thickness(
+            element.Margin.Left,
+            element.Margin.Top,
+            element.Margin.Right,
+            0);
+    }
+
+    private void ClearSkillResultPresentation()
+    {
+        _isShowingSkillResult = false;
+        SkillResultContent.Children.Clear();
+        SkillResultPanel.ClearValue(HeightProperty);
+        SkillResultPanel.Visibility = Visibility.Collapsed;
+        UseCaptureFramePresentation();
+    }
+
+    private FrameworkElement CreateSkillCard(SkillEntry skill, string targetLanguage)
+    {
+        var card = new Border
+        {
+            Padding = new Thickness(10),
+            Margin = new Thickness(0, 0, 0, 8),
+            Background = new SolidColorBrush(Color.FromArgb(110, 34, 34, 34)),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(120, 255, 198, 95)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(4)
+        };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var image = new Image
+        {
+            Width = 64,
+            Height = 64,
+            Margin = new Thickness(0, 0, 14, 0),
+            VerticalAlignment = VerticalAlignment.Top,
+            Stretch = Stretch.UniformToFill,
+            SnapsToDevicePixels = true
+        };
+        TrySetSkillImage(image, skill.Icon);
+        grid.Children.Add(image);
+
+        var textPanel = new StackPanel();
+        Grid.SetColumn(textPanel, 1);
+        grid.Children.Add(textPanel);
+
+        var localizedName = SkillDatabase.GetLocalizedName(skill, targetLanguage);
+        textPanel.Children.Add(new TextBlock
+        {
+            Text = localizedName,
+            Foreground = new SolidColorBrush(Color.FromRgb(255, 198, 95)),
+            FontFamily = FontFamily,
+            FontSize = 16,
+            FontWeight = FontWeights.Bold,
+            TextWrapping = TextWrapping.Wrap
+        });
+
+        textPanel.Children.Add(CreateSkillInfoLine(skill, targetLanguage));
+
+        textPanel.Children.Add(new TextBlock
+        {
+            Text = SkillDatabase.GetLocalizedDescription(skill, targetLanguage),
+            Foreground = new SolidColorBrush(Color.FromRgb(238, 238, 238)),
+            FontFamily = FontFamily,
+            FontSize = 14,
+            LineHeight = 18,
+            Margin = new Thickness(0, 5, 0, 0),
+            TextWrapping = TextWrapping.Wrap
+        });
+
+        card.Child = grid;
+        return card;
+    }
+
+    private FrameworkElement CreateSkillInfoLine(SkillEntry skill, string targetLanguage)
+    {
+        var panel = new WrapPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 2, 0, 0)
+        };
+
+        var elementIcon = new Image
+        {
+            Width = 16,
+            Height = 16,
+            Margin = new Thickness(0, 0, 3, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Stretch = Stretch.Uniform
+        };
+        TrySetSkillImage(elementIcon, skill.ElementIcon);
+        panel.Children.Add(elementIcon);
+        panel.Children.Add(CreateSkillInfoText(SkillDatabase.GetElementLabel(skill.Element, targetLanguage), new Thickness(0, 0, 8, 0)));
+
+        panel.Children.Add(CreateVectorIcon(GetSkillCategoryIconPath(skill.Category), 16, new Thickness(0, 0, 3, 0)));
+        panel.Children.Add(CreateSkillInfoText(SkillDatabase.GetCategoryLabel(skill.Category, targetLanguage), new Thickness(0, 0, 8, 0)));
+
+        panel.Children.Add(CreateVectorIcon("/Resources/EnergyStar.xaml", 15, new Thickness(0, 0, 3, 0)));
+        panel.Children.Add(CreateSkillInfoText(skill.Energy?.ToString() ?? "-", new Thickness(0, 0, 8, 0)));
+
+        panel.Children.Add(CreateVectorIcon("/Resources/SkillMeta/Power.xaml", 15, new Thickness(0, 0, 3, 0)));
+        panel.Children.Add(CreateSkillInfoText(skill.Power?.ToString() ?? "-", new Thickness(0, 0, 8, 0)));
+
+        if (skill.Accuracy is not null)
+        {
+            panel.Children.Add(CreateVectorIcon("/Resources/SkillMeta/Accuracy.xaml", 15, new Thickness(0, 0, 3, 0)));
+            panel.Children.Add(CreateSkillInfoText(skill.Accuracy.ToString() ?? "-", new Thickness(0, 0, 8, 0)));
+        }
+
+        if (skill.Priority is not null)
+        {
+            panel.Children.Add(CreateVectorIcon("/Resources/SkillMeta/Priority.xaml", 15, new Thickness(0, 0, 3, 0)));
+            panel.Children.Add(CreateSkillInfoText(skill.Priority.ToString() ?? "-", new Thickness(0, 0, 8, 0)));
+        }
+
+        return panel;
+    }
+
+    private TextBlock CreateSkillInfoText(string text, Thickness margin)
+    {
+        return new TextBlock
+        {
+            Text = text,
+            Foreground = new SolidColorBrush(Color.FromRgb(210, 210, 210)),
+            FontFamily = FontFamily,
+            FontSize = 13,
+            Margin = margin,
+            TextWrapping = TextWrapping.Wrap
+        };
+    }
+
+    private static Image CreateVectorIcon(string resourcePath, double size, Thickness margin)
+    {
+        var image = new Image
+        {
+            Width = size,
+            Height = size,
+            Margin = margin,
+            VerticalAlignment = VerticalAlignment.Center,
+            Stretch = Stretch.Uniform
+        };
+
+        try
+        {
+            image.Source = (ImageSource)Application.LoadComponent(new Uri(resourcePath, UriKind.Relative));
+        }
+        catch (IOException)
+        {
+        }
+        catch (InvalidOperationException)
+        {
+        }
+
+        return image;
+    }
+
+    private static string GetSkillCategoryIconPath(string category)
+    {
+        return category switch
+        {
+            "physical" => "/Resources/SkillMeta/Physical.xaml",
+            "special" => "/Resources/SkillMeta/Magic.xaml",
+            "defense" => "/Resources/SkillMeta/Defense.xaml",
+            _ => "/Resources/SkillMeta/Status.xaml"
+        };
+    }
+
+    private static void TrySetSkillImage(Image image, string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        try
+        {
+            image.Source = new BitmapImage(new Uri($"pack://application:,,,/{path}", UriKind.Absolute));
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        catch (IOException)
+        {
+        }
     }
 
     private void SetStatus(string text)
@@ -1123,6 +1221,7 @@ internal sealed partial class MainWindow : Window
         _statusClearTimer.Stop();
         StatusText.Text = text;
         StatusLabel.Visibility = Visibility.Visible;
+        ClearButton.Visibility = Visibility.Visible;
         _statusClearTimer.Start();
     }
 
@@ -1131,6 +1230,7 @@ internal sealed partial class MainWindow : Window
         _statusClearTimer.Stop();
         StatusText.Text = string.Empty;
         StatusLabel.Visibility = Visibility.Collapsed;
+        UpdateClearButtonVisibility();
     }
 
     private void StatusClearTimer_Tick(object? sender, EventArgs e)
@@ -1143,9 +1243,29 @@ internal sealed partial class MainWindow : Window
         _displayedResult = null;
         ResultTextPanel.Children.Clear();
         ResultTextPanel.Visibility = Visibility.Collapsed;
-        HideReplyComposer();
+        SkillResultContent.Children.Clear();
+        SkillResultPanel.Visibility = Visibility.Collapsed;
+        _isShowingSkillResult = false;
+        UseCaptureFramePresentation();
         ClearStatus();
         CollapseFrame();
+    }
+
+    private void UpdateClearButtonVisibility()
+    {
+        ClearButton.Visibility =
+            ResultPanel.Visibility == Visibility.Visible ||
+            SkillResultPanel.Visibility == Visibility.Visible ||
+            StatusLabel.Visibility == Visibility.Visible
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+    }
+
+    private void SetActionButtonsVisible(bool visible)
+    {
+        var visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        TranslateButton.Visibility = visibility;
+        SkillButton.Visibility = visibility;
     }
 
     private void SetSearchButtons(
@@ -1353,8 +1473,6 @@ internal sealed partial class MainWindow : Window
             ApiKey = config.ApiKey,
             Model = AppConfig.NormalizeModel(config.Model),
             TargetLanguage = AppConfig.NormalizeTargetLanguage(config.TargetLanguage),
-            TargetGame = config.TargetGame,
-            Mode = config.Mode,
         };
 
     private void FitResultText()
@@ -1372,16 +1490,9 @@ internal sealed partial class MainWindow : Window
         for (var fontSize = MaxResultFontSize; fontSize >= MinResultFontSize; fontSize -= 0.5)
         {
             ResultPanel.Padding = GetResultTextPadding(fontSize);
-            UpdateReplyComposerMargin();
             ApplyResultTextLayout(fontSize, TextTrimming.None);
             var availableWidth = Math.Max(1, ResultPanel.ActualWidth - ResultPanel.Padding.Left - ResultPanel.Padding.Right);
             var availableHeight = Math.Max(1, ResultPanel.ActualHeight - ResultPanel.Padding.Top - ResultPanel.Padding.Bottom);
-            if (ReplyComposerPanel.Visibility == Visibility.Visible)
-            {
-                availableHeight = Math.Max(
-                    1,
-                    availableHeight - ReplyComposerPanel.ActualHeight - ReplyComposerPanel.Margin.Top);
-            }
 
             ResultTextPanel.Measure(new Size(availableWidth, double.PositiveInfinity));
 
@@ -1393,18 +1504,7 @@ internal sealed partial class MainWindow : Window
         }
 
         ResultPanel.Padding = MinResultTextPadding;
-        UpdateReplyComposerMargin();
         ApplyResultTextLayout(MinResultFontSize, TextTrimming.CharacterEllipsis);
-    }
-
-    private void UpdateReplyComposerMargin()
-    {
-        var horizontalOffset = ResultPanel.Padding.Bottom - ResultPanel.Padding.Left;
-        ReplyComposerPanel.Margin = new Thickness(
-            horizontalOffset,
-            ReplyComposerPanel.Margin.Top,
-            horizontalOffset,
-            0);
     }
 
     private void SetResultTextLines(string text)
@@ -1473,8 +1573,6 @@ internal sealed record SearchButtonState(
     string Url);
 
 internal sealed record DisplayedResultState(
-    AppMode Mode,
-    string TargetLanguage,
     string OperationId,
     IReadOnlyList<SearchQueryResult> SearchQueries,
     string TargetGame,

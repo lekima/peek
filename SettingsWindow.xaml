@@ -184,6 +184,12 @@
                        Style="{StaticResource MutedText}" />
             <TextBox x:Name="TargetLanguageBox"
                      Margin="0,6,0,0" />
+
+            <TextBlock Margin="0,16,0,0"
+                       Text="Last updated"
+                       Style="{StaticResource MutedText}" />
+            <TextBlock x:Name="LastUpdatedText"
+                       Margin="0,6,0,0" />
         </StackPanel>
     </DockPanel>
 </Window>

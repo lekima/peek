@@ -1,6 +1,6 @@
 # Peek
 
-Minimal Windows overlay for manually translating a selected game-screen area.
+Minimal Windows overlay companion for Roco Kingdom: World.
 
 ## Release
 
@@ -10,12 +10,11 @@ The release zip is self-contained for Windows x64, so it should not require a se
 
 ## How it works
 
-- Use the four-button strip to move, translate, clear, and resize.
+- Use the five-button strip to move, translate, check skills, clear, and resize.
 - Drag the resize button downward to reveal the capture frame.
 - The app captures only the framed area underneath, sends the image to the Gemini API, then streams translated text inside the frame.
-- Right-click the move button to switch between Game mode and Chat mode. Game mode keeps Bilibili guide searches; Chat mode replaces them with a reply box.
-- In Chat mode, type a reply in your target language and press Enter to translate it to Simplified Chinese and copy it to the clipboard.
-- Right-click the move button to choose the target game, open Settings, or quit.
+- Click the skill button (`S`) to identify visible Chinese skill names and show matching local skill details with icons.
+- Right-click the move button to open Settings or quit.
 
 ## Settings
 
@@ -23,11 +22,11 @@ Right-click the move button, then choose `Settings`.
 
 - Target language: configurable, default English
 - Model: configurable Gemini model id, default `gemini-3.1-flash-lite`
-- Search: search buttons open Bilibili Chinese search.
-- Target game: selected from the move-button context menu; choose `Any game` for no added prefix. Current games are Roco Kingdom: World and Honor of Kings: Chess.
+- Search: search buttons open Bilibili Chinese search and always prepend the Roco Kingdom search prefix.
 - API key storage: Gemini API keys are encrypted for the current Windows user with DPAPI in `data/settings.json`
 - Log: `data/peek.log.jsonl`
-- Review data: source captures are saved in `data/captures`, read translations/search queries are logged as `text_result` events, and copied reply translations are logged as `reply_translate_copied` events.
+- Review data: source captures are saved in `data/captures`, and read translations/search queries are logged as `text_result` events.
+- Skill data: bundled from `wikiroco.com` under `Resources/Data/skills.json`; skill icons are bundled under `Resources/Skills`.
 - Font: Roboto and Roboto Condensed are bundled from Google Fonts under the SIL Open Font License in `Resources/Fonts`; Settings uses regular Roboto and overlay translation text uses Roboto Condensed Semibold.
 - Local data cleanup: delete the `data` folder next to `Peek.exe`
 
@@ -45,5 +44,42 @@ Compress-Archive -LiteralPath .\bin\Release\net8.0-windows10.0.19041.0\win-x64\p
 ```
 
 Before pushing code changes that affect the app, rebuild and commit `releases/Peek-win-x64.zip` with the same change.
+
+## Updating Skill Data
+
+Skill data is a generated offline asset. Update it before building a new app release; do not require users to refresh data at runtime.
+
+Validate the current bundled database:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\update-skills.ps1 -ValidateOnly
+```
+
+Fetch the latest wikiroco skills/icons and preserve existing translations when source text is unchanged:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\update-skills.ps1
+```
+
+If the script reports new or changed skills, translate only those changed records:
+
+```powershell
+$env:GEMINI_API_KEY = "AIza..."
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\update-skills.ps1 -TranslateChanged
+```
+
+The updater:
+
+- Fetches `https://wikiroco.com/api/skills` and `https://wikiroco.com/api/attributes`
+- Regenerates `Resources/Data/skills.json`
+- Downloads missing or changed skill icons
+- Normalizes all skill icons to `128x128`
+- Updates element icons
+- Stores `source_hash` and `source_icon_url` for future change detection
+- Preserves EN/VI translations when `name_zh`, `description_zh`, stats, element, and category are unchanged
+- Calls Gemini only for new/changed skills when `-TranslateChanged` is used
+- Validates skill count, duplicate IDs/names, icon presence, icon size, and EN/VI localization coverage
+
+After updating data, run the release build command above and commit the changed generated assets plus `releases/Peek-win-x64.zip`.
 
 For strict anti-cheat games, use borderless windowed mode when possible. The app is an external desktop overlay: it does not inject into the game, hook graphics APIs, read or write process memory, install global input hooks, or automate input. It still uses normal Windows screen capture for the selected area, so no app can guarantee compatibility with every anti-cheat.

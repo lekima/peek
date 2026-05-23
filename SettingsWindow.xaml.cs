@@ -20,6 +20,7 @@ internal sealed partial class SettingsWindow : Window
         ApiKeyBox.Password = config.ApiKey;
         ModelBox.Text = AppConfig.NormalizeModel(config.Model);
         TargetLanguageBox.Text = AppConfig.NormalizeTargetLanguage(config.TargetLanguage);
+        LastUpdatedText.Text = AppInfo.LastUpdated;
     }
 
     private void Save_Click(object sender, RoutedEventArgs e)

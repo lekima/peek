@@ -1,6 +1,8 @@
 bin/
 obj/
 data/
+!Resources/Data/
+!Resources/Data/skills.json
 releases/*
 !releases/Peek-win-x64.zip
 .vs/

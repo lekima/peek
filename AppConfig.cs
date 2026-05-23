@@ -6,59 +6,10 @@ using System.Text.Json;
 
 namespace Peek;
 
-internal enum TargetGame
+internal static class RocoGame
 {
-    None,
-    RocoKingdomWorld,
-    HonorOfKingsChess
-}
-
-internal static class TargetGames
-{
-    public static IReadOnlyList<TargetGame> MenuGames { get; } =
-    [
-        TargetGame.None,
-        TargetGame.RocoKingdomWorld,
-        TargetGame.HonorOfKingsChess
-    ];
-
-    public static string GetDisplayName(TargetGame game) =>
-        game switch
-        {
-            TargetGame.RocoKingdomWorld => "Roco Kingdom: World",
-            TargetGame.HonorOfKingsChess => "Honor of Kings: Chess",
-            _ => "Any game"
-        };
-
-    public static string GetSearchPrefix(TargetGame game) =>
-        game switch
-        {
-            TargetGame.RocoKingdomWorld => "洛克王国",
-            TargetGame.HonorOfKingsChess => "王者万象棋",
-            _ => string.Empty
-        };
-}
-
-internal enum AppMode
-{
-    Game,
-    Chat
-}
-
-internal static class AppModes
-{
-    public static IReadOnlyList<AppMode> MenuModes { get; } =
-    [
-        AppMode.Game,
-        AppMode.Chat
-    ];
-
-    public static string GetDisplayName(AppMode mode) =>
-        mode switch
-        {
-            AppMode.Chat => "Chat mode",
-            _ => "Game mode"
-        };
+    public const string DisplayName = "Roco Kingdom: World";
+    public const string SearchPrefix = "洛克王国";
 }
 
 internal sealed class AppConfig
@@ -69,8 +20,6 @@ internal sealed class AppConfig
     public string ApiKey { get; set; } = string.Empty;
     public string Model { get; set; } = DefaultModel;
     public string TargetLanguage { get; set; } = "English";
-    public TargetGame TargetGame { get; set; } = TargetGame.None;
-    public AppMode Mode { get; set; } = AppMode.Game;
 
     public static bool HasGeminiApiKey(string? value) =>
         !string.IsNullOrWhiteSpace(value) &&
@@ -95,8 +44,6 @@ internal static class AppConfigStore
         public string EncryptedApiKey { get; set; } = string.Empty;
         public string Model { get; set; } = AppConfig.DefaultModel;
         public string TargetLanguage { get; set; } = "English";
-        public string TargetGame { get; set; } = nameof(Peek.TargetGame.None);
-        public string Mode { get; set; } = nameof(AppMode.Game);
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -121,9 +68,7 @@ internal static class AppConfigStore
             {
                 ApiKey = Unprotect(stored.EncryptedApiKey),
                 Model = AppConfig.NormalizeModel(stored.Model),
-                TargetLanguage = AppConfig.NormalizeTargetLanguage(stored.TargetLanguage),
-                TargetGame = NormalizeTargetGame(stored.TargetGame),
-                Mode = NormalizeMode(stored.Mode)
+                TargetLanguage = AppConfig.NormalizeTargetLanguage(stored.TargetLanguage)
             };
         }
         catch (IOException)
@@ -162,9 +107,7 @@ internal static class AppConfigStore
         {
             EncryptedApiKey = Protect(config.ApiKey),
             Model = AppConfig.NormalizeModel(config.Model),
-            TargetLanguage = AppConfig.NormalizeTargetLanguage(config.TargetLanguage),
-            TargetGame = config.TargetGame.ToString(),
-            Mode = config.Mode.ToString()
+            TargetLanguage = AppConfig.NormalizeTargetLanguage(config.TargetLanguage)
         };
 
         var tempPath = ConfigPath + ".tmp";
@@ -192,22 +135,6 @@ internal static class AppConfigStore
         var bytes = Encoding.UTF8.GetBytes(value);
         var encrypted = ProtectedData.Protect(bytes, null, DataProtectionScope.CurrentUser);
         return Convert.ToBase64String(encrypted);
-    }
-
-    private static TargetGame NormalizeTargetGame(string value)
-    {
-        return Enum.TryParse<TargetGame>(value, true, out var targetGame) &&
-            Enum.IsDefined(targetGame)
-            ? targetGame
-            : TargetGame.None;
-    }
-
-    private static AppMode NormalizeMode(string value)
-    {
-        return Enum.TryParse<AppMode>(value, true, out var mode) &&
-            Enum.IsDefined(mode)
-            ? mode
-            : AppMode.Game;
     }
 
     private static string Unprotect(string value)
