@@ -25,5 +25,14 @@ internal static class AppPaths
         }
     }
 
-    public static string DataDirectory => Path.Combine(AppDirectory, "data");
+    public static string DataDirectory
+    {
+        get
+        {
+            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            return string.IsNullOrWhiteSpace(localAppData)
+                ? AppDirectory
+                : Path.Combine(localAppData, "Peek");
+        }
+    }
 }

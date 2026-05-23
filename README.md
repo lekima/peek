@@ -24,17 +24,16 @@ Search URLs are deterministic and use the Roco prefix:
 Settings are available from the move-button right-click menu.
 
 - `Gemini API key`: stored encrypted for the current Windows user with DPAPI.
-- `Gemini model`: defaults to `gemini-3.1-flash-lite`.
 - `Target language`: fixed dropdown with `English` and `Vietnamese`.
 - `Last updated`: app-level bundled data date from `AppInfo`.
 
-Runtime data is stored next to the executable under `data/`:
+Runtime data is stored under the current Windows user's local app data folder, normally `%LOCALAPPDATA%\Peek`:
 
-- `data/settings.json`: encrypted settings.
-- `data/peek.log.jsonl`: app log.
-- `data/captures/`: screenshots captured for translation or skill checking.
+- `settings.json`: encrypted settings.
+- `peek.log.jsonl`: app log.
+- `captures/`: screenshots captured for translation or skill checking.
 
-Delete the local `data/` folder to reset settings, logs, and captures.
+Delete the local app data folder to reset settings, logs, and captures.
 
 ## Bundled Data
 

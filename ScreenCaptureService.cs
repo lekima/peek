@@ -34,14 +34,22 @@ internal static class ScreenCaptureService
     public static Bitmap CaptureScreenBounds(Rect bounds)
     {
         var bitmap = new Bitmap((int)bounds.Width, (int)bounds.Height);
-        using var graphics = Graphics.FromImage(bitmap);
-        graphics.CopyFromScreen(
-            (int)bounds.X,
-            (int)bounds.Y,
-            0,
-            0,
-            new System.Drawing.Size((int)bounds.Width, (int)bounds.Height),
-            CopyPixelOperation.SourceCopy);
-        return bitmap;
+        try
+        {
+            using var graphics = Graphics.FromImage(bitmap);
+            graphics.CopyFromScreen(
+                (int)bounds.X,
+                (int)bounds.Y,
+                0,
+                0,
+                new System.Drawing.Size((int)bounds.Width, (int)bounds.Height),
+                CopyPixelOperation.SourceCopy);
+            return bitmap;
+        }
+        catch
+        {
+            bitmap.Dispose();
+            throw;
+        }
     }
 }

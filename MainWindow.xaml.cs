@@ -474,7 +474,7 @@ internal sealed partial class MainWindow : Window
         var stopwatch = Stopwatch.StartNew();
         var captureWidth = 0;
         var captureHeight = 0;
-        var model = AppConfig.NormalizeModel(operationConfig.Model);
+        var model = AppConfig.DefaultModel;
         string? providerRequestId = null;
         var responseUsage = new TokenUsage(0, 0, 0);
         var usageTracked = false;
@@ -650,7 +650,7 @@ internal sealed partial class MainWindow : Window
         var stopwatch = Stopwatch.StartNew();
         var captureWidth = 0;
         var captureHeight = 0;
-        var model = AppConfig.NormalizeModel(operationConfig.Model);
+        var model = AppConfig.DefaultModel;
         string? providerRequestId = null;
         var responseUsage = new TokenUsage(0, 0, 0);
         var usageTracked = false;
@@ -804,33 +804,36 @@ internal sealed partial class MainWindow : Window
         });
 
         var settingsConfig = CloneConfig(_config);
-        _settingsWindow = new SettingsWindow(settingsConfig)
+        while (true)
         {
-            Owner = this
-        };
-
-        try
-        {
-            if (_settingsWindow.ShowDialog() == true)
+            _settingsWindow = new SettingsWindow(settingsConfig)
             {
-                try
+                Owner = this
+            };
+
+            try
+            {
+                if (_settingsWindow.ShowDialog() != true)
                 {
-                    AppConfigStore.Save(settingsConfig);
-                    _config = settingsConfig;
-                    AppLogger.Event("settings_saved", new
-                    {
-                        targetLanguage = _config.TargetLanguage
-                    });
+                    return;
                 }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or CryptographicException)
+
+                AppConfigStore.Save(settingsConfig);
+                _config = settingsConfig;
+                AppLogger.Event("settings_saved", new
                 {
-                    MessageBox.Show(this, ex.Message, "Settings", MessageBoxButton.OK, MessageBoxImage.Warning);
-                }
+                    targetLanguage = _config.TargetLanguage
+                });
+                return;
             }
-        }
-        finally
-        {
-            _settingsWindow = null;
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException or CryptographicException)
+            {
+                MessageBox.Show(this, ex.Message, "Settings", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            finally
+            {
+                _settingsWindow = null;
+            }
         }
     }
 
@@ -862,6 +865,7 @@ internal sealed partial class MainWindow : Window
         SkillButton.IsEnabled = !busy && !_isCheckingSkills;
         TranslateSpinner.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         TranslateIcon.Visibility = busy ? Visibility.Collapsed : Visibility.Visible;
+        UpdateClearButtonVisibility();
 
         if (busy)
         {
@@ -881,6 +885,7 @@ internal sealed partial class MainWindow : Window
         TranslateButton.IsEnabled = !busy && !_isTranslating;
         SkillSpinner.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         SkillIcon.Visibility = busy ? Visibility.Collapsed : Visibility.Visible;
+        UpdateClearButtonVisibility();
 
         if (busy)
         {
@@ -1452,6 +1457,8 @@ internal sealed partial class MainWindow : Window
     private void UpdateClearButtonVisibility()
     {
         ClearButton.Visibility =
+            _isTranslating ||
+            _isCheckingSkills ||
             ResultPanel.Visibility == Visibility.Visible ||
             SkillResultPanel.Visibility == Visibility.Visible
                 ? Visibility.Visible
@@ -1682,7 +1689,6 @@ internal sealed partial class MainWindow : Window
         new()
         {
             ApiKey = config.ApiKey,
-            Model = AppConfig.NormalizeModel(config.Model),
             TargetLanguage = AppConfig.NormalizeTargetLanguage(config.TargetLanguage),
         };
 

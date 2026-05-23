@@ -297,12 +297,6 @@
                          PasswordChar="*" />
 
             <TextBlock Margin="0,16,0,0"
-                       Text="Gemini model"
-                       Style="{StaticResource MutedText}" />
-            <TextBox x:Name="ModelBox"
-                     Margin="0,6,0,0" />
-
-            <TextBlock Margin="0,16,0,0"
                        Text="Target language"
                        Style="{StaticResource MutedText}" />
             <ComboBox x:Name="TargetLanguageBox"

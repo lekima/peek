@@ -18,20 +18,11 @@ internal sealed class AppConfig
     public const string DefaultModel = "gemini-3.1-flash-lite";
 
     public string ApiKey { get; set; } = string.Empty;
-    public string Model { get; set; } = DefaultModel;
     public string TargetLanguage { get; set; } = "English";
 
     public static bool HasGeminiApiKey(string? value) =>
         !string.IsNullOrWhiteSpace(value) &&
         value.Trim().StartsWith("AIza", StringComparison.OrdinalIgnoreCase);
-
-    public static string NormalizeModel(string? value)
-    {
-        value = value?.Trim() ?? string.Empty;
-        return value.StartsWith("gemini-", StringComparison.OrdinalIgnoreCase)
-            ? value.Trim()
-            : DefaultModel;
-    }
 
     public static string NormalizeTargetLanguage(string? value)
     {
@@ -51,7 +42,6 @@ internal static class AppConfigStore
     private sealed class StoredAppConfig
     {
         public string EncryptedApiKey { get; set; } = string.Empty;
-        public string Model { get; set; } = AppConfig.DefaultModel;
         public string TargetLanguage { get; set; } = "English";
     }
 
@@ -76,7 +66,6 @@ internal static class AppConfigStore
             return new AppConfig
             {
                 ApiKey = Unprotect(stored.EncryptedApiKey),
-                Model = AppConfig.NormalizeModel(stored.Model),
                 TargetLanguage = AppConfig.NormalizeTargetLanguage(stored.TargetLanguage)
             };
         }
@@ -115,7 +104,6 @@ internal static class AppConfigStore
         var stored = new StoredAppConfig
         {
             EncryptedApiKey = Protect(config.ApiKey),
-            Model = AppConfig.NormalizeModel(config.Model),
             TargetLanguage = AppConfig.NormalizeTargetLanguage(config.TargetLanguage)
         };
 

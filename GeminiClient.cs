@@ -16,7 +16,7 @@ internal static class GeminiClient
     private const string TextSchemaVersion = "text-result-schema-v9";
     private const string SkillExtractionPromptVersion = "chinese-skill-extract-v1";
     private const string SkillExtractionSchemaVersion = "skill-extract-schema-v1";
-    private const string JsonResponseMimeType = "APPLICATION_JSON";
+    private const string JsonResponseMimeType = "application/json";
     private const string MinimalThinkingLevel = "minimal";
     private const int TextMaxOutputTokens = 8192;
     private const int SkillExtractionMaxOutputTokens = 1024;
@@ -57,7 +57,7 @@ internal static class GeminiClient
             structuredOutput = true,
             provider = "gemini",
             streaming = true,
-            thinkingLevel = MinimalThinkingLevel,
+            thinkingConfig = DescribeThinkingConfig(),
             promptVersion = TextPromptVersion,
             schemaVersion = TextSchemaVersion
         });
@@ -111,7 +111,7 @@ internal static class GeminiClient
             structuredOutput = true,
             provider = "gemini",
             streaming = true,
-            thinkingLevel = MinimalThinkingLevel,
+            thinkingConfig = DescribeThinkingConfig(),
             promptVersion = SkillExtractionPromptVersion,
             schemaVersion = SkillExtractionSchemaVersion
         });
@@ -169,15 +169,9 @@ internal static class GeminiClient
                     }
                 }
             },
-            ["generationConfig"] = new Dictionary<string, object?>
-            {
-                ["maxOutputTokens"] = TextMaxOutputTokens,
-                ["responseFormat"] = CreateJsonResponseFormat(CreateTextTranslationResponseSchema(targetLanguage)),
-                ["thinkingConfig"] = new Dictionary<string, object?>
-                {
-                    ["thinkingLevel"] = MinimalThinkingLevel
-                }
-            }
+            ["generationConfig"] = CreateGenerationConfig(
+                TextMaxOutputTokens,
+                CreateTextTranslationResponseSchema(targetLanguage))
         };
 
     private static Dictionary<string, object?> CreateSkillExtractionPayload(string imageData) =>
@@ -215,26 +209,34 @@ internal static class GeminiClient
                     }
                 }
             },
-            ["generationConfig"] = new Dictionary<string, object?>
-            {
-                ["maxOutputTokens"] = SkillExtractionMaxOutputTokens,
-                ["responseFormat"] = CreateJsonResponseFormat(CreateSkillExtractionResponseSchema()),
-                ["thinkingConfig"] = new Dictionary<string, object?>
-                {
-                    ["thinkingLevel"] = MinimalThinkingLevel
-                }
-            }
+            ["generationConfig"] = CreateGenerationConfig(
+                SkillExtractionMaxOutputTokens,
+                CreateSkillExtractionResponseSchema())
         };
 
-    private static Dictionary<string, object?> CreateJsonResponseFormat(Dictionary<string, object?> schema) =>
+    private static Dictionary<string, object?> CreateGenerationConfig(
+        int maxOutputTokens,
+        Dictionary<string, object?> schema)
+    {
+        var config = new Dictionary<string, object?>
+        {
+            ["maxOutputTokens"] = maxOutputTokens,
+            ["responseMimeType"] = JsonResponseMimeType,
+            ["responseJsonSchema"] = schema,
+            ["thinkingConfig"] = CreateThinkingConfig()
+        };
+
+        return config;
+    }
+
+    private static Dictionary<string, object?> CreateThinkingConfig() =>
         new()
         {
-            ["text"] = new Dictionary<string, object?>
-            {
-                ["mimeType"] = JsonResponseMimeType,
-                ["schema"] = schema
-            }
+            ["thinkingLevel"] = MinimalThinkingLevel
         };
+
+    private static string DescribeThinkingConfig() =>
+        $"thinkingLevel={MinimalThinkingLevel}";
 
     private static void LogUsage(string operationId, string? providerRequestId, TokenUsage usage)
     {
