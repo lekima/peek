@@ -1202,7 +1202,7 @@ internal sealed partial class MainWindow : Window
         {
             Background = new SolidColorBrush(elementColor),
             CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(5, 2, 7, 2),
+            Padding = new Thickness(5, 2, 9, 2),
             Margin = new Thickness(0, 4, 0, 0),
             HorizontalAlignment = HorizontalAlignment.Left,
             ToolTip = SkillDatabase.GetElementLabel(skill.Element, targetLanguage)
@@ -1217,7 +1217,7 @@ internal sealed partial class MainWindow : Window
         {
             Width = SkillBadgeElementIconSize,
             Height = SkillBadgeElementIconSize,
-            Margin = new Thickness(0, 0, 5, 0),
+            Margin = new Thickness(0, 0, 3, 0),
             VerticalAlignment = VerticalAlignment.Center,
             Stretch = Stretch.Uniform
         };
@@ -1240,7 +1240,7 @@ internal sealed partial class MainWindow : Window
     {
         var badge = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(255, 198, 95)),
+            Background = new SolidColorBrush(Color.FromRgb(96, 96, 96)),
             CornerRadius = new CornerRadius(9),
             Padding = new Thickness(4, 1, 5, 1),
             MinWidth = 24,
@@ -1260,7 +1260,7 @@ internal sealed partial class MainWindow : Window
         panel.Children.Add(new TextBlock
         {
             Text = energy?.ToString(CultureInfo.InvariantCulture) ?? "--",
-            Foreground = new SolidColorBrush(Color.FromRgb(34, 28, 14)),
+            Foreground = Brushes.White,
             FontFamily = FontFamily,
             FontSize = 12,
             FontWeight = FontWeights.Bold,
