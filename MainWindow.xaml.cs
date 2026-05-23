@@ -26,7 +26,7 @@ internal sealed partial class MainWindow : Window
     private const double CollapsedWidth = 106;
     private const double CollapsedHeight = 24;
     private const double FrameRevealHeight = 48;
-    private const double MinSkillResultWidth = 430;
+    private const double SkillResultWidth = 400;
     private const double MaxSkillResultHeight = 640;
     private const double MaxResultFontSize = 24;
     private const double MinResultFontSize = 10;
@@ -1008,7 +1008,7 @@ internal sealed partial class MainWindow : Window
             return;
         }
 
-        Width = Math.Max(MinSkillResultWidth, Width);
+        Width = SkillResultWidth;
         var contentWidth = Math.Max(
             1,
             Width - SkillResultPanel.Margin.Left - SkillResultPanel.Margin.Right - SkillResultPanel.Padding.Left - SkillResultPanel.Padding.Right);
