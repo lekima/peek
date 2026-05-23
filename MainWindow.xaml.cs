@@ -5,7 +5,6 @@ using System.Security;
 using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -29,6 +28,7 @@ internal sealed partial class MainWindow : Window
     private const double CollapsedHeight = 24;
     private const double FrameRevealHeight = 48;
     private const double SkillCardVerticalBreakpoint = 320;
+    private const double SkillIconSize = 64;
     private const double SkillInfoIconSlotSize = 20;
     private const double SkillCategoryIconSize = 20;
     private const double SkillBadgeElementIconSize = 17;
@@ -1063,10 +1063,12 @@ internal sealed partial class MainWindow : Window
         {
             Padding = new Thickness(10),
             Margin = new Thickness(0, 0, 0, 8),
-            Background = new SolidColorBrush(Color.FromArgb(130, 44, 44, 44)),
+            Background = new SolidColorBrush(Color.FromArgb(145, 50, 50, 50)),
             BorderThickness = new Thickness(0),
             CornerRadius = new CornerRadius(6)
         };
+        TextOptions.SetTextFormattingMode(card, TextFormattingMode.Ideal);
+        TextOptions.SetTextRenderingMode(card, TextRenderingMode.Grayscale);
 
         bool? isVertical = null;
         void UpdateLayout(double width)
@@ -1094,8 +1096,8 @@ internal sealed partial class MainWindow : Window
 
         var textPanel = new StackPanel();
         var localizedName = SkillDatabase.GetLocalizedName(skill, targetLanguage);
-        textPanel.Children.Add(CreateSkillTitleLine(skill, targetLanguage, localizedName));
-        textPanel.Children.Add(CreateSkillDamageBadge(skill, targetLanguage));
+        textPanel.Children.Add(CreateSkillTitleLine(localizedName));
+        textPanel.Children.Add(CreateSkillBadgeLine(skill, targetLanguage));
 
         textPanel.Children.Add(new TextBlock
         {
@@ -1129,8 +1131,8 @@ internal sealed partial class MainWindow : Window
     {
         var host = new Grid
         {
-            Width = 60,
-            Height = 60,
+            Width = SkillIconSize,
+            Height = SkillIconSize,
             Margin = margin,
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Top
@@ -1138,8 +1140,8 @@ internal sealed partial class MainWindow : Window
 
         var image = new Image
         {
-            Width = 60,
-            Height = 60,
+            Width = SkillIconSize,
+            Height = SkillIconSize,
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Top,
             Stretch = Stretch.UniformToFill,
@@ -1152,41 +1154,63 @@ internal sealed partial class MainWindow : Window
         return host;
     }
 
-    private FrameworkElement CreateSkillTitleLine(SkillEntry skill, string targetLanguage, string localizedName)
+    private FrameworkElement CreateSkillTitleLine(string localizedName)
     {
-        var title = new TextBlock
+        return new TextBlock
         {
+            Text = localizedName,
             Foreground = Brushes.White,
             FontFamily = FontFamily,
-            FontSize = 16,
+            FontSize = 13,
             FontWeight = FontWeights.Bold,
             TextWrapping = TextWrapping.Wrap
         };
-        title.Inlines.Add(new Run(localizedName));
-        title.Inlines.Add(new InlineUIContainer(CreateSkillTypeBadge(skill, targetLanguage))
+    }
+
+    private FrameworkElement CreateSkillBadgeLine(SkillEntry skill, string targetLanguage)
+    {
+        var panel = new WrapPanel
         {
-            BaselineAlignment = BaselineAlignment.Center
-        });
-        return title;
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 4, 0, 0)
+        };
+        panel.Children.Add(CreateSkillDamageBadge(skill, targetLanguage));
+        panel.Children.Add(CreateSkillTypeBadge(skill, targetLanguage));
+        return panel;
     }
 
     private FrameworkElement CreateSkillTypeBadge(SkillEntry skill, string targetLanguage)
     {
         var badge = new Border
         {
-            Background = new SolidColorBrush(GetSkillCategoryColor(skill.Category)),
+            Background = new SolidColorBrush(DarkenColor(GetSkillCategoryColor(skill.Category))),
             CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(4, 2, 4, 2),
-            Margin = new Thickness(6, 0, 0, -2),
+            Padding = new Thickness(5, 2, 7, 2),
+            Margin = new Thickness(0),
             VerticalAlignment = VerticalAlignment.Center,
             ToolTip = SkillDatabase.GetCategoryLabel(skill.Category, targetLanguage)
         };
 
-        badge.Child = CreateVectorIcon(
+        var panel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        panel.Children.Add(CreateVectorIcon(
             GetSkillCategoryIconPath(skill.Category),
             14,
-            new Thickness(),
-            Brushes.White);
+            new Thickness(0, 0, 3, 0),
+            Brushes.White));
+        panel.Children.Add(new TextBlock
+        {
+            Text = SkillDatabase.GetCategoryLabel(skill.Category, targetLanguage),
+            Foreground = Brushes.White,
+            FontFamily = FontFamily,
+            FontSize = 12,
+            FontWeight = FontWeights.Bold,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        badge.Child = panel;
         return badge;
     }
 
@@ -1212,13 +1236,13 @@ internal sealed partial class MainWindow : Window
 
     private FrameworkElement CreateSkillDamageBadge(SkillEntry skill, string targetLanguage)
     {
-        var elementColor = GetElementColor(skill.Element);
+        var elementColor = DarkenColor(GetElementColor(skill.Element));
         var badge = new Border
         {
             Background = new SolidColorBrush(elementColor),
             CornerRadius = new CornerRadius(10),
             Padding = new Thickness(5, 2, 9, 2),
-            Margin = new Thickness(0, 4, 0, 0),
+            Margin = new Thickness(0, 0, 6, 0),
             HorizontalAlignment = HorizontalAlignment.Left,
             ToolTip = SkillDatabase.GetElementLabel(skill.Element, targetLanguage)
         };
@@ -1236,7 +1260,7 @@ internal sealed partial class MainWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
             Stretch = Stretch.Uniform
         };
-        SetVectorIcon(elementIcon, GetElementIconPath(skill.Element));
+        SetVectorIcon(elementIcon, GetElementIconPath(skill.Element), Brushes.White, true);
         panel.Children.Add(elementIcon);
         panel.Children.Add(new TextBlock
         {
@@ -1357,34 +1381,56 @@ internal sealed partial class MainWindow : Window
         return ElementColors[element];
     }
 
-    private static void SetVectorIcon(Image image, string resourcePath, Brush? tintBrush = null)
+    private static Color DarkenColor(Color color)
+    {
+        const double factor = 0.62;
+        return Color.FromRgb(
+            (byte)Math.Round(color.R * factor),
+            (byte)Math.Round(color.G * factor),
+            (byte)Math.Round(color.B * factor));
+    }
+
+    private static void SetVectorIcon(Image image, string resourcePath, Brush? tintBrush = null, bool skipFirstVisibleGeometry = false)
     {
         var source = (ImageSource)Application.LoadComponent(new Uri(resourcePath, UriKind.Relative));
         if (tintBrush is not null && source is DrawingImage drawingImage)
         {
             var tinted = drawingImage.CloneCurrentValue();
-            TintDrawing(tinted.Drawing, tintBrush);
+            var skippedFirstVisibleGeometry = false;
+            TintDrawing(tinted.Drawing, tintBrush, skipFirstVisibleGeometry, ref skippedFirstVisibleGeometry);
             source = tinted;
         }
 
         image.Source = source;
     }
 
-    private static void TintDrawing(System.Windows.Media.Drawing? drawing, Brush brush)
+    private static void TintDrawing(
+        System.Windows.Media.Drawing? drawing,
+        Brush brush,
+        bool skipFirstVisibleGeometry,
+        ref bool skippedFirstVisibleGeometry)
     {
         switch (drawing)
         {
             case GeometryDrawing geometryDrawing:
                 if (!IsTransparentBrush(geometryDrawing.Brush))
                 {
-                    geometryDrawing.Brush = brush;
+                    if (skipFirstVisibleGeometry && !skippedFirstVisibleGeometry)
+                    {
+                        geometryDrawing.Brush = Brushes.Transparent;
+                        skippedFirstVisibleGeometry = true;
+                    }
+                    else
+                    {
+                        geometryDrawing.Brush = brush;
+                    }
                 }
 
                 break;
             case DrawingGroup drawingGroup:
                 foreach (var child in drawingGroup.Children)
                 {
-                    TintDrawing(child, brush);
+                    TintDrawing(child, brush, skipFirstVisibleGeometry, ref skippedFirstVisibleGeometry);
                 }
 
                 break;
