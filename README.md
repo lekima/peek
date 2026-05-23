@@ -1,67 +1,84 @@
 # Peek
 
-Minimal Windows overlay companion for Roco Kingdom: World.
+Windows overlay companion for `Roco Kingdom: World`.
 
-## Release
+Peek captures a user-selected screen region, translates visible Chinese game text with Gemini, and can identify visible Roco skill names against a bundled offline skill database.
 
-Build `releases/Peek-win-x64.zip`, unzip it, then run `Peek.exe`.
+## User Flow
 
-The release zip is self-contained for Windows x64, so it should not require a separate .NET install. Windows SmartScreen may warn because the app is not code-signed.
+- Drag the move button to position the overlay.
+- Drag the resize button to reveal or resize the capture frame.
+- Click the play button to translate the framed area.
+- Click the search button to check visible skills and show local skill cards.
+- Click a translated skill name to open Bilibili search for the original Chinese skill name.
+- Right-click the move button for `Settings` or `Quit`.
 
-## How it works
+Search URLs are deterministic and use the Roco prefix:
 
-- Use the five-button strip to move, translate, check skills, clear, and resize.
-- Drag the resize button downward to reveal the capture frame.
-- The app captures only the framed area underneath, sends the image to the Gemini API, then streams translated text inside the frame.
-- Click the skill button (`S`) to identify visible Chinese skill names and show matching local skill details with icons.
-- Right-click the move button to open Settings or quit.
+```text
+洛克王国 {Chinese skill/search term}
+```
 
 ## Settings
 
-Right-click the move button, then choose `Settings`.
+Settings are available from the move-button right-click menu.
 
-- Target language: configurable, default English
-- Model: configurable Gemini model id, default `gemini-3.1-flash-lite`
-- Search: search buttons open Bilibili Chinese search and always prepend the Roco Kingdom search prefix.
-- API key storage: Gemini API keys are encrypted for the current Windows user with DPAPI in `data/settings.json`
-- Log: `data/peek.log.jsonl`
-- Review data: source captures are saved in `data/captures`, and read translations/search queries are logged as `text_result` events.
-- Skill data: bundled from `wikiroco.com` under `Resources/Data/skills.json`; skill icons are bundled under `Resources/Skills`, and skill-card element/type icons are bundled from `rocomwiki.app`.
-- Font: Roboto Variable is bundled from Google Fonts under the SIL Open Font License in `Resources/Fonts`; app text, settings, translations, and skill cards use Roboto Variable with explicit weights.
-- Local data cleanup: delete the `data` folder next to `Peek.exe`
+- `Gemini API key`: stored encrypted for the current Windows user with DPAPI.
+- `Gemini model`: defaults to `gemini-3.1-flash-lite`.
+- `Target language`: fixed dropdown with `English` and `Vietnamese`.
+- `Last updated`: app-level bundled data date from `AppInfo`.
 
-## Run
+Runtime data is stored next to the executable under `data/`:
+
+- `data/settings.json`: encrypted settings.
+- `data/peek.log.jsonl`: app log.
+- `data/captures/`: screenshots captured for translation or skill checking.
+
+Delete the local `data/` folder to reset settings, logs, and captures.
+
+## Bundled Data
+
+- Skill data comes from `https://wikiroco.com/api/skills`.
+- Skill records are bundled in `Resources/Data/skills.json`.
+- Skill icons are bundled in `Resources/Skills` and normalized to `128x128`.
+- Element and skill-type icons are bundled as WPF vector resources.
+- App text uses bundled Roboto Variable from Google Fonts under the SIL Open Font License.
+
+The app does not refresh skill data at runtime. Data updates are prepared before release.
+
+## Development
+
+Run from source:
 
 ```powershell
 dotnet run --project .\Peek.csproj
 ```
 
-## Release build
-
-```powershell
-dotnet publish .\Peek.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
-Compress-Archive -LiteralPath .\bin\Release\net8.0-windows10.0.19041.0\win-x64\publish\Peek.exe -DestinationPath .\releases\Peek-win-x64.zip -CompressionLevel Optimal -Force
-```
-
-The zip is a local/generated release artifact and is ignored by git. Publish it through the release channel rather than committing it with source changes.
-
-## Updating Skill Data
-
-Skill data is a generated offline asset. Update it before building a new app release; do not require users to refresh data at runtime.
-
-Validate the current bundled database:
+Validate the bundled skill database:
 
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\update-skills.ps1 -ValidateOnly
 ```
 
-Fetch the latest wikiroco skills/icons and preserve existing translations when source text is unchanged:
+Build a local Windows x64 release:
+
+```powershell
+$out = ".\bin\Release\net8.0-windows10.0.19041.0\win-x64\publish-current"
+dotnet publish .\Peek.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o $out
+Compress-Archive -LiteralPath "$out\Peek.exe" -DestinationPath .\releases\Peek-win-x64.zip -CompressionLevel Optimal -Force
+```
+
+`releases/Peek-win-x64.zip` is generated locally and ignored by git. Publish release artifacts through the release channel instead of committing them.
+
+## Updating Skill Data
+
+Fetch the latest wikiroco skills/icons and preserve translations when unchanged:
 
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\update-skills.ps1
 ```
 
-If the script reports new or changed skills, translate only those changed records:
+Translate only new or changed skills:
 
 ```powershell
 $env:GEMINI_API_KEY = "AIza..."
@@ -70,16 +87,20 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\update-skills.ps1 -Transla
 
 The updater:
 
-- Fetches `https://wikiroco.com/api/skills` and rocomwiki icon assets
-- Regenerates `Resources/Data/skills.json`
-- Downloads missing or changed skill icons
-- Normalizes all skill icons to `128x128`
-- Updates skill-card element/type vector icons
-- Stores `source_hash` and `source_icon_url` for future change detection
-- Preserves EN/VI translations when `name_zh`, `description_zh`, stats, element, and category are unchanged
-- Calls Gemini only for new/changed skills when `-TranslateChanged` is used
-- Validates skill count, duplicate IDs/names, icon presence, icon size, and EN/VI localization coverage
+- Fetches wikiroco skill data.
+- Downloads missing or changed skill icons.
+- Normalizes skill icons to `128x128`.
+- Updates element/type vector icons from rocomwiki assets.
+- Stores `source_hash` and `source_icon_url` for change detection.
+- Preserves English/Vietnamese translations when source content is unchanged.
+- Calls Gemini only for changed records when `-TranslateChanged` is used.
+- Writes backups under ignored `data/skill-backups`.
+- Validates skill count, duplicate IDs/names, icon presence, icon size, and EN/VI localization coverage.
 
-After updating data, run the release build command above and commit the changed generated assets plus `releases/Peek-win-x64.zip`.
+After updating data, run validation and commit changed source assets such as `Resources/Data/skills.json`, `Resources/Skills`, and icon resources. Do not commit the generated release zip.
 
-For strict anti-cheat games, use borderless windowed mode when possible. The app is an external desktop overlay: it does not inject into the game, hook graphics APIs, read or write process memory, install global input hooks, or automate input. It still uses normal Windows screen capture for the selected area, so no app can guarantee compatibility with every anti-cheat.
+## Anti-Cheat Notes
+
+Peek is an external desktop overlay. It does not inject into the game, hook graphics APIs, read or write process memory, install global input hooks, or automate input.
+
+It uses normal Windows screen capture for the selected area, so compatibility can still vary by game and anti-cheat configuration. Borderless windowed mode is usually the safest display mode.
