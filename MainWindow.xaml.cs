@@ -26,6 +26,7 @@ internal sealed partial class MainWindow : Window
     private const double CollapsedWidth = 106;
     private const double CollapsedHeight = 24;
     private const double FrameRevealHeight = 48;
+    private const double SkillCardVerticalBreakpoint = 320;
     private const double MaxResultFontSize = 24;
     private const double MinResultFontSize = 10;
     private const double MaxResultLineGap = 12;
@@ -1041,26 +1042,39 @@ internal sealed partial class MainWindow : Window
             CornerRadius = new CornerRadius(4)
         };
 
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        bool? isVertical = null;
+        void UpdateLayout(double width)
+        {
+            var useVertical = ShouldUseVerticalSkillCardLayout(width);
+            if (isVertical == useVertical)
+            {
+                return;
+            }
 
+            isVertical = useVertical;
+            card.Child = CreateSkillCardContent(skill, targetLanguage, useVertical);
+        }
+
+        UpdateLayout(GetSkillCardLayoutWidth(card));
+        card.SizeChanged += (_, e) => UpdateLayout(e.NewSize.Width);
+        return card;
+    }
+
+    private FrameworkElement CreateSkillCardContent(SkillEntry skill, string targetLanguage, bool vertical)
+    {
         var image = new Image
         {
             Width = 60,
             Height = 60,
-            Margin = new Thickness(0, 0, 14, 0),
+            Margin = vertical ? new Thickness(0, 0, 0, 8) : new Thickness(0, 0, 14, 0),
+            HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Top,
             Stretch = Stretch.UniformToFill,
             SnapsToDevicePixels = true
         };
         TrySetSkillImage(image, skill.Icon);
-        grid.Children.Add(image);
 
         var textPanel = new StackPanel();
-        Grid.SetColumn(textPanel, 1);
-        grid.Children.Add(textPanel);
-
         var localizedName = SkillDatabase.GetLocalizedName(skill, targetLanguage);
         textPanel.Children.Add(new TextBlock
         {
@@ -1085,8 +1099,41 @@ internal sealed partial class MainWindow : Window
             TextWrapping = TextWrapping.Wrap
         });
 
-        card.Child = grid;
-        return card;
+        if (vertical)
+        {
+            var panel = new StackPanel();
+            panel.Children.Add(image);
+            panel.Children.Add(textPanel);
+            return panel;
+        }
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.Children.Add(image);
+        Grid.SetColumn(textPanel, 1);
+        grid.Children.Add(textPanel);
+        return grid;
+    }
+
+    private bool ShouldUseVerticalSkillCardLayout(double cardWidth) =>
+        cardWidth > 0
+            ? cardWidth < SkillCardVerticalBreakpoint
+            : GetSkillCardLayoutWidth(null) < SkillCardVerticalBreakpoint;
+
+    private double GetSkillCardLayoutWidth(FrameworkElement? card)
+    {
+        if (card?.ActualWidth > 0)
+        {
+            return card.ActualWidth;
+        }
+
+        if (SkillResultPanel.ActualWidth > 0)
+        {
+            return SkillResultPanel.ActualWidth;
+        }
+
+        return FrameBorder.ActualWidth;
     }
 
     private FrameworkElement CreateSkillInfoLine(SkillEntry skill, string targetLanguage)

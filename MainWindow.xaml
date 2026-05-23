@@ -124,6 +124,9 @@
                             </Track>
                         </Grid>
                         <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0" />
+                            </Trigger>
                             <Trigger Property="Orientation" Value="Horizontal">
                                 <Setter TargetName="Root" Property="Width" Value="Auto" />
                                 <Setter TargetName="Root" Property="Height" Value="5" />
@@ -186,7 +189,7 @@
                         SnapsToDevicePixels="True"
                         Visibility="Collapsed">
                     <ScrollViewer x:Name="SkillResultScrollViewer"
-                                  VerticalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Visible"
                                   HorizontalScrollBarVisibility="Disabled"
                                   PanningMode="VerticalOnly">
                         <ScrollViewer.Resources>
