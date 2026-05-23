@@ -53,6 +53,7 @@ internal sealed partial class MainWindow : Window
     private bool _isTranslating;
     private bool _isCheckingSkills;
     private bool _isShowingSkillResult;
+    private Size? _lastCaptureFrameSize;
     private SettingsWindow? _settingsWindow;
     private DisplayedResultState? _displayedResult;
     private readonly DispatcherTimer _statusClearTimer = new()
@@ -212,7 +213,7 @@ internal sealed partial class MainWindow : Window
     {
         if (_isShowingSkillResult)
         {
-            ClearSkillResultPresentation();
+            RestoreCaptureFrameFromSkillResult();
         }
 
         if (sender == ResizeRowButton)
@@ -348,11 +349,21 @@ internal sealed partial class MainWindow : Window
 
     private async void TranslateButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_isShowingSkillResult)
+        {
+            RestoreCaptureFrameFromSkillResult();
+        }
+
         await TranslateCurrentAreaAsync().ConfigureAwait(true);
     }
 
     private async void SkillButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_isShowingSkillResult)
+        {
+            RestoreCaptureFrameFromSkillResult();
+        }
+
         await CheckVisibleSkillsAsync().ConfigureAwait(true);
     }
 
@@ -884,7 +895,7 @@ internal sealed partial class MainWindow : Window
         ResultPanel.Padding = MaxResultTextPadding;
         ResultPanel.Visibility = Visibility.Visible;
         ClearButton.Visibility = Visibility.Visible;
-        SetActionButtonsVisible(false);
+        SetActionButtonsVisible(true);
         UpdateResultPanelClip();
         FitResultText();
         Dispatcher.BeginInvoke(FitResultText, DispatcherPriority.Loaded);
@@ -925,7 +936,7 @@ internal sealed partial class MainWindow : Window
         ResultPanel.Padding = MaxResultTextPadding;
         ResultPanel.Visibility = Visibility.Visible;
         ClearButton.Visibility = Visibility.Visible;
-        SetActionButtonsVisible(false);
+        SetActionButtonsVisible(true);
         UpdateResultPanelClip();
         FitResultText();
         Dispatcher.BeginInvoke(FitResultText, DispatcherPriority.Loaded);
@@ -935,13 +946,18 @@ internal sealed partial class MainWindow : Window
     {
         _displayedResult = null;
         _isShowingSkillResult = true;
+        if (FrameBorder.Visibility == Visibility.Visible)
+        {
+            _lastCaptureFrameSize = new Size(Width, Height);
+        }
+
         UseSkillResultPresentation();
         ClearSearchButtons();
         ResultTextPanel.Children.Clear();
         ResultTextPanel.Visibility = Visibility.Collapsed;
         ResultPanel.Visibility = Visibility.Collapsed;
         ClearButton.Visibility = Visibility.Visible;
-        SetActionButtonsVisible(false);
+        SetActionButtonsVisible(true);
         SkillResultContent.Children.Clear();
 
         if (lookup.Matched.Count == 0)
@@ -997,7 +1013,7 @@ internal sealed partial class MainWindow : Window
         FrameBorder.BorderThickness = HiddenFrameBorderThickness;
         ResultPanel.Visibility = Visibility.Collapsed;
         ResizeCornerButton.Visibility = Visibility.Collapsed;
-        ResizeRowButton.Visibility = Visibility.Collapsed;
+        ResizeRowButton.Visibility = Visibility.Visible;
         SkillResultPanel.Visibility = Visibility.Visible;
     }
 
@@ -1037,13 +1053,23 @@ internal sealed partial class MainWindow : Window
             0);
     }
 
-    private void ClearSkillResultPresentation()
+    private void RestoreCaptureFrameFromSkillResult()
     {
         _isShowingSkillResult = false;
         SkillResultContent.Children.Clear();
         SkillResultPanel.ClearValue(HeightProperty);
         SkillResultPanel.Visibility = Visibility.Collapsed;
         UseCaptureFramePresentation();
+        FrameBorder.Visibility = Visibility.Visible;
+        ResizeCornerButton.Visibility = Visibility.Visible;
+        ResizeRowButton.Visibility = Visibility.Collapsed;
+        SetActionButtonsVisible(true);
+
+        if (_lastCaptureFrameSize is { } size)
+        {
+            Width = size.Width;
+            Height = size.Height;
+        }
     }
 
     private FrameworkElement CreateSkillCard(SkillEntry skill, string targetLanguage)
