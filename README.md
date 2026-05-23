@@ -42,7 +42,7 @@ Use `Clear data` in settings, or delete the local app data folder, to reset logs
 - Skill records are bundled in `Resources/Data/skills.json`.
 - Skill icons are bundled in `Resources/Skills` and normalized to `128x128`.
 - Element and skill-type icons are bundled as WPF vector resources.
-- App text uses bundled Roboto Variable from Google Fonts under the SIL Open Font License.
+- Overlay buttons and overlay-frame text use bundled Roboto Condensed Variable from Google Fonts under the SIL Open Font License. Settings use the default Windows UI font.
 
 The app does not refresh skill data at runtime. Data updates are prepared before release.
 

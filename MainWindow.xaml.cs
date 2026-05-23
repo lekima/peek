@@ -34,11 +34,18 @@ internal sealed partial class MainWindow : Window
     private const int MaxCapturePixelWidth = 2560;
     private const int MaxCapturePixelHeight = 1440;
     private const long MaxCapturePixels = (long)MaxCapturePixelWidth * MaxCapturePixelHeight;
-    private const double SkillCardVerticalBreakpoint = 260;
-    private const double SkillIconSize = 72;
+    private const double SkillCardStackedBreakpoint = 260;
+    private const double SkillIconSize = 52;
+    private const double StackedSkillIconSize = 40;
     private const double SkillBadgeHeight = 24;
     private const double SkillBadgeElementIconSize = 17;
     private const double SkillBadgeEnergyIconSize = 12;
+    private const double WideSkillTitleFontSize = 18;
+    private const double WideSkillDescriptionFontSize = 16;
+    private const double WideSkillDescriptionLineHeight = 20;
+    private const double StackedSkillTitleFontSize = 16;
+    private const double StackedSkillDescriptionFontSize = 14;
+    private const double StackedSkillDescriptionLineHeight = 18;
     private static readonly Color SkillBadgeNeutralBackground = Color.FromRgb(78, 78, 78);
     private const double MaxResultFontSize = 24;
     private const double MinResultFontSize = 10;
@@ -1150,9 +1157,8 @@ internal sealed partial class MainWindow : Window
                     ? "No visible skills found."
                     : "No matching skills found.",
                 Foreground = new SolidColorBrush(Color.FromRgb(255, 198, 95)),
-                FontFamily = FontFamily,
                 FontSize = 13,
-                FontWeight = FontWeights.SemiBold,
+                FontWeight = FontWeights.Medium,
                 TextWrapping = TextWrapping.Wrap
             });
         }
@@ -1238,17 +1244,17 @@ internal sealed partial class MainWindow : Window
         TextOptions.SetTextFormattingMode(card, TextFormattingMode.Ideal);
         TextOptions.SetTextRenderingMode(card, TextRenderingMode.Grayscale);
 
-        bool? isVertical = null;
+        SkillCardLayoutMode? currentMode = null;
         void UpdateLayout(double width)
         {
-            var useVertical = ShouldUseVerticalSkillCardLayout(width);
-            if (isVertical == useVertical)
+            var mode = GetSkillCardLayoutMode(width);
+            if (currentMode == mode)
             {
                 return;
             }
 
-            isVertical = useVertical;
-            card.Child = CreateSkillCardContent(skill, targetLanguage, useVertical);
+            currentMode = mode;
+            card.Child = CreateSkillCardContent(skill, targetLanguage, mode);
         }
 
         UpdateLayout(GetSkillCardLayoutWidth(card));
@@ -1256,52 +1262,60 @@ internal sealed partial class MainWindow : Window
         return card;
     }
 
-    private FrameworkElement CreateSkillCardContent(SkillEntry skill, string targetLanguage, bool vertical)
+    private FrameworkElement CreateSkillCardContent(SkillEntry skill, string targetLanguage, SkillCardLayoutMode mode)
     {
-        var imageHost = CreateSkillImageHost(
-            skill,
-            vertical ? new Thickness(0, 0, 0, 8) : new Thickness(0, 0, 14, 0));
-
-        var textPanel = new StackPanel();
         var localizedName = SkillDatabase.GetLocalizedName(skill, targetLanguage);
-        textPanel.Children.Add(CreateSkillTitleLine(localizedName, skill));
-        textPanel.Children.Add(CreateSkillBadgeLine(skill, targetLanguage));
 
-        textPanel.Children.Add(new TextBlock
+        return mode switch
         {
-            Text = SkillDatabase.GetLocalizedDescription(skill, targetLanguage),
-            Foreground = new SolidColorBrush(Color.FromRgb(238, 238, 238)),
-            FontFamily = FontFamily,
-            FontSize = 14,
-            FontWeight = FontWeights.SemiBold,
-            LineHeight = 18,
-            Margin = new Thickness(0, 8, 0, 0),
-            TextWrapping = TextWrapping.Wrap
-        });
-
-        if (vertical)
-        {
-            var panel = new StackPanel();
-            panel.Children.Add(imageHost);
-            panel.Children.Add(textPanel);
-            return panel;
-        }
-
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.Children.Add(imageHost);
-        Grid.SetColumn(textPanel, 1);
-        grid.Children.Add(textPanel);
-        return grid;
+            SkillCardLayoutMode.Stacked => CreateStackedSkillCardContent(skill, targetLanguage, localizedName),
+            _ => CreateWideSkillCardContent(skill, targetLanguage, localizedName)
+        };
     }
 
-    private FrameworkElement CreateSkillImageHost(SkillEntry skill, Thickness margin)
+    private FrameworkElement CreateWideSkillCardContent(SkillEntry skill, string targetLanguage, string localizedName)
+    {
+        var panel = new StackPanel();
+        var topRow = new Grid();
+        topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        topRow.Children.Add(CreateSkillImageHost(skill, new Thickness(0, 0, 12, 0)));
+
+        var metadataBlock = CreateSkillMetadataBlock(localizedName, skill, targetLanguage, WideSkillTitleFontSize);
+        Grid.SetColumn(metadataBlock, 1);
+        topRow.Children.Add(metadataBlock);
+
+        panel.Children.Add(topRow);
+        panel.Children.Add(CreateSkillDescriptionBlock(
+            skill,
+            targetLanguage,
+            new Thickness(0, 8, 0, 0),
+            WideSkillDescriptionFontSize,
+            WideSkillDescriptionLineHeight));
+        return panel;
+    }
+
+    private FrameworkElement CreateStackedSkillCardContent(SkillEntry skill, string targetLanguage, string localizedName)
+    {
+        var panel = new StackPanel();
+        panel.Children.Add(CreateSkillImageHost(skill, new Thickness(0, 0, 0, 8), StackedSkillIconSize));
+        panel.Children.Add(CreateSkillMetadataBlock(localizedName, skill, targetLanguage, StackedSkillTitleFontSize));
+        panel.Children.Add(CreateSkillDescriptionBlock(
+            skill,
+            targetLanguage,
+            new Thickness(0, 8, 0, 0),
+            StackedSkillDescriptionFontSize,
+            StackedSkillDescriptionLineHeight));
+        return panel;
+    }
+
+    private FrameworkElement CreateSkillImageHost(SkillEntry skill, Thickness margin, double size = SkillIconSize)
     {
         var host = new Grid
         {
-            Width = SkillIconSize,
-            Height = SkillIconSize,
+            Width = size,
+            Height = size,
             Margin = margin,
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Top
@@ -1309,8 +1323,8 @@ internal sealed partial class MainWindow : Window
 
         var image = new Image
         {
-            Width = SkillIconSize,
-            Height = SkillIconSize,
+            Width = size,
+            Height = size,
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Top,
             Stretch = Stretch.UniformToFill,
@@ -1323,14 +1337,13 @@ internal sealed partial class MainWindow : Window
         return host;
     }
 
-    private FrameworkElement CreateSkillTitleLine(string localizedName, SkillEntry skill)
+    private FrameworkElement CreateSkillTitleLine(string localizedName, SkillEntry skill, double fontSize)
     {
         var title = new TextBlock
         {
             Foreground = new SolidColorBrush(Color.FromRgb(255, 198, 95)),
-            FontFamily = FontFamily,
-            FontSize = 16,
-            FontWeight = FontWeights.SemiBold,
+            FontSize = fontSize,
+            FontWeight = FontWeights.Medium,
             TextWrapping = TextWrapping.Wrap
         };
 
@@ -1356,6 +1369,35 @@ internal sealed partial class MainWindow : Window
 
         return title;
     }
+
+    private FrameworkElement CreateSkillMetadataBlock(
+        string localizedName,
+        SkillEntry skill,
+        string targetLanguage,
+        double titleFontSize)
+    {
+        var panel = new StackPanel();
+        panel.Children.Add(CreateSkillTitleLine(localizedName, skill, titleFontSize));
+        panel.Children.Add(CreateSkillBadgeLine(skill, targetLanguage));
+        return panel;
+    }
+
+    private TextBlock CreateSkillDescriptionBlock(
+        SkillEntry skill,
+        string targetLanguage,
+        Thickness margin,
+        double fontSize,
+        double lineHeight) =>
+        new()
+        {
+            Text = SkillDatabase.GetLocalizedDescription(skill, targetLanguage),
+            Foreground = new SolidColorBrush(Color.FromRgb(238, 238, 238)),
+            FontSize = fontSize,
+            FontWeight = FontWeights.Medium,
+            LineHeight = lineHeight,
+            Margin = margin,
+            TextWrapping = TextWrapping.Wrap
+        };
 
     private static TextDecorationCollection CreateDottedUnderline()
     {
@@ -1385,10 +1427,26 @@ internal sealed partial class MainWindow : Window
         return panel;
     }
 
-    private bool ShouldUseVerticalSkillCardLayout(double cardWidth) =>
-        cardWidth > 0
-            ? cardWidth < SkillCardVerticalBreakpoint
-            : GetSkillCardLayoutWidth(null) < SkillCardVerticalBreakpoint;
+    private SkillCardLayoutMode GetSkillCardLayoutMode(double cardWidth)
+    {
+        var width = cardWidth > 0
+            ? cardWidth
+            : GetSkillCardLayoutWidth(null);
+
+        if (width < SkillCardStackedBreakpoint)
+        {
+            return SkillCardLayoutMode.Stacked;
+        }
+
+        return SkillCardLayoutMode.Wide;
+    }
+
+    private enum SkillCardLayoutMode
+    {
+        Wide,
+        Stacked
+    }
+
 
     private double GetSkillCardLayoutWidth(FrameworkElement? card)
     {
@@ -1416,6 +1474,7 @@ internal sealed partial class MainWindow : Window
             Margin = new Thickness(0, 0, 6, 0),
             Height = SkillBadgeHeight,
             HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
             ToolTip = SkillDatabase.GetElementLabel(skill.Element, targetLanguage)
         };
 
@@ -1438,7 +1497,6 @@ internal sealed partial class MainWindow : Window
         {
             Text = skill.Power is > 0 ? skill.Power.Value.ToString(CultureInfo.InvariantCulture) : "--",
             Foreground = Brushes.White,
-            FontFamily = FontFamily,
             FontSize = 14,
             FontWeight = FontWeights.Bold,
             VerticalAlignment = VerticalAlignment.Center
@@ -1472,7 +1530,6 @@ internal sealed partial class MainWindow : Window
         {
             Text = energy?.ToString(CultureInfo.InvariantCulture) ?? "--",
             Foreground = Brushes.White,
-            FontFamily = FontFamily,
             FontSize = 12,
             FontWeight = FontWeights.Bold,
             VerticalAlignment = VerticalAlignment.Center
