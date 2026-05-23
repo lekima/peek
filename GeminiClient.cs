@@ -18,8 +18,16 @@ internal static class GeminiClient
     private const string SkillExtractionSchemaVersion = "skill-extract-schema-v1";
     private const string JsonResponseMimeType = "application/json";
     private const string MinimalThinkingLevel = "minimal";
+    private const string SafetyThresholdOff = "OFF";
     private const int TextMaxOutputTokens = 8192;
     private const int SkillExtractionMaxOutputTokens = 1024;
+    private static readonly string[] AdjustableSafetyCategories =
+    [
+        "HARM_CATEGORY_HARASSMENT",
+        "HARM_CATEGORY_HATE_SPEECH",
+        "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+        "HARM_CATEGORY_DANGEROUS_CONTENT"
+    ];
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(90);
     private static readonly HttpClient HttpClient = new()
     {
@@ -171,7 +179,8 @@ internal static class GeminiClient
             },
             ["generationConfig"] = CreateGenerationConfig(
                 TextMaxOutputTokens,
-                CreateTextTranslationResponseSchema(targetLanguage))
+                CreateTextTranslationResponseSchema(targetLanguage)),
+            ["safetySettings"] = CreateDisabledSafetySettings()
         };
 
     private static Dictionary<string, object?> CreateSkillExtractionPayload(string imageData) =>
@@ -211,7 +220,8 @@ internal static class GeminiClient
             },
             ["generationConfig"] = CreateGenerationConfig(
                 SkillExtractionMaxOutputTokens,
-                CreateSkillExtractionResponseSchema())
+                CreateSkillExtractionResponseSchema()),
+            ["safetySettings"] = CreateDisabledSafetySettings()
         };
 
     private static Dictionary<string, object?> CreateGenerationConfig(
@@ -234,6 +244,15 @@ internal static class GeminiClient
         {
             ["thinkingLevel"] = MinimalThinkingLevel
         };
+
+    private static object[] CreateDisabledSafetySettings() =>
+        AdjustableSafetyCategories
+            .Select(category => new Dictionary<string, object?>
+            {
+                ["category"] = category,
+                ["threshold"] = SafetyThresholdOff
+            })
+            .ToArray();
 
     private static string DescribeThinkingConfig() =>
         $"thinkingLevel={MinimalThinkingLevel}";

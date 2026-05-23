@@ -22,6 +22,24 @@ $SkillApiUrl = "https://wikiroco.com/api/skills"
 $RocomwikiIconBaseUrl = "https://rocomwiki.app/icons"
 $HttpClient = [System.Net.Http.HttpClient]::new()
 $HttpClient.Timeout = [TimeSpan]::FromSeconds($IconDownloadTimeoutSec)
+$DisabledSafetySettings = @(
+    [ordered]@{
+        category = "HARM_CATEGORY_HARASSMENT"
+        threshold = "OFF"
+    }
+    [ordered]@{
+        category = "HARM_CATEGORY_HATE_SPEECH"
+        threshold = "OFF"
+    }
+    [ordered]@{
+        category = "HARM_CATEGORY_SEXUALLY_EXPLICIT"
+        threshold = "OFF"
+    }
+    [ordered]@{
+        category = "HARM_CATEGORY_DANGEROUS_CONTENT"
+        threshold = "OFF"
+    }
+)
 
 $ElementMap = @{
     "水" = "water"; "火" = "fire"; "草" = "grass"; "电" = "electric"; "冰" = "ice"; "武" = "fighting";
@@ -431,6 +449,7 @@ Rules:
                 text = "Translate these skills: " + ($items | ConvertTo-Json -Depth 10 -Compress)
             })
         })
+        safetySettings = $DisabledSafetySettings
         generationConfig = [ordered]@{
             maxOutputTokens = 8192
             responseFormat = [ordered]@{
