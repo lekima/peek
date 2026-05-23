@@ -1156,14 +1156,14 @@ internal sealed partial class MainWindow : Window
         TrySetSkillImage(elementIcon, skill.ElementIcon);
         panel.Children.Add(elementIcon);
 
-        var categoryIcon = CreateVectorIcon(GetSkillCategoryIconPath(skill.Category), 20, new Thickness(0, 0, 8, 0));
+        var categoryIcon = CreateVectorIcon(GetSkillCategoryIconPath(skill.Category), 17, new Thickness(0, 0, 8, 0));
         categoryIcon.ToolTip = SkillDatabase.GetCategoryLabel(skill.Category, targetLanguage);
         panel.Children.Add(categoryIcon);
 
-        panel.Children.Add(CreateVectorIcon("/Resources/EnergyStar.xaml", 15, new Thickness(0, 0, 3, 0)));
+        panel.Children.Add(CreateVectorIcon("/Resources/EnergyStar.xaml", 13, new Thickness(0, 0, 3, 0)));
         panel.Children.Add(CreateSkillInfoText(skill.Energy?.ToString() ?? "-", new Thickness(0, 0, 8, 0)));
 
-        panel.Children.Add(CreateVectorIcon("/Resources/SkillMeta/Power.xaml", 15, new Thickness(0, 0, 3, 0)));
+        panel.Children.Add(CreateVectorIcon("/Resources/SkillMeta/Power.xaml", 13, new Thickness(0, 0, 3, 0)));
         panel.Children.Add(CreateSkillInfoText(skill.Power?.ToString() ?? "-", new Thickness(0, 0, 8, 0)));
 
         if (skill.Accuracy is not null)
