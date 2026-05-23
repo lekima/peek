@@ -24,7 +24,7 @@ Right-click the move button, then choose `Settings`.
 - Target language: configurable, default English
 - Model: configurable Gemini model id, default `gemini-3.1-flash-lite`
 - Search: search buttons open Bilibili Chinese search.
-- Target game: selected from the move-button context menu; choose `Any game` for no added prefix. Current games are Roco Kingdom: World, Honor of Kings: World, Honor of Kings: Chess, and Honor of Kings.
+- Target game: selected from the move-button context menu; choose `Any game` for no added prefix. Current games are Roco Kingdom: World and Honor of Kings: Chess.
 - API key storage: Gemini API keys are encrypted for the current Windows user with DPAPI in `data/settings.json`
 - Log: `data/peek.log.jsonl`
 - Review data: source captures are saved in `data/captures`, read translations/search queries are logged as `text_result` events, and copied reply translations are logged as `reply_translate_copied` events.

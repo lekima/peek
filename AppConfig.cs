@@ -10,9 +10,7 @@ internal enum TargetGame
 {
     None,
     RocoKingdomWorld,
-    HonorOfKingsWorld,
-    HonorOfKingsChess,
-    HonorOfKings
+    HonorOfKingsChess
 }
 
 internal static class TargetGames
@@ -21,18 +19,14 @@ internal static class TargetGames
     [
         TargetGame.None,
         TargetGame.RocoKingdomWorld,
-        TargetGame.HonorOfKingsWorld,
-        TargetGame.HonorOfKingsChess,
-        TargetGame.HonorOfKings
+        TargetGame.HonorOfKingsChess
     ];
 
     public static string GetDisplayName(TargetGame game) =>
         game switch
         {
             TargetGame.RocoKingdomWorld => "Roco Kingdom: World",
-            TargetGame.HonorOfKingsWorld => "Honor of Kings: World",
             TargetGame.HonorOfKingsChess => "Honor of Kings: Chess",
-            TargetGame.HonorOfKings => "Honor of Kings",
             _ => "Any game"
         };
 
@@ -40,9 +34,7 @@ internal static class TargetGames
         game switch
         {
             TargetGame.RocoKingdomWorld => "洛克王国",
-            TargetGame.HonorOfKingsWorld => "王者荣耀世界",
             TargetGame.HonorOfKingsChess => "王者万象棋",
-            TargetGame.HonorOfKings => "王者荣耀",
             _ => string.Empty
         };
 }
