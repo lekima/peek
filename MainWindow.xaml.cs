@@ -1064,8 +1064,8 @@ internal sealed partial class MainWindow : Window
 
         var image = new Image
         {
-            Width = 64,
-            Height = 64,
+            Width = 60,
+            Height = 60,
             Margin = new Thickness(0, 0, 14, 0),
             VerticalAlignment = VerticalAlignment.Top,
             Stretch = Stretch.UniformToFill,
