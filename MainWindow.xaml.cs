@@ -1,9 +1,11 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Security;
 using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -28,9 +30,9 @@ internal sealed partial class MainWindow : Window
     private const double FrameRevealHeight = 48;
     private const double SkillCardVerticalBreakpoint = 320;
     private const double SkillInfoIconSlotSize = 20;
-    private const double SkillElementIconSize = 18;
     private const double SkillCategoryIconSize = 20;
-    private const double SkillValueIconSize = 15;
+    private const double SkillBadgeElementIconSize = 17;
+    private const double SkillBadgeEnergyIconSize = 12;
     private const double MaxResultFontSize = 24;
     private const double MinResultFontSize = 10;
     private const double MaxResultLineGap = 12;
@@ -38,6 +40,27 @@ internal sealed partial class MainWindow : Window
     private static readonly Thickness MaxResultTextPadding = new(14, 12, 14, 10);
     private static readonly Thickness MinResultTextPadding = new(6, 6, 6, 4);
     private static readonly Thickness VisibleFrameBorderThickness = new(1);
+    private static readonly IReadOnlyDictionary<string, Color> ElementColors = new Dictionary<string, Color>(StringComparer.Ordinal)
+    {
+        ["bug"] = Color.FromRgb(159, 207, 34),
+        ["dark"] = Color.FromRgb(208, 71, 123),
+        ["dragon"] = Color.FromRgb(233, 76, 98),
+        ["electric"] = Color.FromRgb(231, 205, 13),
+        ["fairy"] = Color.FromRgb(254, 129, 181),
+        ["fighting"] = Color.FromRgb(254, 154, 59),
+        ["fire"] = Color.FromRgb(224, 88, 34),
+        ["flying"] = Color.FromRgb(65, 200, 203),
+        ["ghost"] = Color.FromRgb(148, 70, 236),
+        ["grass"] = Color.FromRgb(79, 189, 116),
+        ["ground"] = Color.FromRgb(152, 125, 68),
+        ["ice"] = Color.FromRgb(100, 174, 218),
+        ["illusion"] = Color.FromRgb(157, 169, 255),
+        ["light"] = Color.FromRgb(79, 193, 255),
+        ["normal"] = Color.FromRgb(63, 137, 181),
+        ["poison"] = Color.FromRgb(187, 98, 224),
+        ["steel"] = Color.FromRgb(37, 185, 164),
+        ["water"] = Color.FromRgb(99, 169, 254)
+    };
     private const int WmNcHitTest = 0x0084;
     private const nint HtClient = 1;
     private const nint HtTransparent = -1;
@@ -1066,31 +1089,14 @@ internal sealed partial class MainWindow : Window
 
     private FrameworkElement CreateSkillCardContent(SkillEntry skill, string targetLanguage, bool vertical)
     {
-        var image = new Image
-        {
-            Width = 60,
-            Height = 60,
-            Margin = vertical ? new Thickness(0, 0, 0, 8) : new Thickness(0, 0, 14, 0),
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
-            Stretch = Stretch.UniformToFill,
-            SnapsToDevicePixels = true
-        };
-        TrySetSkillImage(image, skill.Icon);
+        var imageHost = CreateSkillImageHost(
+            skill,
+            vertical ? new Thickness(0, 0, 0, 8) : new Thickness(0, 0, 14, 0));
 
         var textPanel = new StackPanel();
         var localizedName = SkillDatabase.GetLocalizedName(skill, targetLanguage);
-        textPanel.Children.Add(new TextBlock
-        {
-            Text = localizedName,
-            Foreground = new SolidColorBrush(Color.FromRgb(255, 198, 95)),
-            FontFamily = FontFamily,
-            FontSize = 16,
-            FontWeight = FontWeights.Bold,
-            TextWrapping = TextWrapping.Wrap
-        });
-
-        textPanel.Children.Add(CreateSkillInfoLine(skill, targetLanguage));
+        textPanel.Children.Add(CreateSkillTitleLine(skill, targetLanguage, localizedName));
+        textPanel.Children.Add(CreateSkillDamageBadge(skill, targetLanguage));
 
         textPanel.Children.Add(new TextBlock
         {
@@ -1106,7 +1112,7 @@ internal sealed partial class MainWindow : Window
         if (vertical)
         {
             var panel = new StackPanel();
-            panel.Children.Add(image);
+            panel.Children.Add(imageHost);
             panel.Children.Add(textPanel);
             return panel;
         }
@@ -1114,10 +1120,59 @@ internal sealed partial class MainWindow : Window
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.Children.Add(image);
+        grid.Children.Add(imageHost);
         Grid.SetColumn(textPanel, 1);
         grid.Children.Add(textPanel);
         return grid;
+    }
+
+    private FrameworkElement CreateSkillImageHost(SkillEntry skill, Thickness margin)
+    {
+        var host = new Grid
+        {
+            Width = 60,
+            Height = 60,
+            Margin = margin,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top
+        };
+
+        var image = new Image
+        {
+            Width = 60,
+            Height = 60,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+            Stretch = Stretch.UniformToFill,
+            SnapsToDevicePixels = true
+        };
+        TrySetSkillImage(image, skill.Icon);
+        host.Children.Add(image);
+
+        host.Children.Add(CreateSkillEnergyBadge(skill.Energy));
+        return host;
+    }
+
+    private FrameworkElement CreateSkillTitleLine(SkillEntry skill, string targetLanguage, string localizedName)
+    {
+        var title = new TextBlock
+        {
+            Foreground = new SolidColorBrush(Color.FromRgb(255, 198, 95)),
+            FontFamily = FontFamily,
+            FontSize = 16,
+            FontWeight = FontWeights.Bold,
+            TextWrapping = TextWrapping.Wrap
+        };
+        title.Inlines.Add(new Run(localizedName));
+        title.Inlines.Add(new InlineUIContainer(CreateVectorIcon(
+            GetSkillCategoryIconPath(skill.Category),
+            SkillCategoryIconSize,
+            new Thickness(6, 0, 0, -2)))
+        {
+            BaselineAlignment = BaselineAlignment.Center
+        });
+        title.ToolTip = SkillDatabase.GetCategoryLabel(skill.Category, targetLanguage);
+        return title;
     }
 
     private bool ShouldUseVerticalSkillCardLayout(double cardWidth) =>
@@ -1140,55 +1195,73 @@ internal sealed partial class MainWindow : Window
         return FrameBorder.ActualWidth;
     }
 
-    private FrameworkElement CreateSkillInfoLine(SkillEntry skill, string targetLanguage)
+    private FrameworkElement CreateSkillDamageBadge(SkillEntry skill, string targetLanguage)
     {
-        var panel = new WrapPanel
+        var elementColor = GetElementColor(skill.Element);
+        var badge = new Border
+        {
+            Background = new SolidColorBrush(elementColor),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(5, 2, 7, 2),
+            Margin = new Thickness(0, 4, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            ToolTip = SkillDatabase.GetElementLabel(skill.Element, targetLanguage)
+        };
+
+        var panel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 2, 0, 0)
+            VerticalAlignment = VerticalAlignment.Center
         };
-
-        var (elementSlot, elementIcon) = CreateSkillInfoImageSlot(
-            SkillElementIconSize,
-            new Thickness(0, 0, 6, 0),
-            SkillDatabase.GetElementLabel(skill.Element, targetLanguage));
-        TrySetVectorIcon(elementIcon, GetElementIconPath(skill.Element));
-        panel.Children.Add(elementSlot);
-
-        panel.Children.Add(CreateVectorIconSlot(GetSkillCategoryIconPath(skill.Category), SkillCategoryIconSize, new Thickness(0, 0, 8, 0), SkillDatabase.GetCategoryLabel(skill.Category, targetLanguage)));
-
-        panel.Children.Add(CreateVectorIconSlot("/Resources/EnergyStar.xaml", SkillValueIconSize, new Thickness(0, 0, 3, 0), "Energy"));
-        panel.Children.Add(CreateSkillInfoText(skill.Energy?.ToString() ?? "-", new Thickness(0, 0, 8, 0)));
-
-        panel.Children.Add(CreateVectorIconSlot("/Resources/SkillMeta/Power.xaml", SkillValueIconSize, new Thickness(0, 0, 3, 0), "Power"));
-        panel.Children.Add(CreateSkillInfoText(skill.Power?.ToString() ?? "-", new Thickness(0, 0, 8, 0)));
-
-        if (skill.Accuracy is not null)
+        var (_, elementIcon) = CreateSkillInfoImageSlot(SkillBadgeElementIconSize, new Thickness(), string.Empty);
+        SetVectorIcon(elementIcon, GetElementIconPath(skill.Element));
+        elementIcon.Margin = new Thickness(0, 0, 5, 0);
+        panel.Children.Add(elementIcon);
+        panel.Children.Add(new TextBlock
         {
-            panel.Children.Add(CreateVectorIcon("/Resources/SkillMeta/Accuracy.xaml", 15, new Thickness(0, 0, 3, 0)));
-            panel.Children.Add(CreateSkillInfoText(skill.Accuracy.ToString() ?? "-", new Thickness(0, 0, 8, 0)));
-        }
-
-        if (skill.Priority is not null)
-        {
-            panel.Children.Add(CreateVectorIcon("/Resources/SkillMeta/Priority.xaml", 15, new Thickness(0, 0, 3, 0)));
-            panel.Children.Add(CreateSkillInfoText(skill.Priority.ToString() ?? "-", new Thickness(0, 0, 8, 0)));
-        }
-
-        return panel;
+            Text = skill.Power is > 0 ? skill.Power.Value.ToString(CultureInfo.InvariantCulture) : "--",
+            Foreground = Brushes.White,
+            FontFamily = FontFamily,
+            FontSize = 14,
+            FontWeight = FontWeights.Bold,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        badge.Child = panel;
+        return badge;
     }
 
-    private TextBlock CreateSkillInfoText(string text, Thickness margin)
+    private FrameworkElement CreateSkillEnergyBadge(int? energy)
     {
-        return new TextBlock
+        var badge = new Border
         {
-            Text = text,
-            Foreground = new SolidColorBrush(Color.FromRgb(210, 210, 210)),
-            FontFamily = FontFamily,
-            FontSize = 13,
-            Margin = margin,
-            TextWrapping = TextWrapping.Wrap
+            Background = new SolidColorBrush(Color.FromRgb(255, 198, 95)),
+            CornerRadius = new CornerRadius(9),
+            Padding = new Thickness(4, 1, 5, 1),
+            MinWidth = 24,
+            Height = 19,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(-5, -5, 0, 0),
+            ToolTip = "Energy"
         };
+
+        var panel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        panel.Children.Add(CreateVectorIcon("/Resources/EnergyStar.xaml", SkillBadgeEnergyIconSize, new Thickness(0, 0, 2, 0)));
+        panel.Children.Add(new TextBlock
+        {
+            Text = energy?.ToString(CultureInfo.InvariantCulture) ?? "--",
+            Foreground = new SolidColorBrush(Color.FromRgb(34, 28, 14)),
+            FontFamily = FontFamily,
+            FontSize = 12,
+            FontWeight = FontWeights.Bold,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        badge.Child = panel;
+        return badge;
     }
 
     private static (FrameworkElement Slot, Image Image) CreateSkillInfoImageSlot(
@@ -1216,13 +1289,6 @@ internal sealed partial class MainWindow : Window
         return (slot, image);
     }
 
-    private static FrameworkElement CreateVectorIconSlot(string resourcePath, double imageSize, Thickness margin, string tooltip)
-    {
-        var (slot, image) = CreateSkillInfoImageSlot(imageSize, margin, tooltip);
-        TrySetVectorIcon(image, resourcePath);
-        return slot;
-    }
-
     private static Image CreateVectorIcon(string resourcePath, double size, Thickness margin)
     {
         var image = new Image
@@ -1234,17 +1300,7 @@ internal sealed partial class MainWindow : Window
             Stretch = Stretch.Uniform
         };
 
-        try
-        {
-            image.Source = (ImageSource)Application.LoadComponent(new Uri(resourcePath, UriKind.Relative));
-        }
-        catch (IOException)
-        {
-        }
-        catch (InvalidOperationException)
-        {
-        }
-
+        SetVectorIcon(image, resourcePath);
         return image;
     }
 
@@ -1261,31 +1317,17 @@ internal sealed partial class MainWindow : Window
 
     private static string GetElementIconPath(string element)
     {
-        return string.IsNullOrWhiteSpace(element)
-            ? string.Empty
-            : $"/Resources/Elements/{element}.xaml";
+        return $"/Resources/Elements/{element}.xaml";
     }
 
-    private static bool TrySetVectorIcon(Image image, string resourcePath)
+    private static Color GetElementColor(string element)
     {
-        if (string.IsNullOrWhiteSpace(resourcePath))
-        {
-            return false;
-        }
+        return ElementColors[element];
+    }
 
-        try
-        {
-            image.Source = (ImageSource)Application.LoadComponent(new Uri(resourcePath, UriKind.Relative));
-            return true;
-        }
-        catch (IOException)
-        {
-        }
-        catch (InvalidOperationException)
-        {
-        }
-
-        return false;
+    private static void SetVectorIcon(Image image, string resourcePath)
+    {
+        image.Source = (ImageSource)Application.LoadComponent(new Uri(resourcePath, UriKind.Relative));
     }
 
     private static void TrySetSkillImage(Image image, string path)
