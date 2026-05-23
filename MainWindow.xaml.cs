@@ -1146,18 +1146,19 @@ internal sealed partial class MainWindow : Window
 
         var elementIcon = new Image
         {
-            Width = 16,
-            Height = 16,
-            Margin = new Thickness(0, 0, 3, 0),
+            Width = 20,
+            Height = 20,
+            Margin = new Thickness(0, 0, 8, 0),
             VerticalAlignment = VerticalAlignment.Center,
-            Stretch = Stretch.Uniform
+            Stretch = Stretch.Uniform,
+            ToolTip = SkillDatabase.GetElementLabel(skill.Element, targetLanguage)
         };
         TrySetSkillImage(elementIcon, skill.ElementIcon);
         panel.Children.Add(elementIcon);
-        panel.Children.Add(CreateSkillInfoText(SkillDatabase.GetElementLabel(skill.Element, targetLanguage), new Thickness(0, 0, 8, 0)));
 
-        panel.Children.Add(CreateVectorIcon(GetSkillCategoryIconPath(skill.Category), 16, new Thickness(0, 0, 3, 0)));
-        panel.Children.Add(CreateSkillInfoText(SkillDatabase.GetCategoryLabel(skill.Category, targetLanguage), new Thickness(0, 0, 8, 0)));
+        var categoryIcon = CreateVectorIcon(GetSkillCategoryIconPath(skill.Category), 20, new Thickness(0, 0, 8, 0));
+        categoryIcon.ToolTip = SkillDatabase.GetCategoryLabel(skill.Category, targetLanguage);
+        panel.Children.Add(categoryIcon);
 
         panel.Children.Add(CreateVectorIcon("/Resources/EnergyStar.xaml", 15, new Thickness(0, 0, 3, 0)));
         panel.Children.Add(CreateSkillInfoText(skill.Energy?.ToString() ?? "-", new Thickness(0, 0, 8, 0)));
