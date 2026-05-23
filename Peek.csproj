@@ -26,7 +26,10 @@
     <Resource Include="Resources\EnergyStar.xaml" />
     <Resource Include="Resources\Elements\*.xaml" />
     <Resource Include="Resources\Fonts\Roboto-Variable.ttf" />
-    <Resource Include="Resources\SkillMeta\*.xaml" />
+    <Resource Include="Resources\SkillMeta\Defense.xaml" />
+    <Resource Include="Resources\SkillMeta\Magic.xaml" />
+    <Resource Include="Resources\SkillMeta\Physical.xaml" />
+    <Resource Include="Resources\SkillMeta\Status.xaml" />
     <Resource Include="Resources\Skills\*.png" />
     <None Include="Resources\Fonts\Roboto-OFL.txt" />
   </ItemGroup>

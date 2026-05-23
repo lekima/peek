@@ -19,7 +19,7 @@ internal sealed partial class SettingsWindow : Window
         _config = config;
         ApiKeyBox.Password = config.ApiKey;
         ModelBox.Text = AppConfig.NormalizeModel(config.Model);
-        TargetLanguageBox.Text = AppConfig.NormalizeTargetLanguage(config.TargetLanguage);
+        TargetLanguageBox.SelectedValue = AppConfig.NormalizeTargetLanguage(config.TargetLanguage);
         LastUpdatedText.Text = AppInfo.LastUpdated;
     }
 
@@ -34,7 +34,7 @@ internal sealed partial class SettingsWindow : Window
 
         _config.ApiKey = apiKey;
         _config.Model = AppConfig.NormalizeModel(ModelBox.Text);
-        _config.TargetLanguage = AppConfig.NormalizeTargetLanguage(TargetLanguageBox.Text);
+        _config.TargetLanguage = AppConfig.NormalizeTargetLanguage(TargetLanguageBox.SelectedValue as string);
 
         DialogResult = true;
         Close();

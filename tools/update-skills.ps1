@@ -93,8 +93,6 @@ function Get-SourceHash($Skill) {
         category = [string](Get-JsonProperty $Skill "category")
         energy = Get-JsonProperty $Skill "energy"
         power = Get-JsonProperty $Skill "power"
-        accuracy = Get-JsonProperty $Skill "accuracy"
-        priority = Get-JsonProperty $Skill "priority"
         description_zh = [string](Get-JsonProperty $Skill "description_zh")
     }
 
@@ -335,9 +333,7 @@ function Get-SavedGeminiApiKey {
     Add-Type -AssemblyName System.Security
 
     $paths = @(
-        (Join-Path $RepoRoot "data\settings.json"),
-        (Join-Path $RepoRoot "bin\Debug\net8.0-windows10.0.19041.0\data\settings.json"),
-        (Join-Path $RepoRoot "bin\Release\net8.0-windows10.0.19041.0\win-x64\publish\data\settings.json")
+        (Join-Path $RepoRoot "data\settings.json")
     )
 
     foreach ($path in $paths) {
@@ -612,9 +608,6 @@ foreach ($source in $sourceSkills) {
         category = $category
         energy = $source.consume
         power = $source.power
-        accuracy = $null
-        priority = $null
-        tags = @()
         description_zh = [string]$source.desc
         icon = $iconRelativePath
         source_hash = $null
@@ -694,7 +687,9 @@ $output = [ordered]@{
     skills = @($newSkills)
 }
 
-$backupPath = "$DataPath.bak-$(Get-Date -Format yyyyMMddHHmmss)"
+$backupDir = Join-Path $RepoRoot "data\skill-backups"
+New-Item -ItemType Directory -Force -Path $backupDir | Out-Null
+$backupPath = Join-Path $backupDir ("skills.json.bak-{0}" -f (Get-Date -Format yyyyMMddHHmmss))
 Copy-Item -LiteralPath $DataPath -Destination $backupPath
 Write-Host "Backup written: $backupPath"
 

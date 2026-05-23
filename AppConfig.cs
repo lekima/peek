@@ -33,8 +33,17 @@ internal sealed class AppConfig
             : DefaultModel;
     }
 
-    public static string NormalizeTargetLanguage(string value) =>
-        string.IsNullOrWhiteSpace(value) ? "English" : value.Trim();
+    public static string NormalizeTargetLanguage(string? value)
+    {
+        value = value?.Trim() ?? string.Empty;
+        if (value.Contains("viet", StringComparison.OrdinalIgnoreCase) ||
+            value.Contains("việt", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Vietnamese";
+        }
+
+        return "English";
+    }
 }
 
 internal static class AppConfigStore

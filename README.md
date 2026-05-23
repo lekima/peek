@@ -43,7 +43,7 @@ dotnet publish .\Peek.csproj -c Release -r win-x64 --self-contained true -p:Publ
 Compress-Archive -LiteralPath .\bin\Release\net8.0-windows10.0.19041.0\win-x64\publish\Peek.exe -DestinationPath .\releases\Peek-win-x64.zip -CompressionLevel Optimal -Force
 ```
 
-Before pushing code changes that affect the app, rebuild and commit `releases/Peek-win-x64.zip` with the same change.
+The zip is a local/generated release artifact and is ignored by git. Publish it through the release channel rather than committing it with source changes.
 
 ## Updating Skill Data
 

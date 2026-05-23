@@ -1,7 +1,6 @@
 using System.IO;
 using System.Net.Http;
 using System.Net.Http.Json;
-using System.Net;
 using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -44,17 +43,15 @@ internal static class GeminiClient
         }
 
         var targetLanguage = AppConfig.NormalizeTargetLanguage(config.TargetLanguage);
-        var targetGame = RocoGame.DisplayName;
-        var searchPrefix = RocoGame.SearchPrefix;
         var imageData = ToPngBase64(bitmap);
-        var payload = CreateTextTranslationPayload(targetLanguage, targetGame, searchPrefix, imageData);
+        var payload = CreateTextTranslationPayload(targetLanguage, imageData);
 
         AppLogger.Event("ai_request", new
         {
             operationId,
             model,
             targetLanguage,
-            targetGame,
+            targetGame = RocoGame.DisplayName,
             captureWidth = bitmap.Width,
             captureHeight = bitmap.Height,
             structuredOutput = true,
@@ -137,8 +134,6 @@ internal static class GeminiClient
 
     private static Dictionary<string, object?> CreateTextTranslationPayload(
         string targetLanguage,
-        string targetGame,
-        string searchPrefix,
         string imageData) =>
         new()
         {
@@ -148,7 +143,7 @@ internal static class GeminiClient
                 {
                     new
                     {
-                        text = CreateTextTranslationPrompt(targetLanguage, targetGame, searchPrefix)
+                        text = CreateTextTranslationPrompt(targetLanguage)
                     }
                 }
             },
@@ -422,11 +417,11 @@ internal static class GeminiClient
 
         content.Append(delta);
         var partialTranslation = ExtractPartialStringProperty(content.ToString(), "translation");
-        if (!string.IsNullOrWhiteSpace(partialTranslation.Text) &&
-            !string.Equals(partialTranslation.Text, lastTranslation, StringComparison.Ordinal))
+        if (!string.IsNullOrWhiteSpace(partialTranslation) &&
+            !string.Equals(partialTranslation, lastTranslation, StringComparison.Ordinal))
         {
-            lastTranslation = partialTranslation.Text;
-            translationUpdated(partialTranslation.Text);
+            lastTranslation = partialTranslation;
+            translationUpdated(partialTranslation);
         }
 
         return true;
@@ -547,7 +542,7 @@ internal static class GeminiClient
             : TrimForDisplay(reason);
     }
 
-    private static PartialStringProperty ExtractPartialStringProperty(string json, string propertyName)
+    private static string ExtractPartialStringProperty(string json, string propertyName)
     {
         for (var index = 0; index < json.Length; index++)
         {
@@ -559,7 +554,7 @@ internal static class GeminiClient
             var key = ReadJsonString(json, index);
             if (!key.Complete)
             {
-                return new PartialStringProperty(string.Empty, false);
+                return string.Empty;
             }
 
             var separatorIndex = SkipWhitespace(json, key.NextIndex);
@@ -578,14 +573,14 @@ internal static class GeminiClient
             var valueIndex = SkipWhitespace(json, separatorIndex + 1);
             if (valueIndex >= json.Length || json[valueIndex] != '"')
             {
-                return new PartialStringProperty(string.Empty, false);
+                return string.Empty;
             }
 
             var value = ReadJsonString(json, valueIndex);
-            return new PartialStringProperty(value.Text, value.Complete);
+            return value.Text;
         }
 
-        return new PartialStringProperty(string.Empty, false);
+        return string.Empty;
     }
 
     private static JsonStringReadResult ReadJsonString(string json, int quoteIndex)
@@ -666,13 +661,10 @@ internal static class GeminiClient
         return index;
     }
 
-    private static string CreateTextTranslationPrompt(
-        string targetLanguage,
-        string targetGame,
-        string searchPrefix)
+    private static string CreateTextTranslationPrompt(string targetLanguage)
     {
         var targetGameInstruction =
-            $"The selected target game is {targetGame}. The app will prefix every Bilibili search with \"{searchPrefix}\"; do not include that game title in any query.";
+            $"The selected target game is {RocoGame.DisplayName}. The app will prefix every Bilibili search with \"{RocoGame.SearchPrefix}\"; do not include that game title in any query.";
 
         return
             "You are helping a player understand a screenshot from a Chinese game. " +
@@ -1100,10 +1092,6 @@ internal sealed record StreamedCompletion(
     string Content,
     TokenUsage Usage,
     string? ProviderRequestId);
-
-internal sealed record PartialStringProperty(
-    string Text,
-    bool Complete);
 
 internal sealed record JsonStringReadResult(
     string Text,

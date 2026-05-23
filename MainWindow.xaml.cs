@@ -5,6 +5,7 @@ using System.Security;
 using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -27,12 +28,12 @@ internal sealed partial class MainWindow : Window
     private const double CollapsedWidth = 106;
     private const double CollapsedHeight = 24;
     private const double FrameRevealHeight = 48;
-    private const double SkillCardVerticalBreakpoint = 320;
-    private const double SkillIconSize = 64;
-    private const double SkillInfoIconSlotSize = 20;
-    private const double SkillCategoryIconSize = 20;
+    private const double SkillCardVerticalBreakpoint = 260;
+    private const double SkillIconSize = 72;
+    private const double SkillBadgeHeight = 24;
     private const double SkillBadgeElementIconSize = 17;
     private const double SkillBadgeEnergyIconSize = 12;
+    private static readonly Color SkillBadgeNeutralBackground = Color.FromRgb(78, 78, 78);
     private const double MaxResultFontSize = 24;
     private const double MinResultFontSize = 10;
     private const double MaxResultLineGap = 12;
@@ -79,7 +80,6 @@ internal sealed partial class MainWindow : Window
     private bool _isCheckingSkills;
     private bool _isShowingSkillResult;
     private SettingsWindow? _settingsWindow;
-    private DisplayedResultState? _displayedResult;
     private readonly DispatcherTimer _statusClearTimer = new()
     {
         Interval = TimeSpan.FromSeconds(2.5)
@@ -332,7 +332,6 @@ internal sealed partial class MainWindow : Window
         SkillResultPanel.Visibility = Visibility.Collapsed;
         SkillResultContent.Children.Clear();
         ResultPanel.Visibility = Visibility.Collapsed;
-        _displayedResult = null;
         _isShowingSkillResult = false;
         ClearButton.Visibility = Visibility.Collapsed;
         SetActionButtonsVisible(true);
@@ -420,7 +419,7 @@ internal sealed partial class MainWindow : Window
             searchButton.Query.Label,
             searchButton.Query.Query,
             searchButton.Query.Intent,
-            searchButton.TargetGame,
+            RocoGame.DisplayName,
             searchButton.Url));
         OpenUrl(searchButton.Url);
     }
@@ -471,8 +470,6 @@ internal sealed partial class MainWindow : Window
         var cancellationSource = _translationCancellation;
         var cancellationToken = cancellationSource.Token;
         var operationConfig = CloneConfig(_config);
-        var targetGame = RocoGame.DisplayName;
-        var searchPrefix = RocoGame.SearchPrefix;
         var operationId = Guid.NewGuid().ToString("N")[..12];
         var stopwatch = Stopwatch.StartNew();
         var captureWidth = 0;
@@ -490,7 +487,7 @@ internal sealed partial class MainWindow : Window
                 operationId,
                 model,
                 targetLanguage = operationConfig.TargetLanguage,
-                targetGame,
+                RocoGame.DisplayName,
                 windowLeft = Left,
                 windowTop = Top,
                 frameWidth = FrameBorder.ActualWidth,
@@ -528,15 +525,13 @@ internal sealed partial class MainWindow : Window
             SetResultText(
                 operationId,
                 result.Text,
-                result.SearchQueries,
-                targetGame,
-                searchPrefix);
+                result.SearchQueries);
             AppLogger.TextResult(new TextResultLogEntry(
                 DateTimeOffset.Now,
                 operationId,
                 model,
                 operationConfig.TargetLanguage,
-                targetGame,
+                RocoGame.DisplayName,
                 capturePath,
                 result.Text,
                 result.SearchQueries));
@@ -551,7 +546,7 @@ internal sealed partial class MainWindow : Window
                 responseUsage,
                 model,
                 operationConfig,
-                targetGame,
+                RocoGame.DisplayName,
                 null,
                 null);
             usageTracked = true;
@@ -572,7 +567,7 @@ internal sealed partial class MainWindow : Window
                     responseUsage,
                     model,
                     operationConfig,
-                    targetGame,
+                    RocoGame.DisplayName,
                     nameof(OperationCanceledException),
                     "Cancelled");
             }
@@ -599,7 +594,7 @@ internal sealed partial class MainWindow : Window
                 responseUsage,
                 model,
                 operationConfig,
-                targetGame,
+                RocoGame.DisplayName,
                 ex.GetType().Name,
                 shortError);
         }
@@ -922,7 +917,6 @@ internal sealed partial class MainWindow : Window
 
     private void ClearFailedStreamingResult()
     {
-        _displayedResult = null;
         _isShowingSkillResult = false;
         UseCaptureFramePresentation();
         SkillResultContent.Children.Clear();
@@ -936,21 +930,14 @@ internal sealed partial class MainWindow : Window
     private void SetResultText(
         string operationId,
         string text,
-        IReadOnlyList<SearchQueryResult> searchQueries,
-        string targetGame,
-        string searchPrefix)
+        IReadOnlyList<SearchQueryResult> searchQueries)
     {
-        _displayedResult = new DisplayedResultState(
-            operationId,
-            searchQueries,
-            targetGame,
-            searchPrefix);
         _isShowingSkillResult = false;
         UseCaptureFramePresentation();
         SkillResultContent.Children.Clear();
         SetResultTextLines(text);
         ResultTextPanel.Visibility = Visibility.Visible;
-        SetSearchButtons(operationId, searchQueries, targetGame, searchPrefix);
+        SetSearchButtons(operationId, searchQueries);
 
         ResultPanel.Padding = MaxResultTextPadding;
         ResultPanel.Visibility = Visibility.Visible;
@@ -963,7 +950,6 @@ internal sealed partial class MainWindow : Window
 
     private void SetSkillResult(SkillLookupResult lookup, string targetLanguage)
     {
-        _displayedResult = null;
         _isShowingSkillResult = true;
         UseSkillResultPresentation();
         ClearSearchButtons();
@@ -1096,7 +1082,7 @@ internal sealed partial class MainWindow : Window
 
         var textPanel = new StackPanel();
         var localizedName = SkillDatabase.GetLocalizedName(skill, targetLanguage);
-        textPanel.Children.Add(CreateSkillTitleLine(localizedName));
+        textPanel.Children.Add(CreateSkillTitleLine(localizedName, skill));
         textPanel.Children.Add(CreateSkillBadgeLine(skill, targetLanguage));
 
         textPanel.Children.Add(new TextBlock
@@ -1107,7 +1093,7 @@ internal sealed partial class MainWindow : Window
             FontSize = 14,
             FontWeight = FontWeights.SemiBold,
             LineHeight = 18,
-            Margin = new Thickness(0, 5, 0, 0),
+            Margin = new Thickness(0, 8, 0, 0),
             TextWrapping = TextWrapping.Wrap
         });
 
@@ -1155,17 +1141,55 @@ internal sealed partial class MainWindow : Window
         return host;
     }
 
-    private FrameworkElement CreateSkillTitleLine(string localizedName)
+    private FrameworkElement CreateSkillTitleLine(string localizedName, SkillEntry skill)
     {
-        return new TextBlock
+        var title = new TextBlock
         {
-            Text = localizedName,
             Foreground = new SolidColorBrush(Color.FromRgb(255, 198, 95)),
             FontFamily = FontFamily,
             FontSize = 16,
             FontWeight = FontWeights.SemiBold,
             TextWrapping = TextWrapping.Wrap
         };
+
+        var titleText = new Run(localizedName);
+        titleText.Cursor = Cursors.Hand;
+        title.Inlines.Add(titleText);
+        title.Inlines.Add(new Run(" "));
+        var icon = CreateVectorIcon(
+            GetSkillCategoryIconPath(skill.Category),
+            SkillBadgeElementIconSize,
+            new Thickness(0));
+        title.Inlines.Add(new InlineUIContainer(icon)
+        {
+            BaselineAlignment = BaselineAlignment.Center
+        });
+        titleText.MouseEnter += (_, _) => titleText.TextDecorations = CreateDottedUnderline();
+        titleText.MouseLeave += (_, _) => titleText.TextDecorations = null;
+        titleText.MouseLeftButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            OpenSkillSearch(skill);
+        };
+
+        return title;
+    }
+
+    private static TextDecorationCollection CreateDottedUnderline()
+    {
+        var decoration = new TextDecoration
+        {
+            Location = TextDecorationLocation.Underline,
+            Pen = new Pen(new SolidColorBrush(Color.FromRgb(255, 198, 95)), 1)
+            {
+                DashStyle = DashStyles.Dot
+            }
+        };
+        decoration.Freeze();
+
+        var decorations = new TextDecorationCollection { decoration };
+        decorations.Freeze();
+        return decorations;
     }
 
     private FrameworkElement CreateSkillBadgeLine(SkillEntry skill, string targetLanguage)
@@ -1176,43 +1200,7 @@ internal sealed partial class MainWindow : Window
             Margin = new Thickness(0, 4, 0, 0)
         };
         panel.Children.Add(CreateSkillDamageBadge(skill, targetLanguage));
-        panel.Children.Add(CreateSkillTypeBadge(skill, targetLanguage));
         return panel;
-    }
-
-    private FrameworkElement CreateSkillTypeBadge(SkillEntry skill, string targetLanguage)
-    {
-        var badge = new Border
-        {
-            Background = new SolidColorBrush(DarkenColor(GetSkillCategoryColor(skill.Category))),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(5, 2, 7, 2),
-            Margin = new Thickness(0),
-            VerticalAlignment = VerticalAlignment.Center,
-            ToolTip = SkillDatabase.GetCategoryLabel(skill.Category, targetLanguage)
-        };
-
-        var panel = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        panel.Children.Add(CreateVectorIcon(
-            GetSkillCategoryIconPath(skill.Category),
-            14,
-            new Thickness(0, 0, 3, 0),
-            Brushes.White));
-        panel.Children.Add(new TextBlock
-        {
-            Text = SkillDatabase.GetCategoryLabel(skill.Category, targetLanguage),
-            Foreground = Brushes.White,
-            FontFamily = FontFamily,
-            FontSize = 12,
-            FontWeight = FontWeights.SemiBold,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-        badge.Child = panel;
-        return badge;
     }
 
     private bool ShouldUseVerticalSkillCardLayout(double cardWidth) =>
@@ -1241,9 +1229,10 @@ internal sealed partial class MainWindow : Window
         var badge = new Border
         {
             Background = new SolidColorBrush(elementColor),
-            CornerRadius = new CornerRadius(10),
+            CornerRadius = new CornerRadius(12),
             Padding = new Thickness(5, 2, 9, 2),
             Margin = new Thickness(0, 0, 6, 0),
+            Height = SkillBadgeHeight,
             HorizontalAlignment = HorizontalAlignment.Left,
             ToolTip = SkillDatabase.GetElementLabel(skill.Element, targetLanguage)
         };
@@ -1269,7 +1258,7 @@ internal sealed partial class MainWindow : Window
             Foreground = Brushes.White,
             FontFamily = FontFamily,
             FontSize = 14,
-            FontWeight = FontWeights.SemiBold,
+            FontWeight = FontWeights.Bold,
             VerticalAlignment = VerticalAlignment.Center
         });
         badge.Child = panel;
@@ -1280,7 +1269,7 @@ internal sealed partial class MainWindow : Window
     {
         var badge = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(78, 78, 78)),
+            Background = new SolidColorBrush(SkillBadgeNeutralBackground),
             CornerRadius = new CornerRadius(9),
             Padding = new Thickness(4, 1, 5, 1),
             MinWidth = 24,
@@ -1296,43 +1285,18 @@ internal sealed partial class MainWindow : Window
             Orientation = Orientation.Horizontal,
             VerticalAlignment = VerticalAlignment.Center
         };
-        panel.Children.Add(CreateVectorIcon("/Resources/EnergyStar.xaml", SkillBadgeEnergyIconSize, new Thickness(0, 0, 2, 0)));
+        panel.Children.Add(CreateVectorIcon("/Resources/EnergyStar.xaml", SkillBadgeEnergyIconSize, new Thickness(0, 0, 4, 0)));
         panel.Children.Add(new TextBlock
         {
             Text = energy?.ToString(CultureInfo.InvariantCulture) ?? "--",
             Foreground = Brushes.White,
             FontFamily = FontFamily,
             FontSize = 12,
-            FontWeight = FontWeights.SemiBold,
+            FontWeight = FontWeights.Bold,
             VerticalAlignment = VerticalAlignment.Center
         });
         badge.Child = panel;
         return badge;
-    }
-
-    private static (FrameworkElement Slot, Image Image) CreateSkillInfoImageSlot(
-        double imageSize,
-        Thickness margin,
-        string tooltip)
-    {
-        var image = new Image
-        {
-            Width = imageSize,
-            Height = imageSize,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            Stretch = Stretch.Uniform
-        };
-        var slot = new Grid
-        {
-            Width = SkillInfoIconSlotSize,
-            Height = SkillInfoIconSlotSize,
-            Margin = margin,
-            VerticalAlignment = VerticalAlignment.Center,
-            ToolTip = tooltip
-        };
-        slot.Children.Add(image);
-        return (slot, image);
     }
 
     private static Image CreateVectorIcon(string resourcePath, double size, Thickness margin, Brush? tintBrush = null)
@@ -1358,17 +1322,6 @@ internal sealed partial class MainWindow : Window
             "special" => "/Resources/SkillMeta/Magic.xaml",
             "defense" => "/Resources/SkillMeta/Defense.xaml",
             _ => "/Resources/SkillMeta/Status.xaml"
-        };
-    }
-
-    private static Color GetSkillCategoryColor(string category)
-    {
-        return category switch
-        {
-            "physical" => Color.FromRgb(255, 113, 95),
-            "special" => Color.FromRgb(156, 140, 255),
-            "defense" => Color.FromRgb(101, 209, 141),
-            _ => Color.FromRgb(255, 215, 107)
         };
     }
 
@@ -1486,7 +1439,6 @@ internal sealed partial class MainWindow : Window
 
     private void ClearResult()
     {
-        _displayedResult = null;
         ResultTextPanel.Children.Clear();
         ResultTextPanel.Visibility = Visibility.Collapsed;
         SkillResultContent.Children.Clear();
@@ -1515,9 +1467,7 @@ internal sealed partial class MainWindow : Window
 
     private void SetSearchButtons(
         string operationId,
-        IReadOnlyList<SearchQueryResult> searchQueries,
-        string targetGame,
-        string searchPrefix)
+        IReadOnlyList<SearchQueryResult> searchQueries)
     {
         ClearSearchButtons();
 
@@ -1530,7 +1480,7 @@ internal sealed partial class MainWindow : Window
                 break;
             }
 
-            var searchUrl = BuildBilibiliSearchUrl(searchQuery.Query, searchPrefix);
+            var searchUrl = BuildBilibiliSearchUrl(searchQuery.Query);
             if (string.IsNullOrWhiteSpace(searchUrl))
             {
                 continue;
@@ -1545,7 +1495,6 @@ internal sealed partial class MainWindow : Window
                 operationId,
                 buttonIndex + 1,
                 searchQuery,
-                targetGame,
                 searchUrl);
             buttonIndex++;
         }
@@ -1555,7 +1504,7 @@ internal sealed partial class MainWindow : Window
             : Visibility.Collapsed;
     }
 
-    private static string BuildBilibiliSearchUrl(string searchQuery, string searchPrefix)
+    private static string BuildBilibiliSearchUrl(string searchQuery)
     {
         var keyword = searchQuery.Trim();
         if (string.IsNullOrWhiteSpace(keyword))
@@ -1563,11 +1512,28 @@ internal sealed partial class MainWindow : Window
             return string.Empty;
         }
 
-        var prefixedKeyword = string.IsNullOrWhiteSpace(searchPrefix) ||
-            keyword.StartsWith(searchPrefix, StringComparison.OrdinalIgnoreCase)
+        var prefixedKeyword = keyword.StartsWith(RocoGame.SearchPrefix, StringComparison.OrdinalIgnoreCase)
                 ? keyword
-                : $"{searchPrefix} {keyword}";
+                : $"{RocoGame.SearchPrefix} {keyword}";
         return AppConfig.BilibiliSearchUrlPrefix + Uri.EscapeDataString(prefixedKeyword);
+    }
+
+    private void OpenSkillSearch(SkillEntry skill)
+    {
+        var searchUrl = BuildBilibiliSearchUrl(skill.NameZh);
+        if (string.IsNullOrWhiteSpace(searchUrl))
+        {
+            return;
+        }
+
+        AppLogger.Event("skill_search_click", new
+        {
+            skillId = skill.Id,
+            skillNameZh = skill.NameZh,
+            searchPrefix = RocoGame.SearchPrefix,
+            searchUrl
+        });
+        OpenUrl(searchUrl);
     }
 
     private void ClearSearchButtons()
@@ -1814,11 +1780,4 @@ internal sealed record SearchButtonState(
     string OperationId,
     int Index,
     SearchQueryResult Query,
-    string TargetGame,
     string Url);
-
-internal sealed record DisplayedResultState(
-    string OperationId,
-    IReadOnlyList<SearchQueryResult> SearchQueries,
-    string TargetGame,
-    string SearchPrefix);

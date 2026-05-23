@@ -3,8 +3,8 @@ obj/
 data/
 !Resources/Data/
 !Resources/Data/skills.json
+Resources/Data/*.bak-*
 releases/*
-!releases/Peek-win-x64.zip
 .vs/
 *.user
 *.suo

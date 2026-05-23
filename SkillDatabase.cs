@@ -55,12 +55,6 @@ internal static class SkillDatabase
         return labels.TryGetValue(element, out var label) ? label : element;
     }
 
-    public static string GetCategoryLabel(string category, string targetLanguage)
-    {
-        var labels = IsVietnamese(targetLanguage) ? CategoryLabelsVi : CategoryLabelsEn;
-        return labels.TryGetValue(category, out var label) ? label : category;
-    }
-
     private static SkillLocalization? GetLocalization(SkillEntry skill, string targetLanguage)
     {
         var localization = IsVietnamese(targetLanguage)
@@ -169,21 +163,6 @@ internal static class SkillDatabase
         ["illusion"] = "Ảo ảnh"
     };
 
-    private static readonly IReadOnlyDictionary<string, string> CategoryLabelsEn = new Dictionary<string, string>(StringComparer.Ordinal)
-    {
-        ["physical"] = "Physical",
-        ["special"] = "Magic",
-        ["status"] = "Status",
-        ["defense"] = "Defense"
-    };
-
-    private static readonly IReadOnlyDictionary<string, string> CategoryLabelsVi = new Dictionary<string, string>(StringComparer.Ordinal)
-    {
-        ["physical"] = "Vật lý",
-        ["special"] = "Phép",
-        ["status"] = "Trạng thái",
-        ["defense"] = "Phòng thủ"
-    };
 }
 
 internal sealed record SkillLookupResult(
@@ -220,17 +199,8 @@ internal sealed class SkillEntry
     [JsonPropertyName("power")]
     public int? Power { get; set; }
 
-    [JsonPropertyName("accuracy")]
-    public int? Accuracy { get; set; }
-
     [JsonPropertyName("energy")]
     public int? Energy { get; set; }
-
-    [JsonPropertyName("priority")]
-    public int? Priority { get; set; }
-
-    [JsonPropertyName("tags")]
-    public List<string> Tags { get; set; } = [];
 
     [JsonPropertyName("description_zh")]
     public string DescriptionZh { get; set; } = string.Empty;
