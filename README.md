@@ -27,7 +27,7 @@ Right-click the move button, then choose `Settings`.
 - Log: `data/peek.log.jsonl`
 - Review data: source captures are saved in `data/captures`, and read translations/search queries are logged as `text_result` events.
 - Skill data: bundled from `wikiroco.com` under `Resources/Data/skills.json`; skill icons are bundled under `Resources/Skills`, and skill-card element/type icons are bundled from `rocomwiki.app`.
-- Font: Roboto Variable and Roboto Condensed are bundled from Google Fonts under the SIL Open Font License in `Resources/Fonts`; Settings and skill cards use Roboto Variable, and overlay translation text uses Roboto Condensed Semibold.
+- Font: Roboto Variable is bundled from Google Fonts under the SIL Open Font License in `Resources/Fonts`; app text, settings, translations, and skill cards use Roboto Variable with explicit weights.
 - Local data cleanup: delete the `data` folder next to `Peek.exe`
 
 ## Run

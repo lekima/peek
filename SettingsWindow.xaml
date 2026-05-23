@@ -10,7 +10,8 @@
         WindowStartupLocation="CenterOwner"
         Background="#161616"
         Foreground="#F2F2F2"
-        FontFamily="pack://application:,,,/Resources/Fonts/#Roboto">
+        FontFamily="pack://application:,,,/Resources/Fonts/#Roboto"
+        FontWeight="Normal">
     <Window.Resources>
         <Style TargetType="TextBlock">
             <Setter Property="FontSize" Value="13" />

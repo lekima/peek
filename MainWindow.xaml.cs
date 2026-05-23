@@ -984,7 +984,7 @@ internal sealed partial class MainWindow : Window
                 Foreground = new SolidColorBrush(Color.FromRgb(255, 198, 95)),
                 FontFamily = FontFamily,
                 FontSize = 13,
-                FontWeight = FontWeights.Bold,
+                FontWeight = FontWeights.SemiBold,
                 TextWrapping = TextWrapping.Wrap
             });
         }
@@ -1105,6 +1105,7 @@ internal sealed partial class MainWindow : Window
             Foreground = new SolidColorBrush(Color.FromRgb(238, 238, 238)),
             FontFamily = FontFamily,
             FontSize = 14,
+            FontWeight = FontWeights.SemiBold,
             LineHeight = 18,
             Margin = new Thickness(0, 5, 0, 0),
             TextWrapping = TextWrapping.Wrap
@@ -1159,9 +1160,9 @@ internal sealed partial class MainWindow : Window
         return new TextBlock
         {
             Text = localizedName,
-            Foreground = Brushes.White,
+            Foreground = new SolidColorBrush(Color.FromRgb(255, 198, 95)),
             FontFamily = FontFamily,
-            FontSize = 13,
+            FontSize = 16,
             FontWeight = FontWeights.SemiBold,
             TextWrapping = TextWrapping.Wrap
         };

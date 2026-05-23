@@ -15,14 +15,22 @@
         Topmost="True"
         ShowInTaskbar="True"
         FontFamily="pack://application:,,,/Resources/Fonts/#Roboto"
+        FontWeight="Normal"
         WindowStartupLocation="CenterScreen"
         SourceInitialized="Window_SourceInitialized"
         Loaded="Window_Loaded">
     <Window.Resources>
-        <ContextMenu x:Key="WindowMenu">
+        <ContextMenu x:Key="WindowMenu"
+                     FontFamily="pack://application:,,,/Resources/Fonts/#Roboto"
+                     FontWeight="Normal">
             <MenuItem Header="Settings" Click="SettingsMenu_Click" />
             <MenuItem Header="Quit" Click="QuitMenu_Click" />
         </ContextMenu>
+
+        <Style TargetType="{x:Type ToolTip}">
+            <Setter Property="FontFamily" Value="pack://application:,,,/Resources/Fonts/#Roboto" />
+            <Setter Property="FontWeight" Value="Normal" />
+        </Style>
 
         <Style x:Key="OverlayButton" TargetType="Button">
             <Setter Property="Width" Value="18" />
@@ -59,7 +67,7 @@
         <Style x:Key="SearchButton" TargetType="Button" BasedOn="{StaticResource OverlayButton}">
             <Setter Property="Foreground" Value="#E6080808" />
             <Setter Property="FontSize" Value="11" />
-            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="ToolTip" Value="Search" />
         </Style>
 
@@ -169,7 +177,7 @@
                                     Visibility="Collapsed">
                             <StackPanel.Resources>
                                 <Style TargetType="TextBlock">
-                                    <Setter Property="FontFamily" Value="pack://application:,,,/Resources/Fonts/#Roboto Condensed" />
+                                    <Setter Property="FontFamily" Value="pack://application:,,,/Resources/Fonts/#Roboto" />
                                     <Setter Property="FontWeight" Value="SemiBold" />
                                     <Setter Property="Foreground" Value="#FFFFC65F" />
                                     <Setter Property="TextWrapping" Value="Wrap" />
@@ -276,11 +284,12 @@
                 <Grid Width="10"
                       Height="10">
                     <Path x:Name="SkillIcon"
-                          Fill="#E6080808"
-                          Stretch="Uniform"
-                          Width="10"
-                          Height="10"
-                          Data="M 12 3.55 C 12.22 3.55 12.41 3.69 12.5 3.9 L 14.25 7.91 C 14.48 8.44 14.97 8.79 15.54 8.84 L 19.69 9.22 C 19.96 9.25 20.07 9.59 19.86 9.77 L 16.76 12.58 C 16.34 12.96 16.16 13.54 16.27 14.09 L 17.1 18.1 C 17.16 18.36 16.88 18.56 16.65 18.43 L 13.04 16.36 C 12.4 15.99 11.6 15.99 10.96 16.36 L 7.35 18.43 C 7.12 18.56 6.84 18.36 6.9 18.1 L 7.73 14.09 C 7.84 13.54 7.66 12.96 7.24 12.58 L 4.14 9.77 C 3.93 9.59 4.04 9.25 4.31 9.22 L 8.46 8.84 C 9.03 8.79 9.52 8.44 9.75 7.91 L 11.5 3.9 C 11.59 3.69 11.78 3.55 12 3.55 Z" />
+                          Stroke="#E6080808"
+                          StrokeThickness="1.5"
+                          StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round"
+                          Fill="Transparent"
+                          Data="M 4.6 1.3 A 3.1 3.1 0 1 1 4.6 7.5 A 3.1 3.1 0 1 1 4.6 1.3 M 6.9 6.9 L 8.2 8.2" />
                     <Grid x:Name="SkillSpinner"
                           Width="8"
                           Height="8"

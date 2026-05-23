@@ -26,11 +26,9 @@
     <Resource Include="Resources\EnergyStar.xaml" />
     <Resource Include="Resources\Elements\*.xaml" />
     <Resource Include="Resources\Fonts\Roboto-Variable.ttf" />
-    <Resource Include="Resources\Fonts\RobotoCondensed-SemiBold.ttf" />
     <Resource Include="Resources\SkillMeta\*.xaml" />
     <Resource Include="Resources\Skills\*.png" />
     <None Include="Resources\Fonts\Roboto-OFL.txt" />
-    <None Include="Resources\Fonts\RobotoCondensed-OFL.txt" />
   </ItemGroup>
 
   <Target Name="RemoveRuntimeDataFromPublishOutput" AfterTargets="Publish">
