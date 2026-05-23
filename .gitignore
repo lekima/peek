@@ -4,7 +4,6 @@ data/
 !Resources/Data/
 !Resources/Data/skills.json
 Resources/Data/*.bak-*
-releases/*
 .vs/
 *.user
 *.suo

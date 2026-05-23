@@ -1,7 +1,4 @@
 using System.ComponentModel;
-using System.Diagnostics;
-using System.IO;
-using System.Security;
 using System.Windows;
 using MessageBox = System.Windows.MessageBox;
 
@@ -20,7 +17,6 @@ internal sealed partial class SettingsWindow : Window
         ApiKeyBox.Password = config.ApiKey;
         TargetLanguageBox.SelectedValue = AppConfig.NormalizeTargetLanguage(config.TargetLanguage);
         DiagnosticsBox.IsChecked = config.DiagnosticsEnabled;
-        LastUpdatedText.Text = AppInfo.LastUpdated;
     }
 
     private void Save_Click(object sender, RoutedEventArgs e)
@@ -46,44 +42,16 @@ internal sealed partial class SettingsWindow : Window
         Close();
     }
 
-    private void OpenLog_Click(object sender, RoutedEventArgs e)
-    {
-        AppLogger.Info("Log opened from settings.");
-        try
-        {
-            OpenFile(AppLogger.LogPath);
-        }
-        catch (Exception ex) when (ex is IOException or SecurityException or UnauthorizedAccessException or Win32Exception or InvalidOperationException)
-        {
-            MessageBox.Show(this, ex.Message, "Log", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
-    }
-
     private void ClearData_Click(object sender, RoutedEventArgs e)
     {
         AppDataMaintenance.ClearSensitiveData();
         AppLogger.Info("Sensitive local data cleared from settings.");
         MessageBox.Show(
             this,
-            "Saved captures and logs were cleared.",
+            "Troubleshooting data has been cleared.",
             "Settings",
             MessageBoxButton.OK,
             MessageBoxImage.Information);
-    }
-
-    private static void OpenFile(string path)
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        if (!File.Exists(path))
-        {
-            File.WriteAllText(path, string.Empty);
-        }
-
-        Process.Start(new ProcessStartInfo
-        {
-            FileName = path,
-            UseShellExecute = true
-        });
     }
 
 }

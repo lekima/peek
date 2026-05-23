@@ -25,8 +25,8 @@ Settings are available from the move-button right-click menu.
 
 - `Gemini API key`: stored encrypted for the current Windows user with DPAPI.
 - `Target language`: fixed dropdown with `English` and `Vietnamese`.
-- `Save diagnostic screenshots and result text`: off by default; when enabled, raw captures and model text are retained for troubleshooting.
-- `Last updated`: app-level bundled data date from `AppInfo`.
+- `Keep troubleshooting data`: off by default; when enabled, raw captures and model text are retained locally for troubleshooting.
+- `Clear data`: removes local logs and saved captures.
 
 Runtime data is stored under the current Windows user's local app data folder, normally `%LOCALAPPDATA%\Peek`:
 
@@ -68,7 +68,7 @@ dotnet publish .\Peek.csproj -c Release -r win-x64 --self-contained true -p:Publ
 Compress-Archive -LiteralPath "$out\Peek.exe" -DestinationPath .\releases\Peek-win-x64.zip -CompressionLevel Optimal -Force
 ```
 
-`releases/Peek-win-x64.zip` is generated locally and ignored by git. Publish release artifacts through the release channel instead of committing them.
+`releases/Peek-win-x64.zip` is the tracked Windows x64 release artifact. Refresh it after user-facing release changes.
 
 ## Updating Skill Data
 
@@ -97,7 +97,7 @@ The updater:
 - Writes backups under ignored `data/skill-backups`.
 - Validates skill count, duplicate IDs/names, icon presence, icon size, and EN/VI localization coverage.
 
-After updating data, run validation and commit changed source assets such as `Resources/Data/skills.json`, `Resources/Skills`, and icon resources. Do not commit the generated release zip.
+After updating data, run validation and commit changed source assets such as `Resources/Data/skills.json`, `Resources/Skills`, and icon resources. Refresh `releases/Peek-win-x64.zip` when the update should ship in the bundled app.
 
 ## Anti-Cheat Notes
 
