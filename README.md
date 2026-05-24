@@ -41,6 +41,7 @@ Use `Clear data` in settings, or delete the local app data folder, to reset logs
 - Skill data comes from `https://wikiroco.com/api/skills`.
 - Skill records are bundled in `Resources/Data/skills.json`.
 - Skill icons are bundled in `Resources/Skills` and normalized to `128x128`.
+- Bundled skill data uses schema v2 with canonical normalized source hashes, icon content hashes, and translations bound to each skill source hash.
 - Element and skill-type icons are bundled as WPF vector resources.
 - Overlay buttons and overlay-frame text use bundled Roboto Condensed Variable from Google Fonts under the SIL Open Font License. Settings use the default Windows UI font.
 
@@ -58,6 +59,12 @@ Validate the bundled skill database:
 
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\update-skills.ps1 -ValidateOnly
+```
+
+Validate the local bundle and check whether bundled skill data differs from upstream wikiroco data:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\update-skills.ps1 -CheckFreshness
 ```
 
 Build a local Windows x64 release:
@@ -88,14 +95,15 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\update-skills.ps1 -Transla
 The updater:
 
 - Fetches wikiroco skill data.
+- Checks upstream freshness without writing files when `-CheckFreshness` is used.
 - Downloads missing or changed skill icons.
 - Normalizes skill icons to `128x128`.
 - Updates element/type vector icons from rocomwiki assets.
-- Stores `source_hash` and `source_icon_url` for change detection.
-- Preserves English/Vietnamese translations when source content is unchanged.
+- Stores schema v2 source metadata, per-skill `source_hash`, icon source URL, and icon content hash for change detection.
+- Preserves English/Vietnamese translations only when their `translated_from_hash` matches unchanged source content.
 - Calls Gemini only for changed records when `-TranslateChanged` is used.
 - Writes backups under ignored `data/skill-backups`.
-- Validates skill count, duplicate IDs/names, icon presence, icon size, and EN/VI localization coverage.
+- Validates schema/source metadata, dataset hash, generated IDs, duplicate IDs/names, canonical source hashes, icon paths/content/size, and EN/VI localization coverage.
 
 After updating data, run validation and commit changed source assets such as `Resources/Data/skills.json`, `Resources/Skills`, and icon resources. Refresh `releases/Peek-win-x64.zip` when the update should ship in the bundled app.
 

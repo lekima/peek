@@ -1327,7 +1327,7 @@ internal sealed partial class MainWindow : Window
             Stretch = Stretch.UniformToFill,
             SnapsToDevicePixels = true
         };
-        TrySetSkillImage(image, skill.Icon);
+        TrySetSkillImage(image, skill.Icon.Path);
         host.Children.Add(image);
 
         host.Children.Add(CreateSkillEnergyBadge(skill.Energy));

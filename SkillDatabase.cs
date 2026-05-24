@@ -58,11 +58,12 @@ internal static class SkillDatabase
     private static SkillLocalization? GetLocalization(SkillEntry skill, string targetLanguage)
     {
         var localization = IsVietnamese(targetLanguage)
-            ? skill.Localized?.Vi
-            : skill.Localized?.En;
+            ? skill.Translations?.Vi
+            : skill.Translations?.En;
 
         return string.IsNullOrWhiteSpace(localization?.Name) ||
-            localization.Description is null
+            localization.Description is null ||
+            !string.Equals(localization.TranslatedFromHash, skill.SourceHash, StringComparison.Ordinal)
                 ? null
                 : localization;
     }
@@ -75,6 +76,14 @@ internal static class SkillDatabase
         using var reader = new StreamReader(stream);
         var data = JsonSerializer.Deserialize<SkillDataFile>(reader.ReadToEnd()) ??
             throw new InvalidOperationException("Bundled skill database is invalid.");
+        if (data.SchemaVersion != 2 ||
+            data.Source?.Provider != "wikiroco" ||
+            data.Source.Url != "https://wikiroco.com/api/skills" ||
+            data.Source.ItemCount != data.Skills.Count ||
+            data.Source.SourceCount != data.Skills.Count)
+        {
+            throw new InvalidOperationException("Bundled skill database has an unsupported schema.");
+        }
 
         var byName = new Dictionary<string, SkillEntry>(StringComparer.Ordinal);
         var byCompactName = new Dictionary<string, SkillEntry>(StringComparer.Ordinal);
@@ -175,8 +184,29 @@ internal sealed record SkillIndex(
 
 internal sealed class SkillDataFile
 {
+    [JsonPropertyName("schema_version")]
+    public int SchemaVersion { get; set; }
+
+    [JsonPropertyName("source")]
+    public SkillDataSource? Source { get; set; }
+
     [JsonPropertyName("skills")]
     public List<SkillEntry> Skills { get; set; } = [];
+}
+
+internal sealed class SkillDataSource
+{
+    [JsonPropertyName("provider")]
+    public string Provider { get; set; } = string.Empty;
+
+    [JsonPropertyName("url")]
+    public string Url { get; set; } = string.Empty;
+
+    [JsonPropertyName("source_count")]
+    public int SourceCount { get; set; }
+
+    [JsonPropertyName("item_count")]
+    public int ItemCount { get; set; }
 }
 
 internal sealed class SkillEntry
@@ -205,11 +235,20 @@ internal sealed class SkillEntry
     [JsonPropertyName("description_zh")]
     public string DescriptionZh { get; set; } = string.Empty;
 
-    [JsonPropertyName("icon")]
-    public string Icon { get; set; } = string.Empty;
+    [JsonPropertyName("source_hash")]
+    public string SourceHash { get; set; } = string.Empty;
 
-    [JsonPropertyName("localized")]
-    public SkillLocalizedSet? Localized { get; set; }
+    [JsonPropertyName("icon")]
+    public SkillIcon Icon { get; set; } = new();
+
+    [JsonPropertyName("translations")]
+    public SkillLocalizedSet? Translations { get; set; }
+}
+
+internal sealed class SkillIcon
+{
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
 }
 
 internal sealed class SkillLocalizedSet
@@ -228,4 +267,7 @@ internal sealed class SkillLocalization
 
     [JsonPropertyName("description")]
     public string Description { get; set; } = string.Empty;
+
+    [JsonPropertyName("translated_from_hash")]
+    public string TranslatedFromHash { get; set; } = string.Empty;
 }

@@ -2,10 +2,13 @@ param(
     [switch]$TranslateChanged,
     [switch]$RefreshIcons,
     [switch]$ValidateOnly,
+    [switch]$CheckFreshness,
     [switch]$AllowMissingTranslations,
     [string]$GeminiApiKey = $env:GEMINI_API_KEY,
     [string]$GeminiModel = "gemini-3.1-flash-lite",
+    [ValidateRange(1, 500)]
     [int]$TranslationBatchSize = 60,
+    [ValidateRange(1, 300)]
     [int]$IconDownloadTimeoutSec = 30
 )
 
@@ -100,54 +103,235 @@ function Get-Sha256Hex([string]$Text) {
     return -join ($hash | ForEach-Object { $_.ToString("x2") })
 }
 
+function Get-FileSha256([string]$Path) {
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        $hash = [System.Security.Cryptography.SHA256]::HashData($stream)
+        return "sha256:" + (-join ($hash | ForEach-Object { $_.ToString("x2") }))
+    }
+    finally {
+        $stream.Dispose()
+    }
+}
+
 function Get-SkillId([string]$NameZh) {
     return "wikiroco-" + (Get-Sha256Hex $NameZh).Substring(0, 12)
 }
 
-function Get-SourceHash($Skill) {
-    $source = [ordered]@{
+function ConvertTo-SkillSourceFingerprint($Skill) {
+    return [ordered]@{
         name_zh = [string](Get-JsonProperty $Skill "name_zh")
         element = [string](Get-JsonProperty $Skill "element")
         category = [string](Get-JsonProperty $Skill "category")
-        energy = Get-JsonProperty $Skill "energy"
-        power = Get-JsonProperty $Skill "power"
+        energy = [int](Get-JsonProperty $Skill "energy")
+        power = [int](Get-JsonProperty $Skill "power")
         description_zh = [string](Get-JsonProperty $Skill "description_zh")
     }
-
-    return Get-Sha256Hex ($source | ConvertTo-Json -Depth 8 -Compress)
 }
 
-function Convert-Localization($Localization) {
+function Get-SourceHash($Skill) {
+    $source = ConvertTo-SkillSourceFingerprint $Skill
+
+    return "sha256:" + (Get-Sha256Hex ($source | ConvertTo-Json -Depth 8 -Compress))
+}
+
+function Get-SkillIcon($Skill) {
+    return Get-JsonProperty $Skill "icon"
+}
+
+function Get-SkillIconPath($Skill) {
+    return [string](Get-JsonProperty (Get-SkillIcon $Skill) "path")
+}
+
+function Get-SkillIconSourceUrl($Skill) {
+    return [string](Get-JsonProperty (Get-SkillIcon $Skill) "source_url")
+}
+
+function Convert-WikirocoSourceSkill($Source) {
+    $nameZh = [string]$Source.name
+    $attrZh = [string]$Source.attr
+    $typeZh = [string]$Source.type
+
+    if ([string]::IsNullOrWhiteSpace($nameZh)) {
+        throw "Wikiroco source skill is missing a name."
+    }
+
+    if (!$ElementMap.ContainsKey($attrZh)) {
+        throw "Unknown skill element '$attrZh' for '$nameZh'."
+    }
+
+    if (!$CategoryMap.ContainsKey($typeZh)) {
+        throw "Unknown skill category '$typeZh' for '$nameZh'."
+    }
+
+    $id = Get-SkillId $nameZh
+    $iconUrl = [string]$Source.icon
+    if ([string]::IsNullOrWhiteSpace($iconUrl)) {
+        throw "Wikiroco source skill '$nameZh' is missing an icon URL."
+    }
+
+    $skill = [ordered]@{
+        id = $id
+        source_key = [ordered]@{
+            provider = "wikiroco"
+            name_zh = $nameZh
+        }
+        name_zh = $nameZh
+        aliases_zh = @()
+        element = $ElementMap[$attrZh]
+        category = $CategoryMap[$typeZh]
+        energy = [int]$Source.consume
+        power = [int]$Source.power
+        description_zh = [string]$Source.desc
+        source_hash = $null
+        icon = [ordered]@{
+            path = "Resources/Skills/$id.png"
+            source_url = $iconUrl
+            width = 128
+            height = 128
+            format = "png"
+            content_hash = $null
+        }
+        translations = [ordered]@{
+            en = $null
+            vi = $null
+        }
+    }
+
+    $skill.source_hash = Get-SourceHash $skill
+    return $skill
+}
+
+function Write-SkillNameSample([string]$Label, $Skills) {
+    $items = @($Skills)
+    if ($items.Count -eq 0) {
+        return
+    }
+
+    $sample = ($items | Select-Object -First 10 | ForEach-Object { [string](Get-JsonProperty $_ "name_zh") }) -join ", "
+    Write-Host "${Label}: $sample"
+}
+
+function Get-DatasetHash($Skills) {
+    $source = @($Skills | ForEach-Object {
+        [ordered]@{
+            id = [string](Get-JsonProperty $_ "id")
+            source_hash = [string](Get-JsonProperty $_ "source_hash")
+            icon = [ordered]@{
+                source_url = Get-SkillIconSourceUrl $_
+                content_hash = [string](Get-JsonProperty (Get-SkillIcon $_) "content_hash")
+            }
+        }
+    })
+
+    return "sha256:" + (Get-Sha256Hex ($source | ConvertTo-Json -Depth 10 -Compress))
+}
+
+function Get-SkillIndex($Skills) {
+    $index = @{}
+    foreach ($skill in @($Skills)) {
+        $id = [string](Get-JsonProperty $skill "id")
+        if ([string]::IsNullOrWhiteSpace($id)) {
+            throw "Skill record is missing an id."
+        }
+
+        if ($index.ContainsKey($id)) {
+            throw "Duplicate skill id: $id"
+        }
+
+        $index[$id] = $skill
+    }
+
+    return $index
+}
+
+function Get-WikirocoSkillSnapshot {
+    Write-Host "Fetching skills from $SkillApiUrl"
+    $skillResponse = Invoke-RestMethod -Uri $SkillApiUrl -TimeoutSec $IconDownloadTimeoutSec
+    $sourceSkills = @($skillResponse.items)
+    $skills = [System.Collections.Generic.List[object]]::new()
+    $seenIds = [System.Collections.Generic.HashSet[string]]::new()
+
+    foreach ($source in $sourceSkills) {
+        $skill = Convert-WikirocoSourceSkill $source
+        if (!$seenIds.Add([string]$skill.id)) {
+            throw "Duplicate generated skill id '$($skill.id)' for '$($skill.name_zh)'."
+        }
+
+        $skills.Add($skill)
+    }
+
+    $total = [int](Get-JsonProperty $skillResponse "total" $sourceSkills.Count)
+    if ($total -ne $sourceSkills.Count) {
+        throw "Wikiroco API total ($total) does not match item count ($($sourceSkills.Count))."
+    }
+
+    return [pscustomobject]@{
+        Total = $total
+        Skills = @($skills)
+        ById = Get-SkillIndex $skills
+    }
+}
+
+function Save-JsonFile([string]$Path, $Value) {
+    $json = $Value | ConvertTo-Json -Depth 50
+    $json = $json -replace "`r`n", "`n"
+    $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+    [System.IO.File]::WriteAllText($Path, $json + "`n", $utf8NoBom)
+}
+
+function Convert-Localization($Localization, [string]$SourceHash) {
     if ($null -eq $Localization) {
         return $null
     }
 
     $name = [string](Get-JsonProperty $Localization "name" "")
     $description = [string](Get-JsonProperty $Localization "description" "")
+    $translatedFromHash = [string](Get-JsonProperty $Localization "translated_from_hash" "")
+    $updatedAt = [string](Get-JsonProperty $Localization "updated_at" "")
     if ([string]::IsNullOrWhiteSpace($name) -or $null -eq (Get-JsonProperty $Localization "description")) {
+        return $null
+    }
+
+    if ($translatedFromHash -ne $SourceHash -or [string]::IsNullOrWhiteSpace($updatedAt)) {
         return $null
     }
 
     return [ordered]@{
         name = $name
         description = $description
+        translated_from_hash = $translatedFromHash
+        updated_at = $updatedAt
     }
 }
 
-function Convert-LocalizationSet($Localized) {
+function Convert-LocalizationSet($Localized, [string]$SourceHash) {
     return [ordered]@{
-        en = Convert-Localization (Get-JsonProperty $Localized "en")
-        vi = Convert-Localization (Get-JsonProperty $Localized "vi")
+        en = Convert-Localization (Get-JsonProperty $Localized "en") $SourceHash
+        vi = Convert-Localization (Get-JsonProperty $Localized "vi") $SourceHash
     }
 }
 
-function Test-LocalizationSet($Localized) {
-    $en = Get-JsonProperty $Localized "en"
-    $vi = Get-JsonProperty $Localized "vi"
+function New-Localization([string]$Name, [string]$Description, [string]$SourceHash, [string]$UpdatedAt) {
+    return [ordered]@{
+        name = $Name
+        description = $Description
+        translated_from_hash = $SourceHash
+        updated_at = $UpdatedAt
+    }
+}
+
+function Test-LocalizationSet($Translations, [string]$SourceHash) {
+    $en = Get-JsonProperty $Translations "en"
+    $vi = Get-JsonProperty $Translations "vi"
     return -not [string]::IsNullOrWhiteSpace([string](Get-JsonProperty $en "name" "")) -and
         $null -ne (Get-JsonProperty $en "description") -and
+        [string](Get-JsonProperty $en "translated_from_hash" "") -eq $SourceHash -and
+        -not [string]::IsNullOrWhiteSpace([string](Get-JsonProperty $en "updated_at" "")) -and
         -not [string]::IsNullOrWhiteSpace([string](Get-JsonProperty $vi "name" "")) -and
-        $null -ne (Get-JsonProperty $vi "description")
+        $null -ne (Get-JsonProperty $vi "description") -and
+        [string](Get-JsonProperty $vi "translated_from_hash" "") -eq $SourceHash -and
+        -not [string]::IsNullOrWhiteSpace([string](Get-JsonProperty $vi "updated_at" ""))
 }
 
 function Save-ImageAsPng([string]$InputPath, [string]$OutputPath, [int]$Width, [int]$Height) {
@@ -347,38 +531,6 @@ function Update-RocomwikiIconResources([bool]$Force) {
     }
 }
 
-function Get-SavedGeminiApiKey {
-    Add-Type -AssemblyName System.Security
-
-    $paths = @(
-        (Join-Path $RepoRoot "data\settings.json")
-    )
-
-    foreach ($path in $paths) {
-        if (!(Test-Path $path)) {
-            continue
-        }
-
-        $settings = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
-        $encryptedApiKey = [string](Get-JsonProperty $settings "EncryptedApiKey" "")
-        if ([string]::IsNullOrWhiteSpace($encryptedApiKey)) {
-            continue
-        }
-
-        $encryptedBytes = [Convert]::FromBase64String($encryptedApiKey)
-        $plainBytes = [Security.Cryptography.ProtectedData]::Unprotect(
-            $encryptedBytes,
-            $null,
-            [Security.Cryptography.DataProtectionScope]::CurrentUser)
-        $apiKey = [Text.Encoding]::UTF8.GetString($plainBytes)
-        if ($apiKey.StartsWith("AIza", [StringComparison]::OrdinalIgnoreCase)) {
-            return $apiKey
-        }
-    }
-
-    return $null
-}
-
 function Invoke-SkillTranslationBatch($Skills, [string]$ApiKey, [string]$Model) {
     $items = @($Skills | ForEach-Object {
         [ordered]@{
@@ -484,6 +636,31 @@ Rules:
                 throw "Expected $($items.Count) translated skills, got $($rows.Count)."
             }
 
+            $expectedIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+            foreach ($item in $items) {
+                [void]$expectedIds.Add([string]$item.id)
+            }
+
+            $seenIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+            foreach ($row in $rows) {
+                $id = [string]$row.id
+                if (!$expectedIds.Contains($id)) {
+                    throw "Gemini returned unexpected skill id '$id'."
+                }
+
+                if (!$seenIds.Add($id)) {
+                    throw "Gemini returned duplicate skill id '$id'."
+                }
+
+                foreach ($locale in @("en", "vi")) {
+                    $localization = Get-JsonProperty $row $locale
+                    if ([string]::IsNullOrWhiteSpace([string](Get-JsonProperty $localization "name" "")) -or
+                        $null -eq (Get-JsonProperty $localization "description")) {
+                        throw "Gemini returned invalid $locale localization for '$id'."
+                    }
+                }
+            }
+
             return $rows
         }
         catch {
@@ -501,8 +678,37 @@ function Test-SkillDatabase([string]$Path, [bool]$RequireTranslations) {
     $skills = @($data.skills)
     $errors = [System.Collections.Generic.List[string]]::new()
 
-    if ($skills.Count -ne [int](Get-JsonProperty $data "source_count" 0)) {
-        $errors.Add("source_count does not match skills array count.")
+    if ([int](Get-JsonProperty $data "schema_version" 0) -ne 2) {
+        $errors.Add("schema_version must be 2.")
+    }
+
+    $source = Get-JsonProperty $data "source"
+    if ([string](Get-JsonProperty $source "provider" "") -ne "wikiroco") {
+        $errors.Add("source.provider must be wikiroco.")
+    }
+
+    if ([string](Get-JsonProperty $source "url" "") -ne $SkillApiUrl) {
+        $errors.Add("source.url must be $SkillApiUrl.")
+    }
+
+    if ([string]::IsNullOrWhiteSpace([string](Get-JsonProperty $source "fetched_at" ""))) {
+        $errors.Add("source.fetched_at is required.")
+    }
+
+    if ($skills.Count -ne [int](Get-JsonProperty $source "source_count" 0)) {
+        $errors.Add("source.source_count does not match skills array count.")
+    }
+
+    if ($skills.Count -ne [int](Get-JsonProperty $source "item_count" 0)) {
+        $errors.Add("source.item_count does not match skills array count.")
+    }
+
+    $datasetHash = [string](Get-JsonProperty $source "dataset_hash" "")
+    if ($datasetHash -notmatch "^sha256:[0-9a-f]{64}$") {
+        $errors.Add("source.dataset_hash is invalid.")
+    }
+    elseif ($datasetHash -ne (Get-DatasetHash $skills)) {
+        $errors.Add("source.dataset_hash does not match skills.")
     }
 
     $duplicateIds = @($skills | Group-Object id | Where-Object Count -gt 1)
@@ -516,18 +722,97 @@ function Test-SkillDatabase([string]$Path, [bool]$RequireTranslations) {
     }
 
     foreach ($skill in $skills) {
-        $icon = Join-Path $RepoRoot ([string]$skill.icon)
-        if (!(Test-Path $icon)) {
-            $errors.Add("Missing skill icon: $($skill.id) -> $($skill.icon)")
+        $id = [string](Get-JsonProperty $skill "id" "")
+        $nameZh = [string](Get-JsonProperty $skill "name_zh" "")
+        if ([string]::IsNullOrWhiteSpace($id)) {
+            $errors.Add("Skill is missing an id.")
             continue
+        }
+
+        if ([string]::IsNullOrWhiteSpace($nameZh)) {
+            $errors.Add("Skill is missing name_zh: $id")
+        }
+
+        if (@($ElementMap.Values) -notcontains [string](Get-JsonProperty $skill "element" "")) {
+            $errors.Add("Invalid element: $id $($skill.element)")
+        }
+
+        if (@($CategoryMap.Values) -notcontains [string](Get-JsonProperty $skill "category" "")) {
+            $errors.Add("Invalid category: $id $($skill.category)")
+        }
+
+        try {
+            [void][int](Get-JsonProperty $skill "energy")
+            [void][int](Get-JsonProperty $skill "power")
+        }
+        catch {
+            $errors.Add("Skill energy and power must be integers: $id")
+        }
+
+        $expectedId = Get-SkillId $nameZh
+        if ($id -ne $expectedId) {
+            $errors.Add("Skill id mismatch: $id should be $expectedId for $nameZh")
+        }
+
+        $sourceKey = Get-JsonProperty $skill "source_key"
+        if ([string](Get-JsonProperty $sourceKey "provider" "") -ne "wikiroco" -or
+            [string](Get-JsonProperty $sourceKey "name_zh" "") -ne $nameZh) {
+            $errors.Add("source_key mismatch: $id")
+        }
+
+        $expectedIcon = "Resources/Skills/$id.png"
+        $iconInfo = Get-SkillIcon $skill
+        if ([string](Get-JsonProperty $iconInfo "path" "") -ne $expectedIcon) {
+            $errors.Add("Skill icon path mismatch: $id should use $expectedIcon")
+        }
+
+        $sourceHash = [string](Get-JsonProperty $skill "source_hash" "")
+        if ($sourceHash -notmatch "^sha256:[0-9a-f]{64}$") {
+            $errors.Add("Invalid source_hash: $id")
+        }
+        else {
+            try {
+                $expectedHash = Get-SourceHash $skill
+                if ($sourceHash -ne $expectedHash) {
+                    $errors.Add("source_hash mismatch: $id should be $expectedHash")
+                }
+            }
+            catch {
+                $errors.Add("Could not compute source_hash: $id $($_.Exception.Message)")
+            }
+        }
+
+        if ([string]::IsNullOrWhiteSpace([string](Get-JsonProperty $iconInfo "source_url" ""))) {
+            $errors.Add("Missing icon.source_url: $id")
+        }
+
+        if ([int](Get-JsonProperty $iconInfo "width" 0) -ne 128 -or
+            [int](Get-JsonProperty $iconInfo "height" 0) -ne 128 -or
+            [string](Get-JsonProperty $iconInfo "format" "") -ne "png") {
+            $errors.Add("Invalid icon metadata: $id")
+        }
+
+        $iconContentHash = [string](Get-JsonProperty $iconInfo "content_hash" "")
+        if ($iconContentHash -notmatch "^sha256:[0-9a-f]{64}$") {
+            $errors.Add("Invalid icon.content_hash: $id")
+        }
+
+        $icon = Join-Path $RepoRoot (Get-SkillIconPath $skill)
+        if (!(Test-Path $icon)) {
+            $errors.Add("Missing skill icon: $($skill.id) -> $(Get-SkillIconPath $skill)")
+            continue
+        }
+
+        if ($iconContentHash -match "^sha256:[0-9a-f]{64}$" -and $iconContentHash -ne (Get-FileSha256 $icon)) {
+            $errors.Add("icon.content_hash mismatch: $id")
         }
 
         $size = Get-ImageSize $icon
         if ($size.Width -ne 128 -or $size.Height -ne 128) {
-            $errors.Add("Skill icon must be 128x128: $($skill.icon) is $($size.Width)x$($size.Height)")
+            $errors.Add("Skill icon must be 128x128: $(Get-SkillIconPath $skill) is $($size.Width)x$($size.Height)")
         }
 
-        if ($RequireTranslations -and !(Test-LocalizationSet $skill.localized)) {
+        if ($RequireTranslations -and !(Test-LocalizationSet $skill.translations $sourceHash)) {
             $errors.Add("Missing EN/VI localization: $($skill.id) $($skill.name_zh)")
         }
     }
@@ -554,58 +839,178 @@ function Test-SkillDatabase([string]$Path, [bool]$RequireTranslations) {
     Write-Host "Validation passed: $($skills.Count) skills, all icons present, all skill icons 128x128."
 }
 
+function Test-WikirocoFreshness([string]$Path) {
+    Test-SkillDatabase $Path (-not $AllowMissingTranslations)
+
+    $existingData = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
+    $existingSkills = @($existingData.skills)
+    $existingById = Get-SkillIndex $existingSkills
+    $snapshot = Get-WikirocoSkillSnapshot
+
+    $newSkills = [System.Collections.Generic.List[object]]::new()
+    $changedSkills = [System.Collections.Generic.List[object]]::new()
+    $iconChangedSkills = [System.Collections.Generic.List[object]]::new()
+    $removedSkills = [System.Collections.Generic.List[object]]::new()
+
+    foreach ($skill in @($snapshot.Skills)) {
+        if (!$existingById.ContainsKey([string]$skill.id)) {
+            $newSkills.Add($skill)
+            continue
+        }
+
+        $existing = $existingById[[string]$skill.id]
+        if ([string](Get-JsonProperty $existing "source_hash" "") -ne [string]$skill.source_hash) {
+            $changedSkills.Add($skill)
+        }
+
+        if ((Get-SkillIconSourceUrl $existing) -ne (Get-SkillIconSourceUrl $skill)) {
+            $iconChangedSkills.Add($skill)
+        }
+    }
+
+    foreach ($existing in $existingSkills) {
+        if (!$snapshot.ById.ContainsKey([string]$existing.id)) {
+            $removedSkills.Add($existing)
+        }
+    }
+
+    $existingSource = Get-JsonProperty $existingData "source"
+    $countChanged = [int](Get-JsonProperty $existingSource "source_count" 0) -ne $snapshot.Total -or
+        [int](Get-JsonProperty $existingSource "item_count" 0) -ne $snapshot.Skills.Count -or
+        $existingSkills.Count -ne $snapshot.Skills.Count
+    $needsUpdate = $countChanged -or
+        $newSkills.Count -gt 0 -or
+        $changedSkills.Count -gt 0 -or
+        $iconChangedSkills.Count -gt 0 -or
+        $removedSkills.Count -gt 0
+
+    $fetchedAtValue = Get-JsonProperty $existingSource "fetched_at" ""
+    $fetchedAt = if ($fetchedAtValue -is [DateTime]) {
+        $fetchedAtValue.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", [Globalization.CultureInfo]::InvariantCulture)
+    }
+    else {
+        [string]$fetchedAtValue
+    }
+    Write-Host "Local fetched at: $fetchedAt"
+    Write-Host "Local count: $($existingSkills.Count)"
+    Write-Host "Remote total: $($snapshot.Total)"
+    Write-Host "Remote items: $($snapshot.Skills.Count)"
+    Write-Host "New: $($newSkills.Count)"
+    Write-Host "Changed: $($changedSkills.Count)"
+    Write-Host "Icon URL changed: $($iconChangedSkills.Count)"
+    Write-Host "Removed: $($removedSkills.Count)"
+
+    Write-SkillNameSample "New skills" $newSkills
+    Write-SkillNameSample "Changed skills" $changedSkills
+    Write-SkillNameSample "Icon URL changes" $iconChangedSkills
+    Write-SkillNameSample "Removed skills" $removedSkills
+
+    if ($needsUpdate) {
+        Write-Warning "Bundled wikiroco data is not current. Run tools\update-skills.ps1 to update it."
+        return $false
+    }
+
+    Write-Host "Upstream freshness check passed: bundled wikiroco data is current."
+    return $true
+}
+
+if ($ValidateOnly -and $CheckFreshness) {
+    throw "Use either -ValidateOnly or -CheckFreshness, not both."
+}
+
 if ($ValidateOnly) {
     Test-SkillDatabase $DataPath (-not $AllowMissingTranslations)
     return
 }
 
-New-Item -ItemType Directory -Force -Path $SkillIconDir, $ElementIconDir, $SkillMetaIconDir | Out-Null
-Update-RocomwikiIconResources $RefreshIcons
+if ($CheckFreshness) {
+    if (Test-WikirocoFreshness $DataPath) {
+        return
+    }
 
-$existingData = Get-Content -LiteralPath $DataPath -Raw -Encoding UTF8 | ConvertFrom-Json
-$existingById = @{}
-foreach ($skill in @($existingData.skills)) {
-    $existingById[[string]$skill.id] = $skill
+    exit 1
 }
 
-Write-Host "Fetching skills from $SkillApiUrl"
-$skillResponse = Invoke-RestMethod -Uri $SkillApiUrl
-$sourceSkills = @($skillResponse.items)
+Test-SkillDatabase $DataPath (-not $AllowMissingTranslations)
+
+$existingData = Get-Content -LiteralPath $DataPath -Raw -Encoding UTF8 | ConvertFrom-Json
+$existingById = Get-SkillIndex @($existingData.skills)
+$snapshot = Get-WikirocoSkillSnapshot
 
 $newSkills = [System.Collections.Generic.List[object]]::new()
 $translationQueue = [System.Collections.Generic.List[object]]::new()
-$seenIds = [System.Collections.Generic.HashSet[string]]::new()
 
-foreach ($source in $sourceSkills) {
-    $nameZh = [string]$source.name
-    $attrZh = [string]$source.attr
-    $typeZh = [string]$source.type
-
-    if (!$ElementMap.ContainsKey($attrZh)) {
-        throw "Unknown skill element '$attrZh' for '$nameZh'."
-    }
-
-    if (!$CategoryMap.ContainsKey($typeZh)) {
-        throw "Unknown skill category '$typeZh' for '$nameZh'."
-    }
-
-    $id = Get-SkillId $nameZh
-    if (!$seenIds.Add($id)) {
-        throw "Duplicate generated skill id '$id' for '$nameZh'."
-    }
-
-    $element = $ElementMap[$attrZh]
-    $category = $CategoryMap[$typeZh]
-    $iconRelativePath = "Resources/Skills/$id.png"
-    $iconPath = Join-Path $RepoRoot $iconRelativePath
-    $iconUrl = [string]$source.icon
+foreach ($skill in @($snapshot.Skills)) {
+    $id = [string]$skill.id
 
     $existing = $null
     if ($existingById.ContainsKey($id)) {
         $existing = $existingById[$id]
     }
 
-    $oldIconUrl = [string](Get-JsonProperty $existing "source_icon_url" "")
+    $oldHash = [string](Get-JsonProperty $existing "source_hash" "")
+    if ($null -ne $existing -and $oldHash -eq $skill.source_hash -and (Test-LocalizationSet $existing.translations $skill.source_hash)) {
+        $skill.translations = Convert-LocalizationSet $existing.translations $skill.source_hash
+    }
+    else {
+        $translationQueue.Add($skill)
+    }
+
+    $newSkills.Add($skill)
+}
+
+if ($translationQueue.Count -gt 0 -and !$TranslateChanged -and !$AllowMissingTranslations) {
+    throw "$($translationQueue.Count) skill(s) are new or changed and need translations. Re-run with -TranslateChanged, or pass -AllowMissingTranslations for a non-release data file."
+}
+
+if ($TranslateChanged -and $translationQueue.Count -gt 0) {
+    if ([string]::IsNullOrWhiteSpace($GeminiApiKey)) {
+        throw "Gemini API key is required. Set GEMINI_API_KEY or pass -GeminiApiKey."
+    }
+
+    $totalBatches = [Math]::Ceiling($translationQueue.Count / $TranslationBatchSize)
+    $translations = @{}
+    for ($i = 0; $i -lt $translationQueue.Count; $i += $TranslationBatchSize) {
+        $end = [Math]::Min($i + $TranslationBatchSize - 1, $translationQueue.Count - 1)
+        $batch = @($translationQueue[$i..$end])
+        $batchNumber = [Math]::Floor($i / $TranslationBatchSize) + 1
+        Write-Host "Translating batch $batchNumber/$totalBatches ($($batch.Count) skill(s))"
+        $rows = Invoke-SkillTranslationBatch $batch $GeminiApiKey $GeminiModel
+        foreach ($row in $rows) {
+            $skill = $batch | Where-Object { [string]$_.id -eq [string]$row.id } | Select-Object -First 1
+            if ($null -eq $skill) {
+                throw "Gemini returned unexpected skill id '$($row.id)'."
+            }
+
+            $updatedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", [Globalization.CultureInfo]::InvariantCulture)
+            $translations[[string]$row.id] = [ordered]@{
+                en = New-Localization ([string]$row.en.name) ([string]$row.en.description) ([string]$skill.source_hash) $updatedAt
+                vi = New-Localization ([string]$row.vi.name) ([string]$row.vi.description) ([string]$skill.source_hash) $updatedAt
+            }
+        }
+    }
+
+    foreach ($skill in $newSkills) {
+        if ($translations.ContainsKey([string]$skill.id)) {
+            $skill.translations = $translations[[string]$skill.id]
+        }
+    }
+}
+
+New-Item -ItemType Directory -Force -Path $SkillIconDir, $ElementIconDir, $SkillMetaIconDir | Out-Null
+Update-RocomwikiIconResources $RefreshIcons
+
+foreach ($skill in @($newSkills)) {
+    $id = [string]$skill.id
+    $iconPath = Join-Path $RepoRoot (Get-SkillIconPath $skill)
+    $iconUrl = Get-SkillIconSourceUrl $skill
+
+    $existing = $null
+    if ($existingById.ContainsKey($id)) {
+        $existing = $existingById[$id]
+    }
+
+    $oldIconUrl = if ($null -eq $existing) { "" } else { Get-SkillIconSourceUrl $existing }
     $shouldDownloadIcon = $RefreshIcons -or
         !(Test-Path $iconPath) -or
         (![string]::IsNullOrWhiteSpace($oldIconUrl) -and $oldIconUrl -ne $iconUrl)
@@ -619,90 +1024,20 @@ foreach ($source in $sourceSkills) {
         }
     }
 
-    $skill = [ordered]@{
-        id = $id
-        name_zh = $nameZh
-        aliases_zh = @()
-        element = $element
-        category = $category
-        energy = $source.consume
-        power = $source.power
-        description_zh = [string]$source.desc
-        icon = $iconRelativePath
-        source_hash = $null
-        source_icon_url = $iconUrl
-        localized = [ordered]@{
-            en = $null
-            vi = $null
-        }
-    }
-
-    $skill.source_hash = Get-SourceHash $skill
-    $oldHash = [string](Get-JsonProperty $existing "source_hash" "")
-    if ([string]::IsNullOrWhiteSpace($oldHash) -and $null -ne $existing) {
-        $oldHash = Get-SourceHash $existing
-    }
-
-    if ($null -ne $existing -and $oldHash -eq $skill.source_hash -and (Test-LocalizationSet $existing.localized)) {
-        $skill.localized = Convert-LocalizationSet $existing.localized
-    }
-    else {
-        $translationQueue.Add($skill)
-        if ($null -ne $existing -and (Test-LocalizationSet $existing.localized)) {
-            $skill.localized = Convert-LocalizationSet $existing.localized
-        }
-    }
-
-    $newSkills.Add($skill)
+    $skill.icon.content_hash = Get-FileSha256 $iconPath
 }
 
-if ($translationQueue.Count -gt 0 -and !$TranslateChanged -and !$AllowMissingTranslations) {
-    throw "$($translationQueue.Count) skill(s) are new or changed and need translations. Re-run with -TranslateChanged, or pass -AllowMissingTranslations for a non-release data file."
-}
-
-if ($TranslateChanged -and $translationQueue.Count -gt 0) {
-    if ([string]::IsNullOrWhiteSpace($GeminiApiKey)) {
-        $GeminiApiKey = Get-SavedGeminiApiKey
-    }
-
-    if ([string]::IsNullOrWhiteSpace($GeminiApiKey)) {
-        throw "Gemini API key is required. Set GEMINI_API_KEY, pass -GeminiApiKey, or save a key in app settings first."
-    }
-
-    $totalBatches = [Math]::Ceiling($translationQueue.Count / $TranslationBatchSize)
-    $translations = @{}
-    for ($i = 0; $i -lt $translationQueue.Count; $i += $TranslationBatchSize) {
-        $end = [Math]::Min($i + $TranslationBatchSize - 1, $translationQueue.Count - 1)
-        $batch = @($translationQueue[$i..$end])
-        $batchNumber = [Math]::Floor($i / $TranslationBatchSize) + 1
-        Write-Host "Translating batch $batchNumber/$totalBatches ($($batch.Count) skill(s))"
-        $rows = Invoke-SkillTranslationBatch $batch $GeminiApiKey $GeminiModel
-        foreach ($row in $rows) {
-            $translations[[string]$row.id] = [ordered]@{
-                en = [ordered]@{
-                    name = [string]$row.en.name
-                    description = [string]$row.en.description
-                }
-                vi = [ordered]@{
-                    name = [string]$row.vi.name
-                    description = [string]$row.vi.description
-                }
-            }
-        }
-    }
-
-    foreach ($skill in $newSkills) {
-        if ($translations.ContainsKey([string]$skill.id)) {
-            $skill.localized = $translations[[string]$skill.id]
-        }
-    }
-}
-
+$fetchedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", [Globalization.CultureInfo]::InvariantCulture)
 $output = [ordered]@{
-    schema_version = 1
-    source = $SkillApiUrl
-    source_count = [int]$skillResponse.total
-    last_updated = (Get-Date -Format "yyyy-MM-dd")
+    schema_version = 2
+    source = [ordered]@{
+        provider = "wikiroco"
+        url = $SkillApiUrl
+        fetched_at = $fetchedAt
+        source_count = $snapshot.Total
+        item_count = $snapshot.Skills.Count
+        dataset_hash = Get-DatasetHash $newSkills
+    }
     skills = @($newSkills)
 }
 
@@ -712,6 +1047,15 @@ $backupPath = Join-Path $backupDir ("skills.json.bak-{0}" -f (Get-Date -Format y
 Copy-Item -LiteralPath $DataPath -Destination $backupPath
 Write-Host "Backup written: $backupPath"
 
-$output | ConvertTo-Json -Depth 50 | Set-Content -LiteralPath $DataPath -Encoding UTF8
-Test-SkillDatabase $DataPath (-not $AllowMissingTranslations)
+$tempDataPath = Join-Path ([System.IO.Path]::GetTempPath()) ("peek-skills-" + [Guid]::NewGuid().ToString("N") + ".json")
+try {
+    Save-JsonFile $tempDataPath $output
+    Test-SkillDatabase $tempDataPath (-not $AllowMissingTranslations)
+    Move-Item -LiteralPath $tempDataPath -Destination $DataPath -Force
+}
+finally {
+    if (Test-Path $tempDataPath) {
+        Remove-Item -LiteralPath $tempDataPath -Force
+    }
+}
 Write-Host "Skill database updated: $DataPath"
