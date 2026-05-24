@@ -177,7 +177,8 @@
         </Style>
 
         <Style TargetType="CheckBox">
-            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Normal" />
             <Setter Property="Foreground" Value="#FFE6E6E6" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="FocusVisualStyle" Value="{x:Null}" />
@@ -187,7 +188,7 @@
                     <ControlTemplate TargetType="CheckBox">
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="14" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <Border x:Name="Box"
@@ -213,7 +214,7 @@
                                       Visibility="Collapsed" />
                             </Border>
                             <ContentPresenter Grid.Column="1"
-                                              Margin="8,0,0,0"
+                                              Margin="5,0,0,0"
                                               HorizontalAlignment="Left"
                                               VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                                               ContentSource="Content"
