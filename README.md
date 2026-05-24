@@ -1,6 +1,6 @@
 # Peek
 
-Windows overlay translator for Chinese games.
+Overlay AI translator for Chinese games.
 
 Peek captures a user-selected screen region, translates visible Chinese game text with Gemini, and offers Bilibili guide searches for the translated context.
 
