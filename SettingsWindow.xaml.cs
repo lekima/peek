@@ -13,6 +13,7 @@ internal sealed partial class SettingsWindow : Window
         InitializeComponent();
         ArgumentNullException.ThrowIfNull(config);
 
+        Title = AppMetadata.DisplayNameWithVersion;
         _config = config;
         ApiKeyBox.Password = config.ApiKey;
         TargetLanguageBox.Text = AppConfig.NormalizeTargetLanguage(config.TargetLanguage);
