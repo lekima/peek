@@ -54,6 +54,15 @@ Compress-Archive -LiteralPath "$out\Peek.exe" -DestinationPath .\releases\Peek-w
 
 The zip is a local release artifact. Publish it through CI or GitHub Releases with the source commit SHA and checksum; do not commit generated release archives.
 
+Create a GitHub Release:
+
+```powershell
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Pushing a `v*` tag runs the release workflow, builds `Peek-win-x64.zip`, writes `Peek-win-x64.zip.sha256`, and uploads both files to the GitHub Release. The workflow can also be started manually from GitHub Actions with a release tag.
+
 ## Anti-Cheat Notes
 
 Peek is an external desktop overlay. It does not inject into the game, hook graphics APIs, read or write process memory, install global input hooks, or automate input.
