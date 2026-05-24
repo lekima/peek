@@ -3,10 +3,10 @@
   "source": {
     "provider": "wikiroco",
     "url": "https://wikiroco.com/api/skills",
-    "fetched_at": "2026-05-24T06:04:29Z",
+    "fetched_at": "2026-05-24T06:26:42Z",
     "source_count": 490,
     "item_count": 490,
-    "dataset_hash": "sha256:782d138457c5a6125547e9c754f48e837c40a18f8c74ad90124a8096d9b1a497"
+    "dataset_hash": "sha256:b5788449736336ffce66252d7d4d5ebdbbdd9e256f81ff427b3c309736a2142e"
   },
   "skills": [
     {
@@ -6393,7 +6393,7 @@
         "width": 128,
         "height": 128,
         "format": "png",
-        "content_hash": "sha256:1127f127319694344c096b8c44a661291e128bb7783887a5a71a4b4a2a259d57"
+        "content_hash": "sha256:c6d1da1d9f5d4f78f554b5826043d2d4360d5638ad19edee1fd3dc2d78aca20f"
       },
       "translations": {
         "en": {
@@ -7207,7 +7207,7 @@
         "width": 128,
         "height": 128,
         "format": "png",
-        "content_hash": "sha256:b6cb0a376821975e159e290518689d842a0c6c8a6ad2e7577212beca4c2816bc"
+        "content_hash": "sha256:c211f2a7a5bea05aa266b84cc79008aac76860c1ea956524eb6046fd59e989db"
       },
       "translations": {
         "en": {
@@ -17234,7 +17234,7 @@
         "width": 128,
         "height": 128,
         "format": "png",
-        "content_hash": "sha256:bdb84170866440561b6c9cd7db6d30f33fc6f1bbd767831a131f97988703c9d9"
+        "content_hash": "sha256:2b2f5a3cf8a47624eb8d5740486fc210b399f51ecb8369ccb98d8fb9e0caa88a"
       },
       "translations": {
         "en": {

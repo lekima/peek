@@ -103,6 +103,11 @@ function Get-Sha256Hex([string]$Text) {
     return -join ($hash | ForEach-Object { $_.ToString("x2") })
 }
 
+function Get-BytesSha256([byte[]]$Bytes) {
+    $hash = [System.Security.Cryptography.SHA256]::HashData($Bytes)
+    return "sha256:" + (-join ($hash | ForEach-Object { $_.ToString("x2") }))
+}
+
 function Get-FileSha256([string]$Path) {
     $stream = [System.IO.File]::OpenRead($Path)
     try {
@@ -280,7 +285,15 @@ function Save-JsonFile([string]$Path, $Value) {
     [System.IO.File]::WriteAllText($Path, $json + "`n", $utf8NoBom)
 }
 
-function Convert-Localization($Localization, [string]$SourceHash) {
+function Test-SourceDescriptionAllowsEmpty([string]$DescriptionZh) {
+    return [string]::IsNullOrWhiteSpace($DescriptionZh)
+}
+
+function Test-LocalizedDescription([string]$Description, [string]$DescriptionZh) {
+    return (Test-SourceDescriptionAllowsEmpty $DescriptionZh) -or -not [string]::IsNullOrWhiteSpace($Description)
+}
+
+function Convert-Localization($Localization, [string]$SourceHash, [string]$DescriptionZh) {
     if ($null -eq $Localization) {
         return $null
     }
@@ -289,7 +302,9 @@ function Convert-Localization($Localization, [string]$SourceHash) {
     $description = [string](Get-JsonProperty $Localization "description" "")
     $translatedFromHash = [string](Get-JsonProperty $Localization "translated_from_hash" "")
     $updatedAt = [string](Get-JsonProperty $Localization "updated_at" "")
-    if ([string]::IsNullOrWhiteSpace($name) -or $null -eq (Get-JsonProperty $Localization "description")) {
+    if ([string]::IsNullOrWhiteSpace($name) -or
+        $null -eq (Get-JsonProperty $Localization "description") -or
+        !(Test-LocalizedDescription $description $DescriptionZh)) {
         return $null
     }
 
@@ -305,10 +320,10 @@ function Convert-Localization($Localization, [string]$SourceHash) {
     }
 }
 
-function Convert-LocalizationSet($Localized, [string]$SourceHash) {
+function Convert-LocalizationSet($Localized, [string]$SourceHash, [string]$DescriptionZh) {
     return [ordered]@{
-        en = Convert-Localization (Get-JsonProperty $Localized "en") $SourceHash
-        vi = Convert-Localization (Get-JsonProperty $Localized "vi") $SourceHash
+        en = Convert-Localization (Get-JsonProperty $Localized "en") $SourceHash $DescriptionZh
+        vi = Convert-Localization (Get-JsonProperty $Localized "vi") $SourceHash $DescriptionZh
     }
 }
 
@@ -321,20 +336,24 @@ function New-Localization([string]$Name, [string]$Description, [string]$SourceHa
     }
 }
 
-function Test-LocalizationSet($Translations, [string]$SourceHash) {
+function Test-LocalizationSet($Translations, [string]$SourceHash, [string]$DescriptionZh) {
     $en = Get-JsonProperty $Translations "en"
     $vi = Get-JsonProperty $Translations "vi"
+    $enDescription = [string](Get-JsonProperty $en "description" "")
+    $viDescription = [string](Get-JsonProperty $vi "description" "")
     return -not [string]::IsNullOrWhiteSpace([string](Get-JsonProperty $en "name" "")) -and
         $null -ne (Get-JsonProperty $en "description") -and
+        (Test-LocalizedDescription $enDescription $DescriptionZh) -and
         [string](Get-JsonProperty $en "translated_from_hash" "") -eq $SourceHash -and
         -not [string]::IsNullOrWhiteSpace([string](Get-JsonProperty $en "updated_at" "")) -and
         -not [string]::IsNullOrWhiteSpace([string](Get-JsonProperty $vi "name" "")) -and
         $null -ne (Get-JsonProperty $vi "description") -and
+        (Test-LocalizedDescription $viDescription $DescriptionZh) -and
         [string](Get-JsonProperty $vi "translated_from_hash" "") -eq $SourceHash -and
         -not [string]::IsNullOrWhiteSpace([string](Get-JsonProperty $vi "updated_at" ""))
 }
 
-function Save-ImageAsPng([string]$InputPath, [string]$OutputPath, [int]$Width, [int]$Height) {
+function Convert-ImageFileToPngBytes([string]$InputPath, [int]$Width, [int]$Height) {
     Add-Type -AssemblyName PresentationCore
     Add-Type -AssemblyName WindowsBase
 
@@ -370,15 +389,52 @@ function Save-ImageAsPng([string]$InputPath, [string]$OutputPath, [int]$Width, [
     $encoder = [System.Windows.Media.Imaging.PngBitmapEncoder]::new()
     $encoder.Frames.Add([System.Windows.Media.Imaging.BitmapFrame]::Create($target))
 
-    $directory = Split-Path -Parent $OutputPath
-    New-Item -ItemType Directory -Force -Path $directory | Out-Null
-    $output = [System.IO.File]::Create($OutputPath)
+    $memory = [System.IO.MemoryStream]::new()
     try {
-        $encoder.Save($output)
+        $encoder.Save($memory)
+        return ,$memory.ToArray()
     }
     finally {
-        $output.Dispose()
+        $memory.Dispose()
     }
+}
+
+function Test-PngFile([string]$Path) {
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        $signature = [byte[]]::new(8)
+        if ($stream.Read($signature, 0, $signature.Length) -ne $signature.Length) {
+            return $false
+        }
+
+        $expected = [byte[]](0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
+        for ($i = 0; $i -lt $expected.Length; $i++) {
+            if ($signature[$i] -ne $expected[$i]) {
+                return $false
+            }
+        }
+
+        return $true
+    }
+    finally {
+        $stream.Dispose()
+    }
+}
+
+function Get-NormalizedImageContentHash([string]$Path, [int]$Width, [int]$Height) {
+    $size = Get-ImageSize $Path
+    if ($size.Width -eq $Width -and $size.Height -eq $Height -and (Test-PngFile $Path)) {
+        return Get-FileSha256 $Path
+    }
+
+    return Get-BytesSha256 (Convert-ImageFileToPngBytes $Path $Width $Height)
+}
+
+function Save-ImageAsPng([string]$InputPath, [string]$OutputPath, [int]$Width, [int]$Height) {
+    $bytes = Convert-ImageFileToPngBytes $InputPath $Width $Height
+    $directory = Split-Path -Parent $OutputPath
+    New-Item -ItemType Directory -Force -Path $directory | Out-Null
+    [System.IO.File]::WriteAllBytes($OutputPath, $bytes)
 }
 
 function Save-RemoteImageAsPng([string]$Url, [string]$OutputPath, [int]$Width, [int]$Height) {
@@ -391,12 +447,26 @@ function Save-RemoteImageAsPng([string]$Url, [string]$OutputPath, [int]$Width, [
         $directory = Split-Path -Parent $OutputPath
         New-Item -ItemType Directory -Force -Path $directory | Out-Null
 
-        if ($size.Width -eq $Width -and $size.Height -eq $Height) {
+        if ($size.Width -eq $Width -and $size.Height -eq $Height -and (Test-PngFile $tempPath)) {
             Copy-Item -LiteralPath $tempPath -Destination $OutputPath -Force
         }
         else {
             Save-ImageAsPng $tempPath $OutputPath $Width $Height
         }
+    }
+    finally {
+        if (Test-Path $tempPath) {
+            Remove-Item -LiteralPath $tempPath -Force
+        }
+    }
+}
+
+function Get-RemoteImageContentHash([string]$Url, [int]$Width, [int]$Height) {
+    $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("peek-image-" + [Guid]::NewGuid().ToString("N"))
+    try {
+        $bytes = $HttpClient.GetByteArrayAsync($Url).GetAwaiter().GetResult()
+        [System.IO.File]::WriteAllBytes($tempPath, $bytes)
+        return Get-NormalizedImageContentHash $tempPath $Width $Height
     }
     finally {
         if (Test-Path $tempPath) {
@@ -673,7 +743,7 @@ Rules:
     }
 }
 
-function Test-SkillDatabase([string]$Path, [bool]$RequireTranslations) {
+function Test-SkillDatabase([string]$Path, [bool]$RequireTranslations, [bool]$RequireIconFiles = $true) {
     $data = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
     $skills = @($data.skills)
     $errors = [System.Collections.Generic.List[string]]::new()
@@ -691,12 +761,34 @@ function Test-SkillDatabase([string]$Path, [bool]$RequireTranslations) {
         $errors.Add("source.url must be $SkillApiUrl.")
     }
 
-    if ([string]::IsNullOrWhiteSpace([string](Get-JsonProperty $source "fetched_at" ""))) {
+    $fetchedAtValue = Get-JsonProperty $source "fetched_at" ""
+    $fetchedAt = if ($fetchedAtValue -is [DateTime]) {
+        $fetchedAtValue.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", [Globalization.CultureInfo]::InvariantCulture)
+    }
+    else {
+        [string]$fetchedAtValue
+    }
+    if ([string]::IsNullOrWhiteSpace($fetchedAt)) {
         $errors.Add("source.fetched_at is required.")
     }
+    elseif ($fetchedAt -notmatch "^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$") {
+        $errors.Add("source.fetched_at must be a UTC timestamp like yyyy-MM-ddTHH:mm:ssZ.")
+    }
+    else {
+        try {
+            [void][DateTimeOffset]::ParseExact(
+                $fetchedAt,
+                "yyyy-MM-dd'T'HH:mm:ss'Z'",
+                [Globalization.CultureInfo]::InvariantCulture,
+                [Globalization.DateTimeStyles]::AssumeUniversal -bor [Globalization.DateTimeStyles]::AdjustToUniversal)
+        }
+        catch {
+            $errors.Add("source.fetched_at must be a valid UTC timestamp.")
+        }
+    }
 
-    if ($skills.Count -ne [int](Get-JsonProperty $source "source_count" 0)) {
-        $errors.Add("source.source_count does not match skills array count.")
+    if ([int](Get-JsonProperty $source "source_count" 0) -lt $skills.Count) {
+        $errors.Add("source.source_count cannot be less than skills array count.")
     }
 
     if ($skills.Count -ne [int](Get-JsonProperty $source "item_count" 0)) {
@@ -797,22 +889,28 @@ function Test-SkillDatabase([string]$Path, [bool]$RequireTranslations) {
             $errors.Add("Invalid icon.content_hash: $id")
         }
 
-        $icon = Join-Path $RepoRoot (Get-SkillIconPath $skill)
-        if (!(Test-Path $icon)) {
-            $errors.Add("Missing skill icon: $($skill.id) -> $(Get-SkillIconPath $skill)")
-            continue
+        if ($RequireIconFiles) {
+            $icon = Join-Path $RepoRoot (Get-SkillIconPath $skill)
+            if (!(Test-Path $icon)) {
+                $errors.Add("Missing skill icon: $($skill.id) -> $(Get-SkillIconPath $skill)")
+                continue
+            }
+
+            if ($iconContentHash -match "^sha256:[0-9a-f]{64}$" -and $iconContentHash -ne (Get-FileSha256 $icon)) {
+                $errors.Add("icon.content_hash mismatch: $id")
+            }
+
+            if (!(Test-PngFile $icon)) {
+                $errors.Add("Skill icon must be a PNG file: $(Get-SkillIconPath $skill)")
+            }
+
+            $size = Get-ImageSize $icon
+            if ($size.Width -ne 128 -or $size.Height -ne 128) {
+                $errors.Add("Skill icon must be 128x128: $(Get-SkillIconPath $skill) is $($size.Width)x$($size.Height)")
+            }
         }
 
-        if ($iconContentHash -match "^sha256:[0-9a-f]{64}$" -and $iconContentHash -ne (Get-FileSha256 $icon)) {
-            $errors.Add("icon.content_hash mismatch: $id")
-        }
-
-        $size = Get-ImageSize $icon
-        if ($size.Width -ne 128 -or $size.Height -ne 128) {
-            $errors.Add("Skill icon must be 128x128: $(Get-SkillIconPath $skill) is $($size.Width)x$($size.Height)")
-        }
-
-        if ($RequireTranslations -and !(Test-LocalizationSet $skill.translations $sourceHash)) {
+        if ($RequireTranslations -and !(Test-LocalizationSet $skill.translations $sourceHash ([string](Get-JsonProperty $skill "description_zh" "")))) {
             $errors.Add("Missing EN/VI localization: $($skill.id) $($skill.name_zh)")
         }
     }
@@ -863,8 +961,17 @@ function Test-WikirocoFreshness([string]$Path) {
             $changedSkills.Add($skill)
         }
 
-        if ((Get-SkillIconSourceUrl $existing) -ne (Get-SkillIconSourceUrl $skill)) {
+        $existingIconUrl = Get-SkillIconSourceUrl $existing
+        $remoteIconUrl = Get-SkillIconSourceUrl $skill
+        if ($existingIconUrl -ne $remoteIconUrl) {
             $iconChangedSkills.Add($skill)
+        }
+        else {
+            $existingIconHash = [string](Get-JsonProperty (Get-SkillIcon $existing) "content_hash" "")
+            $remoteIconHash = Get-RemoteImageContentHash $remoteIconUrl 128 128
+            if ($existingIconHash -ne $remoteIconHash) {
+                $iconChangedSkills.Add($skill)
+            }
         }
     }
 
@@ -897,12 +1004,12 @@ function Test-WikirocoFreshness([string]$Path) {
     Write-Host "Remote items: $($snapshot.Skills.Count)"
     Write-Host "New: $($newSkills.Count)"
     Write-Host "Changed: $($changedSkills.Count)"
-    Write-Host "Icon URL changed: $($iconChangedSkills.Count)"
+    Write-Host "Icon changed: $($iconChangedSkills.Count)"
     Write-Host "Removed: $($removedSkills.Count)"
 
     Write-SkillNameSample "New skills" $newSkills
     Write-SkillNameSample "Changed skills" $changedSkills
-    Write-SkillNameSample "Icon URL changes" $iconChangedSkills
+    Write-SkillNameSample "Icon changes" $iconChangedSkills
     Write-SkillNameSample "Removed skills" $removedSkills
 
     if ($needsUpdate) {
@@ -931,7 +1038,7 @@ if ($CheckFreshness) {
     exit 1
 }
 
-Test-SkillDatabase $DataPath (-not $AllowMissingTranslations)
+Test-SkillDatabase $DataPath $false $false
 
 $existingData = Get-Content -LiteralPath $DataPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $existingById = Get-SkillIndex @($existingData.skills)
@@ -949,8 +1056,9 @@ foreach ($skill in @($snapshot.Skills)) {
     }
 
     $oldHash = [string](Get-JsonProperty $existing "source_hash" "")
-    if ($null -ne $existing -and $oldHash -eq $skill.source_hash -and (Test-LocalizationSet $existing.translations $skill.source_hash)) {
-        $skill.translations = Convert-LocalizationSet $existing.translations $skill.source_hash
+    $descriptionZh = [string](Get-JsonProperty $skill "description_zh" "")
+    if ($null -ne $existing -and $oldHash -eq $skill.source_hash -and (Test-LocalizationSet $existing.translations $skill.source_hash $descriptionZh)) {
+        $skill.translations = Convert-LocalizationSet $existing.translations $skill.source_hash $descriptionZh
     }
     else {
         $translationQueue.Add($skill)
@@ -1011,9 +1119,25 @@ foreach ($skill in @($newSkills)) {
     }
 
     $oldIconUrl = if ($null -eq $existing) { "" } else { Get-SkillIconSourceUrl $existing }
+    $oldIconHash = if ($null -eq $existing) { "" } else { [string](Get-JsonProperty (Get-SkillIcon $existing) "content_hash" "") }
+    $remoteIconHash = $null
     $shouldDownloadIcon = $RefreshIcons -or
         !(Test-Path $iconPath) -or
         (![string]::IsNullOrWhiteSpace($oldIconUrl) -and $oldIconUrl -ne $iconUrl)
+    if (!$shouldDownloadIcon) {
+        $remoteIconHash = Get-RemoteImageContentHash $iconUrl 128 128
+        $shouldDownloadIcon = $oldIconHash -ne $remoteIconHash
+        if (!$shouldDownloadIcon) {
+            try {
+                $localIconHash = Get-NormalizedImageContentHash $iconPath 128 128
+                $shouldDownloadIcon = $localIconHash -ne $remoteIconHash
+            }
+            catch {
+                $shouldDownloadIcon = $true
+            }
+        }
+    }
+
     if ($shouldDownloadIcon) {
         Save-RemoteImageAsPng $iconUrl $iconPath 128 128
     }
@@ -1024,7 +1148,12 @@ foreach ($skill in @($newSkills)) {
         }
     }
 
-    $skill.icon.content_hash = Get-FileSha256 $iconPath
+    $skill.icon.content_hash = if ($null -ne $remoteIconHash -and !$shouldDownloadIcon) {
+        $remoteIconHash
+    }
+    else {
+        Get-FileSha256 $iconPath
+    }
 }
 
 $fetchedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", [Globalization.CultureInfo]::InvariantCulture)

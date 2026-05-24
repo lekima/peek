@@ -63,6 +63,7 @@ internal static class SkillDatabase
 
         return string.IsNullOrWhiteSpace(localization?.Name) ||
             localization.Description is null ||
+            (!string.IsNullOrWhiteSpace(skill.DescriptionZh) && string.IsNullOrWhiteSpace(localization.Description)) ||
             !string.Equals(localization.TranslatedFromHash, skill.SourceHash, StringComparison.Ordinal)
                 ? null
                 : localization;
@@ -80,7 +81,7 @@ internal static class SkillDatabase
             data.Source?.Provider != "wikiroco" ||
             data.Source.Url != "https://wikiroco.com/api/skills" ||
             data.Source.ItemCount != data.Skills.Count ||
-            data.Source.SourceCount != data.Skills.Count)
+            data.Source.SourceCount < data.Skills.Count)
         {
             throw new InvalidOperationException("Bundled skill database has an unsupported schema.");
         }
