@@ -1,19 +1,16 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.ComponentModel;
-using System.Globalization;
+using System.IO;
 using System.Security;
 using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
-using System.Windows.Media.Imaging;
 using System.Windows.Threading;
-using System.IO;
 using Drawing = System.Drawing;
 using MessageBox = System.Windows.MessageBox;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
@@ -26,7 +23,7 @@ namespace Peek;
 [SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "Instantiated by WPF from App.xaml StartupUri.")]
 internal sealed partial class MainWindow : Window
 {
-    private const double CollapsedWidth = 106;
+    private const double CollapsedWidth = 80;
     private const double CollapsedHeight = 24;
     private const double FrameRevealHeight = 48;
     private const double FrameHorizontalNonCaptureWidth = 4;
@@ -34,54 +31,19 @@ internal sealed partial class MainWindow : Window
     private const int MaxCapturePixelWidth = 2560;
     private const int MaxCapturePixelHeight = 1440;
     private const long MaxCapturePixels = (long)MaxCapturePixelWidth * MaxCapturePixelHeight;
-    private const double SkillCardStackedBreakpoint = 260;
-    private const double SkillIconSize = 52;
-    private const double StackedSkillIconSize = 40;
-    private const double SkillBadgeHeight = 24;
-    private const double SkillBadgeElementIconSize = 17;
-    private const double SkillBadgeEnergyIconSize = 12;
-    private const double WideSkillTitleFontSize = 18;
-    private const double WideSkillDescriptionFontSize = 16;
-    private const double WideSkillDescriptionLineHeight = 20;
-    private const double StackedSkillTitleFontSize = 16;
-    private const double StackedSkillDescriptionFontSize = 14;
-    private const double StackedSkillDescriptionLineHeight = 18;
-    private static readonly Color SkillBadgeNeutralBackground = Color.FromRgb(78, 78, 78);
     private const double MaxResultFontSize = 24;
     private const double MinResultFontSize = 10;
     private const double MaxResultLineGap = 12;
     private const double MinResultLineGap = 4;
-    private static readonly Thickness MaxResultTextPadding = new(14, 12, 14, 10);
-    private static readonly Thickness MinResultTextPadding = new(6, 6, 6, 4);
-    private static readonly Thickness VisibleFrameBorderThickness = new(1);
-    private static readonly IReadOnlyDictionary<string, Color> ElementColors = new Dictionary<string, Color>(StringComparer.Ordinal)
-    {
-        ["bug"] = Color.FromRgb(159, 207, 34),
-        ["dark"] = Color.FromRgb(208, 71, 123),
-        ["dragon"] = Color.FromRgb(233, 76, 98),
-        ["electric"] = Color.FromRgb(231, 205, 13),
-        ["fairy"] = Color.FromRgb(254, 129, 181),
-        ["fighting"] = Color.FromRgb(254, 154, 59),
-        ["fire"] = Color.FromRgb(224, 88, 34),
-        ["flying"] = Color.FromRgb(65, 200, 203),
-        ["ghost"] = Color.FromRgb(148, 70, 236),
-        ["grass"] = Color.FromRgb(79, 189, 116),
-        ["ground"] = Color.FromRgb(152, 125, 68),
-        ["ice"] = Color.FromRgb(100, 174, 218),
-        ["illusion"] = Color.FromRgb(157, 169, 255),
-        ["light"] = Color.FromRgb(79, 193, 255),
-        ["normal"] = Color.FromRgb(63, 137, 181),
-        ["poison"] = Color.FromRgb(187, 98, 224),
-        ["steel"] = Color.FromRgb(37, 185, 164),
-        ["water"] = Color.FromRgb(99, 169, 254)
-    };
     private const int WmNcHitTest = 0x0084;
     private const nint HtClient = 1;
     private const nint HtTransparent = -1;
+    private static readonly Thickness MaxResultTextPadding = new(14, 12, 14, 10);
+    private static readonly Thickness MinResultTextPadding = new(6, 6, 6, 4);
+    private static readonly Thickness VisibleFrameBorderThickness = new(1);
 
     private AppConfig _config = AppConfigStore.Load();
     private CancellationTokenSource? _translationCancellation;
-    private CancellationTokenSource? _skillCancellation;
     private Point? _dragStartCursor;
     private Point? _dragStartWindowPosition;
     private Point? _resizeStartCursor;
@@ -90,15 +52,13 @@ internal sealed partial class MainWindow : Window
     private bool _resizeButtonDragged;
     private bool _resizeExpandedDuringInteraction;
     private bool _isTranslating;
-    private bool _isCheckingSkills;
-    private bool _isShowingSkillResult;
     private bool _isClosing;
     private SettingsWindow? _settingsWindow;
     private readonly DispatcherTimer _statusClearTimer = new()
     {
         Interval = TimeSpan.FromSeconds(2.5)
     };
-    private readonly Dictionary<System.Windows.Controls.Button, SearchButtonState> _searchButtons = [];
+    private readonly Dictionary<Button, SearchButtonState> _searchButtons = [];
     private readonly DoubleAnimation _spinnerAnimation = new(0, 360, TimeSpan.FromMilliseconds(700))
     {
         RepeatBehavior = RepeatBehavior.Forever
@@ -158,12 +118,10 @@ internal sealed partial class MainWindow : Window
     {
         return IsPointInside(DragButton, windowPoint) ||
             IsPointInside(TranslateButton, windowPoint) ||
-            IsPointInside(SkillButton, windowPoint) ||
             IsPointInside(ClearButton, windowPoint) ||
             IsPointInside(ResizeRowButton, windowPoint) ||
             IsPointInside(ResizeCornerButton, windowPoint) ||
-            IsPointInside(SearchButtonsPanel, windowPoint) ||
-            IsPointInside(SkillResultPanel, windowPoint);
+            IsPointInside(SearchButtonsPanel, windowPoint);
     }
 
     private bool IsPointInside(FrameworkElement element, Point windowPoint)
@@ -339,11 +297,7 @@ internal sealed partial class MainWindow : Window
 
         _resizeExpandedDuringInteraction = true;
         FrameBorder.Visibility = Visibility.Visible;
-        if (!_isShowingSkillResult)
-        {
-            UseCaptureFramePresentation();
-        }
-
+        UseCaptureFramePresentation();
         ResizeRowButton.Visibility = Visibility.Collapsed;
         ResizeCornerButton.Visibility = Visibility.Visible;
         Width = Math.Max(CollapsedWidth, nextWidth);
@@ -355,10 +309,9 @@ internal sealed partial class MainWindow : Window
     {
         FrameBorder.Visibility = Visibility.Collapsed;
         UseCaptureFramePresentation();
-        SkillResultPanel.Visibility = Visibility.Collapsed;
-        SkillResultContent.Children.Clear();
         ResultPanel.Visibility = Visibility.Collapsed;
-        _isShowingSkillResult = false;
+        ResultTextPanel.Children.Clear();
+        ResultTextPanel.Visibility = Visibility.Collapsed;
         ClearButton.Visibility = Visibility.Collapsed;
         SetActionButtonsVisible(true);
         ClearSearchButtons();
@@ -410,22 +363,7 @@ internal sealed partial class MainWindow : Window
 
     private async void TranslateButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_isShowingSkillResult)
-        {
-            RestoreCaptureFrameFromSkillResult();
-        }
-
         await TranslateCurrentAreaAsync().ConfigureAwait(true);
-    }
-
-    private async void SkillButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_isShowingSkillResult)
-        {
-            RestoreCaptureFrameFromSkillResult();
-        }
-
-        await CheckVisibleSkillsAsync().ConfigureAwait(true);
     }
 
     private void ClearButton_Click(object sender, RoutedEventArgs e)
@@ -436,19 +374,13 @@ internal sealed partial class MainWindow : Window
             _translationCancellation?.Cancel();
         }
 
-        if (_isCheckingSkills)
-        {
-            AppLogger.Event("skill_check_cancel_requested", new { reason = "clear_button" });
-            _skillCancellation?.Cancel();
-        }
-
         AppLogger.Event("result_clear", new { hadResult = ResultPanel.Visibility == Visibility.Visible });
         ClearResult();
     }
 
     private void SearchButton_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not System.Windows.Controls.Button button ||
+        if (sender is not Button button ||
             !_searchButtons.TryGetValue(button, out var searchButton) ||
             string.IsNullOrWhiteSpace(searchButton.Url))
         {
@@ -480,7 +412,7 @@ internal sealed partial class MainWindow : Window
     [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "This is the UI operation boundary; failures are logged and shown as a short status.")]
     private async Task TranslateCurrentAreaAsync()
     {
-        if (_isTranslating || _isCheckingSkills)
+        if (_isTranslating)
         {
             return;
         }
@@ -530,7 +462,7 @@ internal sealed partial class MainWindow : Window
                 operationId,
                 model,
                 targetLanguage = operationConfig.TargetLanguage,
-                RocoGame.DisplayName,
+                targetGame = RocoGame.DisplayName,
                 windowLeft = Left,
                 windowTop = Top,
                 frameWidth = FrameBorder.ActualWidth,
@@ -673,204 +605,10 @@ internal sealed partial class MainWindow : Window
         }
     }
 
-    [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "This is the UI operation boundary; failures are logged and shown as a short status.")]
-    private async Task CheckVisibleSkillsAsync()
-    {
-        if (_isTranslating || _isCheckingSkills)
-        {
-            return;
-        }
-
-        if (FrameBorder.Visibility != Visibility.Visible ||
-            FrameBorder.ActualWidth < 8 ||
-            FrameBorder.ActualHeight < 8)
-        {
-            AppLogger.Event("skill_check_skipped", new
-            {
-                reason = "frame_collapsed_or_too_small",
-                frameWidth = FrameBorder.ActualWidth,
-                frameHeight = FrameBorder.ActualHeight
-            });
-            return;
-        }
-
-        if (!AppConfig.HasGeminiApiKey(_config.ApiKey))
-        {
-            OpenSettings();
-            if (!AppConfig.HasGeminiApiKey(_config.ApiKey))
-            {
-                AppLogger.Event("skill_check_skipped", new { reason = "api_key_required" });
-                return;
-            }
-        }
-
-        _skillCancellation?.Dispose();
-        _skillCancellation = new CancellationTokenSource();
-        var cancellationSource = _skillCancellation;
-        var cancellationToken = cancellationSource.Token;
-        var operationConfig = CloneConfig(_config);
-        var targetGame = RocoGame.DisplayName;
-        var operationId = Guid.NewGuid().ToString("N")[..12];
-        var stopwatch = Stopwatch.StartNew();
-        var captureWidth = 0;
-        var captureHeight = 0;
-        var model = AppConfig.DefaultModel;
-        string? providerRequestId = null;
-        var responseUsage = new TokenUsage(0, 0, 0);
-        var usageTracked = false;
-
-        try
-        {
-            AppLogger.Event("skill_check_start", new
-            {
-                operationId,
-                model,
-                targetLanguage = operationConfig.TargetLanguage,
-                targetGame,
-                windowLeft = Left,
-                windowTop = Top,
-                frameWidth = FrameBorder.ActualWidth,
-                frameHeight = FrameBorder.ActualHeight
-            });
-            SetSkillBusy(true);
-            ClearStatus();
-
-            using var bitmap = await CaptureFrameWithoutOverlayAsync(cancellationToken).ConfigureAwait(true);
-            captureWidth = bitmap.Width;
-            captureHeight = bitmap.Height;
-            var capturePath = await SaveCaptureAsync(
-                    operationId,
-                    bitmap,
-                    operationConfig.DiagnosticsEnabled,
-                    FrameBorder.ActualWidth,
-                    FrameBorder.ActualHeight,
-                    cancellationToken)
-                .ConfigureAwait(true);
-
-            var result = await GeminiClient.ExtractVisibleSkillNamesStreamingAsync(
-                    bitmap,
-                    operationConfig,
-                    model,
-                    operationId,
-                    cancellationToken)
-                .ConfigureAwait(true);
-            providerRequestId = result.ProviderRequestId;
-            responseUsage = result.Usage;
-            stopwatch.Stop();
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var lookup = SkillDatabase.Lookup(result.SkillNames);
-            if (!_isClosing)
-            {
-                SetSkillResult(lookup, operationConfig.TargetLanguage);
-            }
-
-            AppLogger.Event("skill_check_result", new
-            {
-                operationId,
-                model,
-                targetLanguage = operationConfig.TargetLanguage,
-                targetGame,
-                capturePath = AppLogger.IncludeSensitiveData ? capturePath : null,
-                extracted = AppLogger.IncludeSensitiveData ? result.SkillNames : null,
-                extractedCount = result.SkillNames.Count,
-                matched = AppLogger.IncludeSensitiveData
-                    ? lookup.Matched.Select(skill => new { skill.Id, skill.NameZh }).Cast<object>().ToArray()
-                    : lookup.Matched.Select(skill => new { skill.Id }).Cast<object>().ToArray(),
-                unmatched = AppLogger.IncludeSensitiveData ? lookup.Unmatched : null,
-                unmatchedCount = lookup.Unmatched.Count
-            });
-            if (!_isClosing)
-            {
-                ClearStatus();
-            }
-
-            TrackUsage(
-                operationId,
-                providerRequestId,
-                true,
-                captureWidth,
-                captureHeight,
-                stopwatch.ElapsedMilliseconds,
-                responseUsage,
-                model,
-                operationConfig,
-                targetGame,
-                null,
-                null);
-            usageTracked = true;
-        }
-        catch (OperationCanceledException)
-        {
-            stopwatch.Stop();
-            AppLogger.Info($"operation={operationId} skill_check.cancelled");
-            if (!usageTracked && providerRequestId is not null)
-            {
-                TrackUsage(
-                    operationId,
-                    providerRequestId,
-                    false,
-                    captureWidth,
-                    captureHeight,
-                    stopwatch.ElapsedMilliseconds,
-                    responseUsage,
-                    model,
-                    operationConfig,
-                    targetGame,
-                    nameof(OperationCanceledException),
-                    "Cancelled");
-            }
-        }
-        catch (Exception ex)
-        {
-            stopwatch.Stop();
-            AppLogger.Error("Skill check failed.", ex);
-            var shortError = ToShortUserError(ex);
-            if (string.Equals(shortError, "Translation failed", StringComparison.Ordinal))
-            {
-                shortError = "Skill check failed";
-            }
-
-            if (!_isClosing)
-            {
-                SetStatus(shortError);
-            }
-
-            AppLogger.Info($"operation={operationId} skill_check.user_error={shortError}");
-            TrackUsage(
-                operationId,
-                providerRequestId,
-                false,
-                captureWidth,
-                captureHeight,
-                stopwatch.ElapsedMilliseconds,
-                responseUsage,
-                model,
-                operationConfig,
-                targetGame,
-                ex.GetType().Name,
-                shortError);
-        }
-        finally
-        {
-            if (!_isClosing)
-            {
-                SetSkillBusy(false);
-            }
-
-            if (ReferenceEquals(_skillCancellation, cancellationSource))
-            {
-                _skillCancellation.Dispose();
-                _skillCancellation = null;
-            }
-        }
-    }
-
     protected override void OnClosing(CancelEventArgs e)
     {
         _isClosing = true;
         _translationCancellation?.Cancel();
-        _skillCancellation?.Cancel();
         base.OnClosing(e);
     }
 
@@ -878,7 +616,6 @@ internal sealed partial class MainWindow : Window
     {
         AppLogger.Event("app_closed", new { reason = "window_closed" });
         _translationCancellation?.Cancel();
-        _skillCancellation?.Cancel();
         _statusClearTimer.Stop();
         _statusClearTimer.Tick -= StatusClearTimer_Tick;
 
@@ -1041,7 +778,6 @@ internal sealed partial class MainWindow : Window
 
         _isTranslating = busy;
         TranslateButton.IsEnabled = !busy;
-        SkillButton.IsEnabled = !busy && !_isCheckingSkills;
         TranslateSpinner.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         TranslateIcon.Visibility = busy ? Visibility.Collapsed : Visibility.Visible;
         UpdateClearButtonVisibility();
@@ -1057,36 +793,9 @@ internal sealed partial class MainWindow : Window
         }
     }
 
-    private void SetSkillBusy(bool busy)
-    {
-        if (_isClosing)
-        {
-            return;
-        }
-
-        _isCheckingSkills = busy;
-        SkillButton.IsEnabled = !busy;
-        TranslateButton.IsEnabled = !busy && !_isTranslating;
-        SkillSpinner.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
-        SkillIcon.Visibility = busy ? Visibility.Collapsed : Visibility.Visible;
-        UpdateClearButtonVisibility();
-
-        if (busy)
-        {
-            SkillSpinnerRotate.BeginAnimation(RotateTransform.AngleProperty, _spinnerAnimation);
-        }
-        else
-        {
-            SkillSpinnerRotate.BeginAnimation(RotateTransform.AngleProperty, null);
-            SkillSpinnerRotate.Angle = 0;
-        }
-    }
-
     private void SetStreamingResultText(string text)
     {
-        _isShowingSkillResult = false;
         UseCaptureFramePresentation();
-        SkillResultContent.Children.Clear();
 
         if (SearchButtonsPanel.Visibility == Visibility.Visible)
         {
@@ -1106,9 +815,7 @@ internal sealed partial class MainWindow : Window
 
     private void ClearFailedStreamingResult()
     {
-        _isShowingSkillResult = false;
         UseCaptureFramePresentation();
-        SkillResultContent.Children.Clear();
         ResultTextPanel.Children.Clear();
         ResultTextPanel.Visibility = Visibility.Collapsed;
         ClearSearchButtons();
@@ -1121,9 +828,7 @@ internal sealed partial class MainWindow : Window
         string text,
         IReadOnlyList<SearchQueryResult> searchQueries)
     {
-        _isShowingSkillResult = false;
         UseCaptureFramePresentation();
-        SkillResultContent.Children.Clear();
         SetResultTextLines(text);
         ResultTextPanel.Visibility = Visibility.Visible;
         SetSearchButtons(operationId, searchQueries);
@@ -1137,541 +842,10 @@ internal sealed partial class MainWindow : Window
         Dispatcher.BeginInvoke(FitResultText, DispatcherPriority.Loaded);
     }
 
-    private void SetSkillResult(SkillLookupResult lookup, string targetLanguage)
-    {
-        _isShowingSkillResult = true;
-        UseSkillResultPresentation();
-        ClearSearchButtons();
-        ResultTextPanel.Children.Clear();
-        ResultTextPanel.Visibility = Visibility.Collapsed;
-        ResultPanel.Visibility = Visibility.Collapsed;
-        ClearButton.Visibility = Visibility.Visible;
-        SetActionButtonsVisible(true);
-        SkillResultContent.Children.Clear();
-
-        if (lookup.Matched.Count == 0)
-        {
-            SkillResultContent.Children.Add(new TextBlock
-            {
-                Text = lookup.Unmatched.Count == 0
-                    ? "No visible skills found."
-                    : "No matching skills found.",
-                Foreground = new SolidColorBrush(Color.FromRgb(255, 198, 95)),
-                FontSize = 13,
-                FontWeight = FontWeights.Medium,
-                TextWrapping = TextWrapping.Wrap
-            });
-        }
-
-        foreach (var skill in lookup.Matched)
-        {
-            SkillResultContent.Children.Add(CreateSkillCard(skill, targetLanguage));
-        }
-
-        LogUnmatchedSkills(lookup.Unmatched);
-
-        TrimLastSkillResultChildMargin();
-    }
-
-    private static void LogUnmatchedSkills(IReadOnlyList<string> unmatched)
-    {
-        if (unmatched.Count == 0)
-        {
-            return;
-        }
-
-        AppLogger.Event("skills_unmatched", new
-        {
-            count = unmatched.Count,
-            names = AppLogger.IncludeSensitiveData ? unmatched : null
-        });
-    }
-
     private void UseCaptureFramePresentation()
     {
         FrameBorder.BorderThickness = VisibleFrameBorderThickness;
         ResultPanel.CornerRadius = new CornerRadius(3);
-        SkillResultPanel.Visibility = Visibility.Collapsed;
-    }
-
-    private void UseSkillResultPresentation()
-    {
-        FrameBorder.Visibility = Visibility.Visible;
-        FrameBorder.BorderThickness = VisibleFrameBorderThickness;
-        ResultPanel.Visibility = Visibility.Collapsed;
-        ResizeCornerButton.Visibility = Visibility.Visible;
-        ResizeRowButton.Visibility = Visibility.Collapsed;
-        SkillResultPanel.Visibility = Visibility.Visible;
-    }
-
-    private void TrimLastSkillResultChildMargin()
-    {
-        if (SkillResultContent.Children.Count == 0 ||
-            SkillResultContent.Children[^1] is not FrameworkElement element)
-        {
-            return;
-        }
-
-        element.Margin = new Thickness(
-            element.Margin.Left,
-            element.Margin.Top,
-            element.Margin.Right,
-            0);
-    }
-
-    private void RestoreCaptureFrameFromSkillResult()
-    {
-        _isShowingSkillResult = false;
-        SkillResultContent.Children.Clear();
-        SkillResultPanel.Visibility = Visibility.Collapsed;
-        UseCaptureFramePresentation();
-        FrameBorder.Visibility = Visibility.Visible;
-        ResizeCornerButton.Visibility = Visibility.Visible;
-        ResizeRowButton.Visibility = Visibility.Collapsed;
-        SetActionButtonsVisible(true);
-    }
-
-    private FrameworkElement CreateSkillCard(SkillEntry skill, string targetLanguage)
-    {
-        var card = new Border
-        {
-            Padding = new Thickness(10),
-            Margin = new Thickness(0, 0, 0, 8),
-            Background = new SolidColorBrush(Color.FromArgb(145, 50, 50, 50)),
-            BorderThickness = new Thickness(0),
-            CornerRadius = new CornerRadius(6)
-        };
-        SkillCardLayoutMode? currentMode = null;
-        void UpdateLayout(double width)
-        {
-            var mode = GetSkillCardLayoutMode(width);
-            if (currentMode == mode)
-            {
-                return;
-            }
-
-            currentMode = mode;
-            card.Child = CreateSkillCardContent(skill, targetLanguage, mode);
-        }
-
-        UpdateLayout(GetSkillCardLayoutWidth(card));
-        card.SizeChanged += (_, e) => UpdateLayout(e.NewSize.Width);
-        return card;
-    }
-
-    private FrameworkElement CreateSkillCardContent(SkillEntry skill, string targetLanguage, SkillCardLayoutMode mode)
-    {
-        var localizedName = SkillDatabase.GetLocalizedName(skill, targetLanguage);
-
-        return mode switch
-        {
-            SkillCardLayoutMode.Stacked => CreateStackedSkillCardContent(skill, targetLanguage, localizedName),
-            _ => CreateWideSkillCardContent(skill, targetLanguage, localizedName)
-        };
-    }
-
-    private FrameworkElement CreateWideSkillCardContent(SkillEntry skill, string targetLanguage, string localizedName)
-    {
-        var panel = new StackPanel();
-        var topRow = new Grid();
-        topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        topRow.Children.Add(CreateSkillImageHost(skill, new Thickness(0, 0, 12, 0)));
-
-        var metadataBlock = CreateSkillMetadataBlock(localizedName, skill, targetLanguage, WideSkillTitleFontSize);
-        Grid.SetColumn(metadataBlock, 1);
-        topRow.Children.Add(metadataBlock);
-
-        panel.Children.Add(topRow);
-        panel.Children.Add(CreateSkillDescriptionBlock(
-            skill,
-            targetLanguage,
-            new Thickness(0, 8, 0, 0),
-            WideSkillDescriptionFontSize,
-            WideSkillDescriptionLineHeight));
-        return panel;
-    }
-
-    private FrameworkElement CreateStackedSkillCardContent(SkillEntry skill, string targetLanguage, string localizedName)
-    {
-        var panel = new StackPanel();
-        panel.Children.Add(CreateSkillImageHost(skill, new Thickness(0, 0, 0, 8), StackedSkillIconSize));
-        panel.Children.Add(CreateSkillMetadataBlock(localizedName, skill, targetLanguage, StackedSkillTitleFontSize));
-        panel.Children.Add(CreateSkillDescriptionBlock(
-            skill,
-            targetLanguage,
-            new Thickness(0, 8, 0, 0),
-            StackedSkillDescriptionFontSize,
-            StackedSkillDescriptionLineHeight));
-        return panel;
-    }
-
-    private FrameworkElement CreateSkillImageHost(SkillEntry skill, Thickness margin, double size = SkillIconSize)
-    {
-        var host = new Grid
-        {
-            Width = size,
-            Height = size,
-            Margin = margin,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top
-        };
-
-        var image = new Image
-        {
-            Width = size,
-            Height = size,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
-            Stretch = Stretch.UniformToFill,
-            SnapsToDevicePixels = true
-        };
-        TrySetSkillImage(image, skill.Icon.Path);
-        host.Children.Add(image);
-
-        host.Children.Add(CreateSkillEnergyBadge(skill.Energy));
-        return host;
-    }
-
-    private FrameworkElement CreateSkillTitleLine(string localizedName, SkillEntry skill, double fontSize)
-    {
-        var title = new TextBlock
-        {
-            Foreground = new SolidColorBrush(Color.FromRgb(255, 198, 95)),
-            FontSize = fontSize,
-            FontWeight = FontWeights.Medium,
-            TextWrapping = TextWrapping.Wrap
-        };
-
-        var titleText = new Run(localizedName);
-        titleText.Cursor = Cursors.Hand;
-        title.Inlines.Add(titleText);
-        title.Inlines.Add(new Run(" "));
-        var icon = CreateVectorIcon(
-            GetSkillCategoryIconPath(skill.Category),
-            SkillBadgeElementIconSize,
-            new Thickness(0));
-        title.Inlines.Add(new InlineUIContainer(icon)
-        {
-            BaselineAlignment = BaselineAlignment.Center
-        });
-        titleText.MouseEnter += (_, _) => titleText.TextDecorations = CreateDottedUnderline();
-        titleText.MouseLeave += (_, _) => titleText.TextDecorations = null;
-        titleText.MouseLeftButtonUp += (_, e) =>
-        {
-            e.Handled = true;
-            OpenSkillSearch(skill);
-        };
-
-        return title;
-    }
-
-    private FrameworkElement CreateSkillMetadataBlock(
-        string localizedName,
-        SkillEntry skill,
-        string targetLanguage,
-        double titleFontSize)
-    {
-        var panel = new StackPanel();
-        panel.Children.Add(CreateSkillTitleLine(localizedName, skill, titleFontSize));
-        panel.Children.Add(CreateSkillBadgeLine(skill, targetLanguage));
-        return panel;
-    }
-
-    private TextBlock CreateSkillDescriptionBlock(
-        SkillEntry skill,
-        string targetLanguage,
-        Thickness margin,
-        double fontSize,
-        double lineHeight)
-    {
-        var description = GetSkillDescriptionText(skill, targetLanguage, out var isPlaceholder);
-        return new TextBlock
-        {
-            Text = description,
-            Foreground = new SolidColorBrush(Color.FromRgb(238, 238, 238)),
-            Opacity = isPlaceholder ? 0.5 : 1.0,
-            FontSize = fontSize,
-            FontWeight = FontWeights.Medium,
-            FontStyle = isPlaceholder ? FontStyles.Italic : FontStyles.Normal,
-            LineHeight = lineHeight,
-            Margin = margin,
-            TextWrapping = TextWrapping.Wrap
-        };
-    }
-
-    private static string GetSkillDescriptionText(
-        SkillEntry skill,
-        string targetLanguage,
-        out bool isPlaceholder)
-    {
-        var description = SkillDatabase.GetLocalizedDescription(skill, targetLanguage).Trim();
-        if (!string.IsNullOrWhiteSpace(description))
-        {
-            isPlaceholder = false;
-            return description;
-        }
-
-        isPlaceholder = true;
-        return string.Equals(AppConfig.NormalizeTargetLanguage(targetLanguage), "Vietnamese", StringComparison.Ordinal)
-            ? "Kỹ năng này không có mô tả."
-            : "This skill doesn't have a description.";
-    }
-
-    private static TextDecorationCollection CreateDottedUnderline()
-    {
-        var decoration = new TextDecoration
-        {
-            Location = TextDecorationLocation.Underline,
-            Pen = new Pen(new SolidColorBrush(Color.FromRgb(255, 198, 95)), 1)
-            {
-                DashStyle = DashStyles.Dot
-            }
-        };
-        decoration.Freeze();
-
-        var decorations = new TextDecorationCollection { decoration };
-        decorations.Freeze();
-        return decorations;
-    }
-
-    private FrameworkElement CreateSkillBadgeLine(SkillEntry skill, string targetLanguage)
-    {
-        var panel = new WrapPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 4, 0, 0)
-        };
-        panel.Children.Add(CreateSkillDamageBadge(skill, targetLanguage));
-        return panel;
-    }
-
-    private SkillCardLayoutMode GetSkillCardLayoutMode(double cardWidth)
-    {
-        var width = cardWidth > 0
-            ? cardWidth
-            : GetSkillCardLayoutWidth(null);
-
-        if (width < SkillCardStackedBreakpoint)
-        {
-            return SkillCardLayoutMode.Stacked;
-        }
-
-        return SkillCardLayoutMode.Wide;
-    }
-
-    private enum SkillCardLayoutMode
-    {
-        Wide,
-        Stacked
-    }
-
-
-    private double GetSkillCardLayoutWidth(FrameworkElement? card)
-    {
-        if (card?.ActualWidth > 0)
-        {
-            return card.ActualWidth;
-        }
-
-        if (SkillResultPanel.ActualWidth > 0)
-        {
-            return SkillResultPanel.ActualWidth;
-        }
-
-        return FrameBorder.ActualWidth;
-    }
-
-    private FrameworkElement CreateSkillDamageBadge(SkillEntry skill, string targetLanguage)
-    {
-        var elementColor = DarkenColor(GetElementColor(skill.Element));
-        var badge = new Border
-        {
-            Background = new SolidColorBrush(elementColor),
-            CornerRadius = new CornerRadius(12),
-            Padding = new Thickness(5, 2, 9, 2),
-            Margin = new Thickness(0, 0, 6, 0),
-            Height = SkillBadgeHeight,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Center,
-            ToolTip = SkillDatabase.GetElementLabel(skill.Element, targetLanguage)
-        };
-
-        var panel = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        var elementIcon = new Image
-        {
-            Width = SkillBadgeElementIconSize,
-            Height = SkillBadgeElementIconSize,
-            Margin = new Thickness(0, 0, 3, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-            Stretch = Stretch.Uniform
-        };
-        SetVectorIcon(elementIcon, GetElementIconPath(skill.Element), Brushes.White, true);
-        panel.Children.Add(elementIcon);
-        panel.Children.Add(new TextBlock
-        {
-            Text = skill.Power is > 0 ? skill.Power.Value.ToString(CultureInfo.InvariantCulture) : "--",
-            Foreground = Brushes.White,
-            FontSize = 14,
-            FontWeight = FontWeights.Bold,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-        badge.Child = panel;
-        return badge;
-    }
-
-    private FrameworkElement CreateSkillEnergyBadge(int? energy)
-    {
-        var badge = new Border
-        {
-            Background = new SolidColorBrush(SkillBadgeNeutralBackground),
-            CornerRadius = new CornerRadius(9),
-            Padding = new Thickness(4, 1, 5, 1),
-            MinWidth = 24,
-            Height = 19,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(-5, -5, 0, 0),
-            ToolTip = "Energy"
-        };
-
-        var panel = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        panel.Children.Add(CreateVectorIcon("/Resources/EnergyStar.xaml", SkillBadgeEnergyIconSize, new Thickness(0, 0, 4, 0)));
-        panel.Children.Add(new TextBlock
-        {
-            Text = energy?.ToString(CultureInfo.InvariantCulture) ?? "--",
-            Foreground = Brushes.White,
-            FontSize = 12,
-            FontWeight = FontWeights.Bold,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-        badge.Child = panel;
-        return badge;
-    }
-
-    private static Image CreateVectorIcon(string resourcePath, double size, Thickness margin, Brush? tintBrush = null)
-    {
-        var image = new Image
-        {
-            Width = size,
-            Height = size,
-            Margin = margin,
-            VerticalAlignment = VerticalAlignment.Center,
-            Stretch = Stretch.Uniform
-        };
-
-        SetVectorIcon(image, resourcePath, tintBrush);
-        return image;
-    }
-
-    private static string GetSkillCategoryIconPath(string category)
-    {
-        return category switch
-        {
-            "physical" => "/Resources/SkillMeta/Physical.xaml",
-            "special" => "/Resources/SkillMeta/Magic.xaml",
-            "defense" => "/Resources/SkillMeta/Defense.xaml",
-            _ => "/Resources/SkillMeta/Status.xaml"
-        };
-    }
-
-    private static string GetElementIconPath(string element)
-    {
-        return $"/Resources/Elements/{element}.xaml";
-    }
-
-    private static Color GetElementColor(string element)
-    {
-        return ElementColors[element];
-    }
-
-    private static Color DarkenColor(Color color)
-    {
-        const double factor = 0.62;
-        return Color.FromRgb(
-            (byte)Math.Round(color.R * factor),
-            (byte)Math.Round(color.G * factor),
-            (byte)Math.Round(color.B * factor));
-    }
-
-    private static void SetVectorIcon(Image image, string resourcePath, Brush? tintBrush = null, bool skipFirstVisibleGeometry = false)
-    {
-        var source = (ImageSource)Application.LoadComponent(new Uri(resourcePath, UriKind.Relative));
-        if (tintBrush is not null && source is DrawingImage drawingImage)
-        {
-            var tinted = drawingImage.CloneCurrentValue();
-            var skippedFirstVisibleGeometry = false;
-            TintDrawing(tinted.Drawing, tintBrush, skipFirstVisibleGeometry, ref skippedFirstVisibleGeometry);
-            source = tinted;
-        }
-
-        image.Source = source;
-    }
-
-    private static void TintDrawing(
-        System.Windows.Media.Drawing? drawing,
-        Brush brush,
-        bool skipFirstVisibleGeometry,
-        ref bool skippedFirstVisibleGeometry)
-    {
-        switch (drawing)
-        {
-            case GeometryDrawing geometryDrawing:
-                if (!IsTransparentBrush(geometryDrawing.Brush))
-                {
-                    if (skipFirstVisibleGeometry && !skippedFirstVisibleGeometry)
-                    {
-                        geometryDrawing.Brush = Brushes.Transparent;
-                        skippedFirstVisibleGeometry = true;
-                    }
-                    else
-                    {
-                        geometryDrawing.Brush = brush;
-                    }
-                }
-
-                break;
-            case DrawingGroup drawingGroup:
-                foreach (var child in drawingGroup.Children)
-                {
-                    TintDrawing(child, brush, skipFirstVisibleGeometry, ref skippedFirstVisibleGeometry);
-                }
-
-                break;
-        }
-    }
-
-    private static bool IsTransparentBrush(Brush? brush)
-    {
-        return brush is SolidColorBrush solidColorBrush && solidColorBrush.Color.A == 0;
-    }
-
-    private static void TrySetSkillImage(Image image, string path)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return;
-        }
-
-        try
-        {
-            image.Source = new BitmapImage(new Uri($"pack://application:,,,/{path}", UriKind.Absolute));
-        }
-        catch (InvalidOperationException)
-        {
-        }
-        catch (IOException)
-        {
-        }
     }
 
     private void SetStatus(string text)
@@ -1710,9 +884,6 @@ internal sealed partial class MainWindow : Window
     {
         ResultTextPanel.Children.Clear();
         ResultTextPanel.Visibility = Visibility.Collapsed;
-        SkillResultContent.Children.Clear();
-        SkillResultPanel.Visibility = Visibility.Collapsed;
-        _isShowingSkillResult = false;
         UseCaptureFramePresentation();
         ClearStatus();
         CollapseFrame();
@@ -1722,18 +893,14 @@ internal sealed partial class MainWindow : Window
     {
         ClearButton.Visibility =
             _isTranslating ||
-            _isCheckingSkills ||
-            ResultPanel.Visibility == Visibility.Visible ||
-            SkillResultPanel.Visibility == Visibility.Visible
+            ResultPanel.Visibility == Visibility.Visible
                 ? Visibility.Visible
                 : Visibility.Collapsed;
     }
 
     private void SetActionButtonsVisible(bool visible)
     {
-        var visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        TranslateButton.Visibility = visibility;
-        SkillButton.Visibility = visibility;
+        TranslateButton.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void SetSearchButtons(
@@ -1789,24 +956,6 @@ internal sealed partial class MainWindow : Window
         return AppConfig.BilibiliSearchUrlPrefix + Uri.EscapeDataString(prefixedKeyword);
     }
 
-    private void OpenSkillSearch(SkillEntry skill)
-    {
-        var searchUrl = BuildBilibiliSearchUrl(skill.NameZh);
-        if (string.IsNullOrWhiteSpace(searchUrl))
-        {
-            return;
-        }
-
-        AppLogger.Event("skill_search_click", new
-        {
-            skillId = skill.Id,
-            skillNameZh = AppLogger.IncludeSensitiveData ? skill.NameZh : null,
-            searchPrefix = RocoGame.SearchPrefix,
-            searchUrl = AppLogger.IncludeSensitiveData ? searchUrl : null
-        });
-        OpenUrl(searchUrl);
-    }
-
     private void ClearSearchButtons()
     {
         _searchButtons.Clear();
@@ -1829,7 +978,7 @@ internal sealed partial class MainWindow : Window
                 UseShellExecute = true
             });
         }
-        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+        catch (Exception ex) when (ex is InvalidOperationException or Win32Exception)
         {
             AppLogger.Error("Could not open search link.", ex);
             if (!_isClosing)
