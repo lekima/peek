@@ -104,6 +104,20 @@ $env:GEMINI_API_KEY = "AIza..."
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\update-skills.ps1 -TranslateChanged
 ```
 
+Build or refresh the model-maintained translation memory from the current corpus:
+
+```powershell
+$env:GEMINI_API_KEY = "AIza..."
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\update-skills.ps1 -BuildTranslationMemory
+```
+
+Run a consistency editor pass over existing translations:
+
+```powershell
+$env:GEMINI_API_KEY = "AIza..."
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\update-skills.ps1 -HarmonizeTranslations
+```
+
 The updater:
 
 - Fetches wikiroco skill data.
@@ -114,7 +128,10 @@ The updater:
 - Updates element/type vector icons from rocomwiki assets.
 - Stores schema v2 source metadata, per-skill `source_hash`, icon source URL, and icon content hash for change detection.
 - Preserves English/Vietnamese translations only when their `translated_from_hash` matches unchanged source content.
-- Calls Gemini only for changed records when `-TranslateChanged` is used.
+- Builds `Resources/Data/translation-memory.json` from the current corpus when `-BuildTranslationMemory` is used, or automatically before changed-skill translation when the memory file is missing.
+- Calls Gemini for changed records when `-TranslateChanged` is used, using the translation memory as corpus style context.
+- Runs a Gemini consistency editor pass after `-TranslateChanged` unless `-SkipHarmonization` is passed.
+- Re-edits existing translations for corpus consistency when `-HarmonizeTranslations` is used.
 - Writes backups under ignored `data/skill-backups`.
 - Validates schema/source metadata, dataset hash, generated IDs, duplicate IDs/names, canonical source hashes, icon paths/content/size, and EN/VI localization coverage.
 

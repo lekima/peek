@@ -5,10 +5,18 @@ param(
     [switch]$CheckFreshness,
     [switch]$DeepIcons,
     [switch]$AllowMissingTranslations,
+    [switch]$BuildTranslationMemory,
+    [switch]$HarmonizeTranslations,
+    [switch]$SkipHarmonization,
     [string]$GeminiApiKey = $env:GEMINI_API_KEY,
     [string]$GeminiModel = "gemini-3.1-flash-lite",
+    [string]$TranslationMemoryPath = "",
     [ValidateRange(1, 500)]
     [int]$TranslationBatchSize = 60,
+    [ValidateRange(1, 500)]
+    [int]$HarmonizationBatchSize = 60,
+    [ValidateRange(10, 500)]
+    [int]$TranslationMemoryBatchSize = 80,
     [ValidateRange(1, 300)]
     [int]$IconDownloadTimeoutSec = 30,
     [ValidateRange(1, 64)]
@@ -21,6 +29,11 @@ $ErrorActionPreference = "Stop"
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot = Split-Path -Parent $ScriptRoot
 $DataPath = Join-Path $RepoRoot "Resources\Data\skills.json"
+$DefaultTranslationMemoryPath = Join-Path $RepoRoot "Resources\Data\translation-memory.json"
+if ([string]::IsNullOrWhiteSpace($TranslationMemoryPath)) {
+    $TranslationMemoryPath = $DefaultTranslationMemoryPath
+}
+
 $SkillIconDir = Join-Path $RepoRoot "Resources\Skills"
 $ElementIconDir = Join-Path $RepoRoot "Resources\Elements"
 $SkillMetaIconDir = Join-Path $RepoRoot "Resources\SkillMeta"
@@ -681,31 +694,27 @@ function Update-RocomwikiIconResources([bool]$Force) {
     }
 }
 
-function Invoke-SkillTranslationBatch($Skills, [string]$ApiKey, [string]$Model) {
-    $items = @($Skills | ForEach-Object {
-        [ordered]@{
-            id = $_.id
-            name_zh = $_.name_zh
-            description_zh = $_.description_zh
-            element = $_.element
-            category = $_.category
-        }
-    })
-
-    $schema = [ordered]@{
+function New-SkillTranslationSchema {
+    return [ordered]@{
         type = "object"
         required = @("skills")
+        additionalProperties = $false
+        propertyOrdering = @("skills")
         properties = [ordered]@{
             skills = [ordered]@{
                 type = "array"
                 items = [ordered]@{
                     type = "object"
                     required = @("id", "en", "vi")
+                    additionalProperties = $false
+                    propertyOrdering = @("id", "en", "vi")
                     properties = [ordered]@{
                         id = [ordered]@{ type = "string" }
                         en = [ordered]@{
                             type = "object"
                             required = @("name", "description")
+                            additionalProperties = $false
+                            propertyOrdering = @("name", "description")
                             properties = [ordered]@{
                                 name = [ordered]@{ type = "string" }
                                 description = [ordered]@{ type = "string" }
@@ -714,6 +723,8 @@ function Invoke-SkillTranslationBatch($Skills, [string]$ApiKey, [string]$Model) 
                         vi = [ordered]@{
                             type = "object"
                             required = @("name", "description")
+                            additionalProperties = $false
+                            propertyOrdering = @("name", "description")
                             properties = [ordered]@{
                                 name = [ordered]@{ type = "string" }
                                 description = [ordered]@{ type = "string" }
@@ -724,42 +735,43 @@ function Invoke-SkillTranslationBatch($Skills, [string]$ApiKey, [string]$Model) 
             }
         }
     }
+}
 
-    $systemPrompt = @"
-Translate Roco Kingdom: World skill names and descriptions from Simplified Chinese to English and Vietnamese.
-Rules:
-- Return only JSON matching the schema.
-- Keep each id exactly unchanged.
-- Translate every name and description; if the Chinese description is empty, return an empty description.
-- Preserve numbers, percentages, plus/minus signs, cooldown values, combo counts, energy values, and punctuation meaning.
-- Use concise game UI wording, not explanatory notes.
-- Use consistent mechanics glossary:
-  精灵 = Spirit; 物攻 = Physical Attack; 魔攻 = Magic Attack; 物防 = Physical Defense; 魔防 = Magic Defense; 速度 = Speed; 双攻 = both attacks.
-  物伤 = physical damage; 魔伤 = magic damage; 减伤 = damage reduction; 回复 = recover; 驱散 = dispel; 脱离/返场 = switch out; 打断 = interrupt.
-  应对攻击 = counter attack; 应对状态 = counter status; 应对防御 = counter defense; 先手+1 = Priority +1; 先手-1 = Priority -1.
-  连击 = hits; 中毒 = poison; 灼烧 = burn; 冻结 = freeze; 星陨 = Starfall; 印记 = mark; 威力 = power; 能耗 = energy cost; 冷却 = cooldown; 蓄力 = charge; 迸发 = burst; 迅捷 = swift; 巧变 = morph; 传动 = transmission; 奉献 = devotion.
-- Vietnamese should be natural Vietnamese game text. Prefer "Gây sát thương vật lý" and "Gây sát thương phép". Keep common stat labels in Vietnamese: Tấn công vật lý, Tấn công phép, Phòng thủ vật lý, Phòng thủ phép, Tốc độ.
-"@
+function New-TranslationMemorySchema {
+    return [ordered]@{
+        type = "object"
+        required = @("style_summary", "english_memory", "vietnamese_memory", "examples")
+        additionalProperties = $false
+        propertyOrdering = @("style_summary", "english_memory", "vietnamese_memory", "examples")
+        properties = [ordered]@{
+            style_summary = [ordered]@{ type = "string" }
+            english_memory = [ordered]@{ type = "string" }
+            vietnamese_memory = [ordered]@{ type = "string" }
+            examples = [ordered]@{ type = "string" }
+        }
+    }
+}
 
+function Invoke-GeminiJson(
+    [string]$ApiKey,
+    [string]$Model,
+    [string]$SystemPrompt,
+    [string]$UserText,
+    $Schema,
+    [int]$MaxOutputTokens = 8192) {
     $payload = [ordered]@{
         systemInstruction = [ordered]@{
-            parts = @([ordered]@{ text = $systemPrompt })
+            parts = @([ordered]@{ text = $SystemPrompt })
         }
         contents = @([ordered]@{
             role = "user"
-            parts = @([ordered]@{
-                text = "Translate these skills: " + ($items | ConvertTo-Json -Depth 10 -Compress)
-            })
+            parts = @([ordered]@{ text = $UserText })
         })
         safetySettings = $DisabledSafetySettings
         generationConfig = [ordered]@{
-            maxOutputTokens = 8192
-            responseFormat = [ordered]@{
-                text = [ordered]@{
-                    mimeType = "APPLICATION_JSON"
-                    schema = $schema
-                }
-            }
+            maxOutputTokens = $MaxOutputTokens
+            responseMimeType = "application/json"
+            responseJsonSchema = $Schema
             thinkingConfig = [ordered]@{
                 thinkingLevel = "minimal"
             }
@@ -774,44 +786,14 @@ Rules:
                 -Uri $uri `
                 -Headers @{ "x-goog-api-key" = $ApiKey } `
                 -ContentType "application/json" `
-                -Body ($payload | ConvertTo-Json -Depth 40 -Compress) `
+                -Body ($payload | ConvertTo-Json -Depth 60 -Compress) `
                 -TimeoutSec 120
             $text = $response.candidates[0].content.parts[0].text
             if ([string]::IsNullOrWhiteSpace($text)) {
                 throw "Empty Gemini response."
             }
 
-            $rows = @(($text | ConvertFrom-Json).skills)
-            if ($rows.Count -ne $items.Count) {
-                throw "Expected $($items.Count) translated skills, got $($rows.Count)."
-            }
-
-            $expectedIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
-            foreach ($item in $items) {
-                [void]$expectedIds.Add([string]$item.id)
-            }
-
-            $seenIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
-            foreach ($row in $rows) {
-                $id = [string]$row.id
-                if (!$expectedIds.Contains($id)) {
-                    throw "Gemini returned unexpected skill id '$id'."
-                }
-
-                if (!$seenIds.Add($id)) {
-                    throw "Gemini returned duplicate skill id '$id'."
-                }
-
-                foreach ($locale in @("en", "vi")) {
-                    $localization = Get-JsonProperty $row $locale
-                    if ([string]::IsNullOrWhiteSpace([string](Get-JsonProperty $localization "name" "")) -or
-                        $null -eq (Get-JsonProperty $localization "description")) {
-                        throw "Gemini returned invalid $locale localization for '$id'."
-                    }
-                }
-            }
-
-            return $rows
+            return ($text | ConvertFrom-Json)
         }
         catch {
             if ($attempt -eq 3) {
@@ -821,6 +803,278 @@ Rules:
             Start-Sleep -Seconds (2 * $attempt)
         }
     }
+}
+
+function ConvertTo-TranslationMemoryInput($Skills) {
+    $items = [System.Collections.Generic.List[object]]::new()
+    foreach ($skill in @($Skills)) {
+        $sourceHash = [string](Get-JsonProperty $skill "source_hash" "")
+        $descriptionZh = [string](Get-JsonProperty $skill "description_zh" "")
+        if (!(Test-LocalizationSet (Get-JsonProperty $skill "translations") $sourceHash $descriptionZh)) {
+            continue
+        }
+
+        $translations = Get-JsonProperty $skill "translations"
+        $en = Get-JsonProperty $translations "en"
+        $vi = Get-JsonProperty $translations "vi"
+        $items.Add([ordered]@{
+            id = [string](Get-JsonProperty $skill "id")
+            name_zh = [string](Get-JsonProperty $skill "name_zh")
+            description_zh = $descriptionZh
+            element = [string](Get-JsonProperty $skill "element")
+            category = [string](Get-JsonProperty $skill "category")
+            en = [ordered]@{
+                name = [string](Get-JsonProperty $en "name")
+                description = [string](Get-JsonProperty $en "description")
+            }
+            vi = [ordered]@{
+                name = [string](Get-JsonProperty $vi "name")
+                description = [string](Get-JsonProperty $vi "description")
+            }
+        }) | Out-Null
+    }
+
+    return @($items)
+}
+
+function ConvertTo-TranslationWorkItems($Skills) {
+    return @($Skills | ForEach-Object {
+        [ordered]@{
+            id = [string](Get-JsonProperty $_ "id")
+            name_zh = [string](Get-JsonProperty $_ "name_zh")
+            description_zh = [string](Get-JsonProperty $_ "description_zh")
+            element = [string](Get-JsonProperty $_ "element")
+            category = [string](Get-JsonProperty $_ "category")
+        }
+    })
+}
+
+function ConvertTo-HarmonizationWorkItems($Skills) {
+    return @($Skills | ForEach-Object {
+        $translations = Get-JsonProperty $_ "translations"
+        $en = Get-JsonProperty $translations "en"
+        $vi = Get-JsonProperty $translations "vi"
+        [ordered]@{
+            id = [string](Get-JsonProperty $_ "id")
+            name_zh = [string](Get-JsonProperty $_ "name_zh")
+            description_zh = [string](Get-JsonProperty $_ "description_zh")
+            element = [string](Get-JsonProperty $_ "element")
+            category = [string](Get-JsonProperty $_ "category")
+            en = [ordered]@{
+                name = [string](Get-JsonProperty $en "name")
+                description = [string](Get-JsonProperty $en "description")
+            }
+            vi = [ordered]@{
+                name = [string](Get-JsonProperty $vi "name")
+                description = [string](Get-JsonProperty $vi "description")
+            }
+        }
+    })
+}
+
+function Invoke-TranslationMemoryFromText([string]$UserText, [string]$ApiKey, [string]$Model, [string]$Scope) {
+    $systemPrompt = @"
+You are the translation editor for the Roco Kingdom: World skill database.
+Build a compact translation memory from the provided Chinese, English, and Vietnamese $Scope.
+This is not a hard rulebook. Infer the best recurring terminology, tone, and examples from the corpus, resolve obvious inconsistency by choosing the strongest player-facing wording, and keep the memory concise enough to reuse in future translation prompts.
+"@
+
+    return Invoke-GeminiJson `
+        $ApiKey `
+        $Model `
+        $systemPrompt `
+        $UserText `
+        (New-TranslationMemorySchema) `
+        8192
+}
+
+function Invoke-TranslationMemoryBuild($Skills, [string]$ApiKey, [string]$Model) {
+    $items = ConvertTo-TranslationMemoryInput $Skills
+    if ($items.Count -eq 0) {
+        throw "No validated existing translations are available to build translation memory."
+    }
+
+    $partialMemories = [System.Collections.Generic.List[object]]::new()
+    if ($items.Count -le $TranslationMemoryBatchSize) {
+        $partialMemories.Add((Invoke-TranslationMemoryFromText `
+            ("Build translation memory from this corpus: " + ($items | ConvertTo-Json -Depth 20 -Compress)) `
+            $ApiKey `
+            $Model `
+            "corpus")) | Out-Null
+    }
+    else {
+        $totalBatches = [Math]::Ceiling($items.Count / $TranslationMemoryBatchSize)
+        for ($i = 0; $i -lt $items.Count; $i += $TranslationMemoryBatchSize) {
+            $end = [Math]::Min($i + $TranslationMemoryBatchSize - 1, $items.Count - 1)
+            $batch = @($items[$i..$end])
+            $batchNumber = [Math]::Floor($i / $TranslationMemoryBatchSize) + 1
+            Write-Host "Building translation memory slice $batchNumber/$totalBatches ($($batch.Count) skill(s))"
+            $partialMemories.Add((Invoke-TranslationMemoryFromText `
+                ("Build translation memory from this corpus slice: " + ($batch | ConvertTo-Json -Depth 20 -Compress)) `
+                $ApiKey `
+                $Model `
+                "corpus slice")) | Out-Null
+        }
+    }
+
+    $memory = if ($partialMemories.Count -eq 1) {
+        $partialMemories[0]
+    }
+    else {
+        Write-Host "Merging $($partialMemories.Count) translation memory slice(s)"
+        Invoke-TranslationMemoryFromText `
+            ("Merge these translation memories into one compact corpus memory: " + (@($partialMemories) | ConvertTo-Json -Depth 60 -Compress)) `
+            $ApiKey `
+            $Model `
+            "partial translation memories"
+    }
+
+    $output = [ordered]@{
+        schema_version = 1
+        generated_at = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", [Globalization.CultureInfo]::InvariantCulture)
+        model = $Model
+        source_dataset_hash = Get-DatasetHash $Skills
+        memory = $memory
+    }
+
+    $directory = Split-Path -Parent $TranslationMemoryPath
+    New-Item -ItemType Directory -Force -Path $directory | Out-Null
+    Save-JsonFile $TranslationMemoryPath $output
+    Write-Host "Translation memory written: $TranslationMemoryPath"
+    return $output
+}
+
+function Get-TranslationMemory {
+    if (!(Test-Path $TranslationMemoryPath)) {
+        return $null
+    }
+
+    return Get-Content -LiteralPath $TranslationMemoryPath -Raw -Encoding UTF8 | ConvertFrom-Json
+}
+
+function Ensure-TranslationMemory($Skills, [string]$ApiKey, [string]$Model, [bool]$Force) {
+    if ($Force -or !(Test-Path $TranslationMemoryPath)) {
+        return Invoke-TranslationMemoryBuild $Skills $ApiKey $Model
+    }
+
+    Write-Host "Using translation memory: $TranslationMemoryPath"
+    return Get-TranslationMemory
+}
+
+function Get-TranslationMemoryPromptText($TranslationMemory) {
+    if ($null -eq $TranslationMemory) {
+        return "No translation memory is available."
+    }
+
+    return ($TranslationMemory | ConvertTo-Json -Depth 60 -Compress)
+}
+
+function Test-TranslationRows($Rows, $Items, [string]$Context) {
+    $rows = @($Rows)
+    $items = @($Items)
+    if ($rows.Count -ne $items.Count) {
+        throw "Expected $($items.Count) $Context skills, got $($rows.Count)."
+    }
+
+    $expectedItems = @{}
+    foreach ($item in $items) {
+        $expectedItems[[string](Get-JsonProperty $item "id")] = $item
+    }
+
+    $seenIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($row in $rows) {
+        $id = [string](Get-JsonProperty $row "id")
+        if (!$expectedItems.ContainsKey($id)) {
+            throw "Gemini returned unexpected skill id '$id'."
+        }
+
+        if (!$seenIds.Add($id)) {
+            throw "Gemini returned duplicate skill id '$id'."
+        }
+
+        $sourceDescription = [string](Get-JsonProperty $expectedItems[$id] "description_zh" "")
+        foreach ($locale in @("en", "vi")) {
+            $localization = Get-JsonProperty $row $locale
+            $description = [string](Get-JsonProperty $localization "description" "")
+            if ([string]::IsNullOrWhiteSpace([string](Get-JsonProperty $localization "name" "")) -or
+                $null -eq (Get-JsonProperty $localization "description") -or
+                !(Test-LocalizedDescription $description $sourceDescription)) {
+                throw "Gemini returned invalid $locale localization for '$id'."
+            }
+        }
+    }
+}
+
+function Invoke-SkillTranslationBatch($Skills, [string]$ApiKey, [string]$Model, $TranslationMemory) {
+    $items = ConvertTo-TranslationWorkItems $Skills
+    $systemPrompt = @"
+Translate Roco Kingdom: World skill names and descriptions from Simplified Chinese to English and Vietnamese.
+Use the translation memory as the corpus style reference: consistent terms, natural game UI wording, and concise player-facing phrasing.
+Return every requested id exactly once. Preserve source meaning, numbers, signs, and effect structure. If the Chinese description is empty, return an empty description.
+"@
+
+    $userText = "Translation memory: $(Get-TranslationMemoryPromptText $TranslationMemory)`nSkills to translate: " +
+        ($items | ConvertTo-Json -Depth 20 -Compress)
+    $result = Invoke-GeminiJson $ApiKey $Model $systemPrompt $userText (New-SkillTranslationSchema) 8192
+    $rows = @($result.skills)
+    Test-TranslationRows $rows $items "translated"
+    return $rows
+}
+
+function Invoke-SkillTranslationHarmonizationBatch($Skills, [string]$ApiKey, [string]$Model, $TranslationMemory) {
+    $items = ConvertTo-HarmonizationWorkItems $Skills
+    $systemPrompt = @"
+You are the final consistency editor for Roco Kingdom: World skill translations.
+Use the translation memory to harmonize terminology and phrasing across English and Vietnamese.
+Make focused edits only when they improve consistency, naturalness, or fidelity. Return every id exactly once, including unchanged rows. If the Chinese description is empty, keep the translated descriptions empty.
+"@
+
+    $userText = "Translation memory: $(Get-TranslationMemoryPromptText $TranslationMemory)`nDraft translations to harmonize: " +
+        ($items | ConvertTo-Json -Depth 20 -Compress)
+    $result = Invoke-GeminiJson $ApiKey $Model $systemPrompt $userText (New-SkillTranslationSchema) 8192
+    $rows = @($result.skills)
+    Test-TranslationRows $rows $items "harmonized"
+    return $rows
+}
+
+function Set-SkillTranslationsFromRows($Skills, $Rows, [bool]$Force) {
+    $rowById = @{}
+    foreach ($row in @($Rows)) {
+        $rowById[[string](Get-JsonProperty $row "id")] = $row
+    }
+
+    $updatedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", [Globalization.CultureInfo]::InvariantCulture)
+    $updatedCount = 0
+    foreach ($skill in @($Skills)) {
+        $id = [string](Get-JsonProperty $skill "id")
+        if (!$rowById.ContainsKey($id)) {
+            continue
+        }
+
+        $row = $rowById[$id]
+        $newEn = Get-JsonProperty $row "en"
+        $newVi = Get-JsonProperty $row "vi"
+        $translations = Get-JsonProperty $skill "translations"
+        $currentEn = Get-JsonProperty $translations "en"
+        $currentVi = Get-JsonProperty $translations "vi"
+        $changed = [string](Get-JsonProperty $currentEn "name" "") -ne [string](Get-JsonProperty $newEn "name" "") -or
+            [string](Get-JsonProperty $currentEn "description" "") -ne [string](Get-JsonProperty $newEn "description" "") -or
+            [string](Get-JsonProperty $currentVi "name" "") -ne [string](Get-JsonProperty $newVi "name" "") -or
+            [string](Get-JsonProperty $currentVi "description" "") -ne [string](Get-JsonProperty $newVi "description" "")
+
+        if (!$Force -and !$changed) {
+            continue
+        }
+
+        $sourceHash = [string](Get-JsonProperty $skill "source_hash")
+        $skill.translations = [ordered]@{
+            en = New-Localization ([string](Get-JsonProperty $newEn "name")) ([string](Get-JsonProperty $newEn "description")) $sourceHash $updatedAt
+            vi = New-Localization ([string](Get-JsonProperty $newVi "name")) ([string](Get-JsonProperty $newVi "description")) $sourceHash $updatedAt
+        }
+        $updatedCount++
+    }
+
+    return $updatedCount
 }
 
 function Test-SkillDatabase([string]$Path, [bool]$RequireTranslations, [bool]$RequireIconFiles = $true) {
@@ -1121,6 +1375,28 @@ function Test-WikirocoFreshness([string]$Path, [bool]$CheckIconContent) {
     return $true
 }
 
+function Save-SkillDataWithBackup($Output, [bool]$RequireTranslations) {
+    $backupDir = Join-Path $RepoRoot "data\skill-backups"
+    New-Item -ItemType Directory -Force -Path $backupDir | Out-Null
+    $backupPath = Join-Path $backupDir ("skills.json.bak-{0}" -f (Get-Date -Format yyyyMMddHHmmss))
+    Copy-Item -LiteralPath $DataPath -Destination $backupPath
+    Write-Host "Backup written: $backupPath"
+
+    $tempDataPath = Join-Path ([System.IO.Path]::GetTempPath()) ("peek-skills-" + [Guid]::NewGuid().ToString("N") + ".json")
+    try {
+        Save-JsonFile $tempDataPath $Output
+        Test-SkillDatabase $tempDataPath $RequireTranslations
+        Move-Item -LiteralPath $tempDataPath -Destination $DataPath -Force
+    }
+    finally {
+        if (Test-Path $tempDataPath) {
+            Remove-Item -LiteralPath $tempDataPath -Force
+        }
+    }
+
+    Write-Host "Skill database updated: $DataPath"
+}
+
 if ($ValidateOnly -and $CheckFreshness) {
     throw "Use either -ValidateOnly or -CheckFreshness, not both."
 }
@@ -1140,6 +1416,45 @@ if ($CheckFreshness) {
     }
 
     exit 1
+}
+
+if ($BuildTranslationMemory -and !$TranslateChanged -and !$HarmonizeTranslations) {
+    if ([string]::IsNullOrWhiteSpace($GeminiApiKey)) {
+        throw "Gemini API key is required. Set GEMINI_API_KEY or pass -GeminiApiKey."
+    }
+
+    Test-SkillDatabase $DataPath (-not $AllowMissingTranslations)
+    $existingData = Get-Content -LiteralPath $DataPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    [void](Ensure-TranslationMemory @($existingData.skills) $GeminiApiKey $GeminiModel $true)
+    return
+}
+
+if ($HarmonizeTranslations -and !$TranslateChanged) {
+    if ([string]::IsNullOrWhiteSpace($GeminiApiKey)) {
+        throw "Gemini API key is required. Set GEMINI_API_KEY or pass -GeminiApiKey."
+    }
+
+    Test-SkillDatabase $DataPath $true
+    $existingData = Get-Content -LiteralPath $DataPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $existingSkills = @($existingData.skills)
+    $translationMemory = Ensure-TranslationMemory $existingSkills $GeminiApiKey $GeminiModel $BuildTranslationMemory
+    $totalBatches = [Math]::Ceiling($existingSkills.Count / $HarmonizationBatchSize)
+    $updatedCount = 0
+    for ($i = 0; $i -lt $existingSkills.Count; $i += $HarmonizationBatchSize) {
+        $end = [Math]::Min($i + $HarmonizationBatchSize - 1, $existingSkills.Count - 1)
+        $batch = @($existingSkills[$i..$end])
+        $batchNumber = [Math]::Floor($i / $HarmonizationBatchSize) + 1
+        Write-Host "Harmonizing batch $batchNumber/$totalBatches ($($batch.Count) skill(s))"
+        $rows = Invoke-SkillTranslationHarmonizationBatch $batch $GeminiApiKey $GeminiModel $translationMemory
+        $updatedCount += Set-SkillTranslationsFromRows $batch $rows $false
+    }
+
+    Write-Host "Harmonization updated $updatedCount skill translation(s)."
+    if ($updatedCount -gt 0) {
+        Save-SkillDataWithBackup $existingData $true
+    }
+
+    return
 }
 
 Test-SkillDatabase $DataPath $false $false
@@ -1180,31 +1495,31 @@ if ($TranslateChanged -and $translationQueue.Count -gt 0) {
         throw "Gemini API key is required. Set GEMINI_API_KEY or pass -GeminiApiKey."
     }
 
+    $translationMemory = Ensure-TranslationMemory @($existingData.skills) $GeminiApiKey $GeminiModel $BuildTranslationMemory
     $totalBatches = [Math]::Ceiling($translationQueue.Count / $TranslationBatchSize)
-    $translations = @{}
+    $draftRows = [System.Collections.Generic.List[object]]::new()
     for ($i = 0; $i -lt $translationQueue.Count; $i += $TranslationBatchSize) {
         $end = [Math]::Min($i + $TranslationBatchSize - 1, $translationQueue.Count - 1)
         $batch = @($translationQueue[$i..$end])
         $batchNumber = [Math]::Floor($i / $TranslationBatchSize) + 1
         Write-Host "Translating batch $batchNumber/$totalBatches ($($batch.Count) skill(s))"
-        $rows = Invoke-SkillTranslationBatch $batch $GeminiApiKey $GeminiModel
+        $rows = Invoke-SkillTranslationBatch $batch $GeminiApiKey $GeminiModel $translationMemory
         foreach ($row in $rows) {
-            $skill = $batch | Where-Object { [string]$_.id -eq [string]$row.id } | Select-Object -First 1
-            if ($null -eq $skill) {
-                throw "Gemini returned unexpected skill id '$($row.id)'."
-            }
-
-            $updatedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", [Globalization.CultureInfo]::InvariantCulture)
-            $translations[[string]$row.id] = [ordered]@{
-                en = New-Localization ([string]$row.en.name) ([string]$row.en.description) ([string]$skill.source_hash) $updatedAt
-                vi = New-Localization ([string]$row.vi.name) ([string]$row.vi.description) ([string]$skill.source_hash) $updatedAt
-            }
+            $draftRows.Add($row) | Out-Null
         }
     }
 
-    foreach ($skill in $newSkills) {
-        if ($translations.ContainsKey([string]$skill.id)) {
-            $skill.translations = $translations[[string]$skill.id]
+    [void](Set-SkillTranslationsFromRows @($translationQueue) @($draftRows) $true)
+
+    if (!$SkipHarmonization) {
+        $totalHarmonizationBatches = [Math]::Ceiling($translationQueue.Count / $HarmonizationBatchSize)
+        for ($i = 0; $i -lt $translationQueue.Count; $i += $HarmonizationBatchSize) {
+            $end = [Math]::Min($i + $HarmonizationBatchSize - 1, $translationQueue.Count - 1)
+            $batch = @($translationQueue[$i..$end])
+            $batchNumber = [Math]::Floor($i / $HarmonizationBatchSize) + 1
+            Write-Host "Harmonizing translated batch $batchNumber/$totalHarmonizationBatches ($($batch.Count) skill(s))"
+            $rows = Invoke-SkillTranslationHarmonizationBatch $batch $GeminiApiKey $GeminiModel $translationMemory
+            [void](Set-SkillTranslationsFromRows $batch $rows $true)
         }
     }
 }
@@ -1267,21 +1582,4 @@ $output = [ordered]@{
     skills = @($newSkills)
 }
 
-$backupDir = Join-Path $RepoRoot "data\skill-backups"
-New-Item -ItemType Directory -Force -Path $backupDir | Out-Null
-$backupPath = Join-Path $backupDir ("skills.json.bak-{0}" -f (Get-Date -Format yyyyMMddHHmmss))
-Copy-Item -LiteralPath $DataPath -Destination $backupPath
-Write-Host "Backup written: $backupPath"
-
-$tempDataPath = Join-Path ([System.IO.Path]::GetTempPath()) ("peek-skills-" + [Guid]::NewGuid().ToString("N") + ".json")
-try {
-    Save-JsonFile $tempDataPath $output
-    Test-SkillDatabase $tempDataPath (-not $AllowMissingTranslations)
-    Move-Item -LiteralPath $tempDataPath -Destination $DataPath -Force
-}
-finally {
-    if (Test-Path $tempDataPath) {
-        Remove-Item -LiteralPath $tempDataPath -Force
-    }
-}
-Write-Host "Skill database updated: $DataPath"
+Save-SkillDataWithBackup $output (-not $AllowMissingTranslations)
