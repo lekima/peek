@@ -15,7 +15,8 @@ internal sealed partial class SettingsWindow : Window
 
         _config = config;
         ApiKeyBox.Password = config.ApiKey;
-        TargetLanguageBox.SelectedValue = AppConfig.NormalizeTargetLanguage(config.TargetLanguage);
+        TargetLanguageBox.Text = AppConfig.NormalizeTargetLanguage(config.TargetLanguage);
+        TargetGameBox.Text = AppConfig.NormalizeTargetGame(config.TargetGame);
         DiagnosticsBox.IsChecked = config.DiagnosticsEnabled;
     }
 
@@ -29,7 +30,8 @@ internal sealed partial class SettingsWindow : Window
         }
 
         _config.ApiKey = apiKey;
-        _config.TargetLanguage = AppConfig.NormalizeTargetLanguage(TargetLanguageBox.SelectedValue as string);
+        _config.TargetLanguage = AppConfig.NormalizeTargetLanguage(TargetLanguageBox.Text);
+        _config.TargetGame = AppConfig.NormalizeTargetGame(TargetGameBox.Text);
         _config.DiagnosticsEnabled = DiagnosticsBox.IsChecked == true;
 
         DialogResult = true;

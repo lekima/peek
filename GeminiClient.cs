@@ -12,7 +12,7 @@ namespace Peek;
 
 internal static class GeminiClient
 {
-    private const string TextPromptVersion = "chinese-game-bilibili-search-v14";
+    private const string TextPromptVersion = "chinese-game-bilibili-search-v15";
     private const string TextSchemaVersion = "text-result-schema-v9";
     private const string JsonResponseMimeType = "application/json";
     private const string MinimalThinkingLevel = "minimal";
@@ -48,15 +48,16 @@ internal static class GeminiClient
         }
 
         var targetLanguage = AppConfig.NormalizeTargetLanguage(config.TargetLanguage);
+        var targetGame = AppConfig.NormalizeTargetGame(config.TargetGame);
         var imageData = await ToPngBase64Async(bitmap, cancellationToken).ConfigureAwait(false);
-        var payload = CreateTextTranslationPayload(targetLanguage, imageData);
+        var payload = CreateTextTranslationPayload(targetLanguage, targetGame, imageData);
 
         AppLogger.Event("ai_request", new
         {
             operationId,
             model,
             targetLanguage,
-            targetGame = RocoGame.DisplayName,
+            targetGame,
             captureWidth = bitmap.Width,
             captureHeight = bitmap.Height,
             structuredOutput = true,
@@ -91,6 +92,7 @@ internal static class GeminiClient
 
     private static Dictionary<string, object?> CreateTextTranslationPayload(
         string targetLanguage,
+        string targetGame,
         string imageData) =>
         new()
         {
@@ -100,7 +102,7 @@ internal static class GeminiClient
                 {
                     new
                     {
-                        text = CreateTextTranslationPrompt(targetLanguage)
+                        text = CreateTextTranslationPrompt(targetLanguage, targetGame)
                     }
                 }
             },
@@ -595,10 +597,11 @@ internal static class GeminiClient
         return index;
     }
 
-    private static string CreateTextTranslationPrompt(string targetLanguage)
+    private static string CreateTextTranslationPrompt(string targetLanguage, string targetGame)
     {
-        var targetGameInstruction =
-            $"The selected target game is {RocoGame.DisplayName}. The app will prefix every Bilibili search with \"{RocoGame.SearchPrefix}\"; do not include that game title in any query.";
+        var targetGameInstruction = string.IsNullOrWhiteSpace(targetGame)
+            ? "No target game is configured; infer the game only from visible screenshot evidence when that helps translation or search."
+            : $"The target game is \"{targetGame}\". Use relevant knowledge of that game when it improves translation or search accuracy. The app will prefix every Bilibili search with this target game name, so do not include it in any query.";
 
         return
             "You are helping a player understand a screenshot from a Chinese game. " +
@@ -658,7 +661,7 @@ internal static class GeminiClient
                             ["query"] = new Dictionary<string, object?>
                             {
                                 ["type"] = "string",
-                                ["description"] = "Compact Chinese Bilibili search phrase. Prefer the fewest distinctive visible clues that would find a relevant guide, such as an exact quest, item, NPC, location, boss, mechanic, or objective. Do not include the game title prefix."
+                                ["description"] = "Compact Chinese Bilibili search phrase. Prefer the fewest distinctive visible clues that would find a relevant guide, such as an exact quest, item, NPC, location, boss, mechanic, or objective. Do not include the configured target game name."
                             }
                         }
                     }

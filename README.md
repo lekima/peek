@@ -1,6 +1,6 @@
 # Peek
 
-Windows overlay translator for `Roco Kingdom: World`.
+Windows overlay translator for Chinese games.
 
 Peek captures a user-selected screen region, translates visible Chinese game text with Gemini, and offers Bilibili guide searches for the translated context.
 
@@ -12,10 +12,10 @@ Peek captures a user-selected screen region, translates visible Chinese game tex
 - Click a numbered search button to open a Bilibili search generated from the translation context.
 - Right-click the move button for `Settings` or `Quit`.
 
-Search URLs are deterministic and use the Roco prefix:
+Search URLs are deterministic and use the configured target game:
 
 ```text
-洛克王国 {Chinese search term}
+{Target game} {Chinese search term}
 ```
 
 ## Settings
@@ -23,7 +23,8 @@ Search URLs are deterministic and use the Roco prefix:
 Settings are available from the move-button right-click menu.
 
 - `Gemini API key`: stored encrypted for the current Windows user with DPAPI.
-- `Target language`: fixed dropdown with `English` and `Vietnamese`.
+- `Target language`: free text, with `English` as the default.
+- `Target game`: free text, with `洛克王国世界` as the default. This is used as translation context and prepended to Bilibili searches.
 - `Keep troubleshooting data`: off by default; when enabled, raw captures and model text are retained locally for troubleshooting.
 - `Clear data`: removes local logs and saved captures.
 

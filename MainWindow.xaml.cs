@@ -79,7 +79,7 @@ internal sealed partial class MainWindow : Window
             appDirectory = AppPaths.AppDirectory,
             targetLanguage = _config.TargetLanguage,
             diagnosticsEnabled = _config.DiagnosticsEnabled,
-            targetGame = RocoGame.DisplayName
+            targetGame = _config.TargetGame
         });
     }
 
@@ -394,7 +394,7 @@ internal sealed partial class MainWindow : Window
             searchButton.Query.Label,
             searchButton.Query.Query,
             searchButton.Query.Intent,
-            RocoGame.DisplayName,
+            searchButton.TargetGame,
             searchButton.Url));
         OpenUrl(searchButton.Url);
     }
@@ -462,7 +462,7 @@ internal sealed partial class MainWindow : Window
                 operationId,
                 model,
                 targetLanguage = operationConfig.TargetLanguage,
-                targetGame = RocoGame.DisplayName,
+                targetGame = operationConfig.TargetGame,
                 windowLeft = Left,
                 windowTop = Top,
                 frameWidth = FrameBorder.ActualWidth,
@@ -507,6 +507,7 @@ internal sealed partial class MainWindow : Window
                 SetResultText(
                     operationId,
                     result.Text,
+                    operationConfig.TargetGame,
                     result.SearchQueries);
             }
 
@@ -515,7 +516,7 @@ internal sealed partial class MainWindow : Window
                 operationId,
                 model,
                 operationConfig.TargetLanguage,
-                RocoGame.DisplayName,
+                operationConfig.TargetGame,
                 capturePath,
                 result.Text,
                 result.SearchQueries));
@@ -534,7 +535,6 @@ internal sealed partial class MainWindow : Window
                 responseUsage,
                 model,
                 operationConfig,
-                RocoGame.DisplayName,
                 null,
                 null);
             usageTracked = true;
@@ -555,7 +555,6 @@ internal sealed partial class MainWindow : Window
                     responseUsage,
                     model,
                     operationConfig,
-                    RocoGame.DisplayName,
                     nameof(OperationCanceledException),
                     "Cancelled");
             }
@@ -586,7 +585,6 @@ internal sealed partial class MainWindow : Window
                 responseUsage,
                 model,
                 operationConfig,
-                RocoGame.DisplayName,
                 ex.GetType().Name,
                 shortError);
         }
@@ -632,7 +630,8 @@ internal sealed partial class MainWindow : Window
 
         AppLogger.Event("settings_opened", new
         {
-            targetLanguage = _config.TargetLanguage
+            targetLanguage = _config.TargetLanguage,
+            targetGame = _config.TargetGame
         });
 
         var settingsConfig = CloneConfig(_config);
@@ -661,6 +660,7 @@ internal sealed partial class MainWindow : Window
                 AppLogger.Event("settings_saved", new
                 {
                     targetLanguage = _config.TargetLanguage,
+                    targetGame = _config.TargetGame,
                     diagnosticsEnabled = _config.DiagnosticsEnabled
                 });
                 return;
@@ -826,12 +826,13 @@ internal sealed partial class MainWindow : Window
     private void SetResultText(
         string operationId,
         string text,
+        string targetGame,
         IReadOnlyList<SearchQueryResult> searchQueries)
     {
         UseCaptureFramePresentation();
         SetResultTextLines(text);
         ResultTextPanel.Visibility = Visibility.Visible;
-        SetSearchButtons(operationId, searchQueries);
+        SetSearchButtons(operationId, targetGame, searchQueries);
 
         ResultPanel.Padding = MaxResultTextPadding;
         ResultPanel.Visibility = Visibility.Visible;
@@ -905,6 +906,7 @@ internal sealed partial class MainWindow : Window
 
     private void SetSearchButtons(
         string operationId,
+        string targetGame,
         IReadOnlyList<SearchQueryResult> searchQueries)
     {
         ClearSearchButtons();
@@ -918,7 +920,7 @@ internal sealed partial class MainWindow : Window
                 break;
             }
 
-            var searchUrl = BuildBilibiliSearchUrl(searchQuery.Query);
+            var searchUrl = BuildBilibiliSearchUrl(searchQuery.Query, targetGame);
             if (string.IsNullOrWhiteSpace(searchUrl))
             {
                 continue;
@@ -933,6 +935,7 @@ internal sealed partial class MainWindow : Window
                 operationId,
                 buttonIndex + 1,
                 searchQuery,
+                targetGame,
                 searchUrl);
             buttonIndex++;
         }
@@ -942,7 +945,7 @@ internal sealed partial class MainWindow : Window
             : Visibility.Collapsed;
     }
 
-    private static string BuildBilibiliSearchUrl(string searchQuery)
+    private static string BuildBilibiliSearchUrl(string searchQuery, string targetGame)
     {
         var keyword = searchQuery.Trim();
         if (string.IsNullOrWhiteSpace(keyword))
@@ -950,9 +953,11 @@ internal sealed partial class MainWindow : Window
             return string.Empty;
         }
 
-        var prefixedKeyword = keyword.StartsWith(RocoGame.SearchPrefix, StringComparison.OrdinalIgnoreCase)
+        targetGame = AppConfig.NormalizeTargetGame(targetGame);
+        var prefixedKeyword = string.IsNullOrWhiteSpace(targetGame) ||
+            keyword.StartsWith(targetGame, StringComparison.OrdinalIgnoreCase)
                 ? keyword
-                : $"{RocoGame.SearchPrefix} {keyword}";
+                : $"{targetGame} {keyword}";
         return AppConfig.BilibiliSearchUrlPrefix + Uri.EscapeDataString(prefixedKeyword);
     }
 
@@ -1058,7 +1063,6 @@ internal sealed partial class MainWindow : Window
         TokenUsage usage,
         string model,
         AppConfig operationConfig,
-        string targetGame,
         string? errorKind,
         string? errorMessage)
     {
@@ -1068,7 +1072,7 @@ internal sealed partial class MainWindow : Window
             providerRequestId,
             model,
             operationConfig.TargetLanguage,
-            targetGame,
+            operationConfig.TargetGame,
             success,
             elapsedMilliseconds,
             width,
@@ -1163,6 +1167,7 @@ internal sealed partial class MainWindow : Window
         {
             ApiKey = config.ApiKey,
             TargetLanguage = AppConfig.NormalizeTargetLanguage(config.TargetLanguage),
+            TargetGame = AppConfig.NormalizeTargetGame(config.TargetGame),
             DiagnosticsEnabled = config.DiagnosticsEnabled
         };
 
@@ -1260,4 +1265,5 @@ internal sealed record SearchButtonState(
     string OperationId,
     int Index,
     SearchQueryResult Query,
+    string TargetGame,
     string Url);

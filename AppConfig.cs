@@ -6,19 +6,15 @@ using System.Text.Json;
 
 namespace Peek;
 
-internal static class RocoGame
-{
-    public const string DisplayName = "Roco Kingdom: World";
-    public const string SearchPrefix = "洛克王国";
-}
-
 internal sealed class AppConfig
 {
     public const string BilibiliSearchUrlPrefix = "https://search.bilibili.com/all?keyword=";
+    public const string DefaultTargetGame = "洛克王国世界";
     public const string DefaultModel = "gemini-3.1-flash-lite";
 
     public string ApiKey { get; set; } = string.Empty;
     public string TargetLanguage { get; set; } = "English";
+    public string TargetGame { get; set; } = DefaultTargetGame;
     public bool DiagnosticsEnabled { get; set; }
 
     public static bool HasGeminiApiKey(string? value) =>
@@ -28,14 +24,11 @@ internal sealed class AppConfig
     public static string NormalizeTargetLanguage(string? value)
     {
         value = value?.Trim() ?? string.Empty;
-        if (value.Contains("viet", StringComparison.OrdinalIgnoreCase) ||
-            value.Contains("việt", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Vietnamese";
-        }
-
-        return "English";
+        return string.IsNullOrWhiteSpace(value) ? "English" : value;
     }
+
+    public static string NormalizeTargetGame(string? value) =>
+        value?.Replace('\r', ' ').Replace('\n', ' ').Trim() ?? string.Empty;
 }
 
 internal static class AppConfigStore
@@ -44,6 +37,7 @@ internal static class AppConfigStore
     {
         public string EncryptedApiKey { get; set; } = string.Empty;
         public string TargetLanguage { get; set; } = "English";
+        public string TargetGame { get; set; } = AppConfig.DefaultTargetGame;
         public bool DiagnosticsEnabled { get; set; }
     }
 
@@ -69,6 +63,7 @@ internal static class AppConfigStore
             {
                 ApiKey = Unprotect(stored.EncryptedApiKey),
                 TargetLanguage = AppConfig.NormalizeTargetLanguage(stored.TargetLanguage),
+                TargetGame = AppConfig.NormalizeTargetGame(stored.TargetGame),
                 DiagnosticsEnabled = stored.DiagnosticsEnabled
             };
         }
@@ -108,6 +103,7 @@ internal static class AppConfigStore
         {
             EncryptedApiKey = Protect(config.ApiKey),
             TargetLanguage = AppConfig.NormalizeTargetLanguage(config.TargetLanguage),
+            TargetGame = AppConfig.NormalizeTargetGame(config.TargetGame),
             DiagnosticsEnabled = config.DiagnosticsEnabled
         };
 
