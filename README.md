@@ -61,10 +61,16 @@ Validate the bundled skill database:
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\update-skills.ps1 -ValidateOnly
 ```
 
-Validate the local bundle and check whether bundled skill data differs from upstream wikiroco data:
+Validate the local bundle and quickly check whether bundled skill data differs from upstream wikiroco data:
 
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\update-skills.ps1 -CheckFreshness
+```
+
+Run the slower release audit that also checks same-URL upstream icon content changes:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\update-skills.ps1 -CheckFreshness -DeepIcons
 ```
 
 Build a local Windows x64 release:
@@ -85,6 +91,12 @@ Fetch the latest wikiroco skills/icons and preserve translations when unchanged:
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\update-skills.ps1
 ```
 
+Repair same-URL upstream icon content changes reported by the deep audit:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\update-skills.ps1 -DeepIcons
+```
+
 Translate only new or changed skills:
 
 ```powershell
@@ -95,7 +107,8 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\update-skills.ps1 -Transla
 The updater:
 
 - Fetches wikiroco skill data.
-- Checks upstream freshness without writing files when `-CheckFreshness` is used.
+- Checks upstream freshness without writing files when `-CheckFreshness` is used. By default this is a quick skill data and icon URL check.
+- Checks same-URL upstream icon content changes when `-DeepIcons` is added, using parallel remote icon downloads controlled by `-IconCheckThrottle`.
 - Downloads missing or changed skill icons.
 - Normalizes skill icons to `128x128`.
 - Updates element/type vector icons from rocomwiki assets.

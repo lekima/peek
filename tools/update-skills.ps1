@@ -3,13 +3,16 @@ param(
     [switch]$RefreshIcons,
     [switch]$ValidateOnly,
     [switch]$CheckFreshness,
+    [switch]$DeepIcons,
     [switch]$AllowMissingTranslations,
     [string]$GeminiApiKey = $env:GEMINI_API_KEY,
     [string]$GeminiModel = "gemini-3.1-flash-lite",
     [ValidateRange(1, 500)]
     [int]$TranslationBatchSize = 60,
     [ValidateRange(1, 300)]
-    [int]$IconDownloadTimeoutSec = 30
+    [int]$IconDownloadTimeoutSec = 30,
+    [ValidateRange(1, 64)]
+    [int]$IconCheckThrottle = 16
 )
 
 Set-StrictMode -Version Latest
@@ -430,6 +433,97 @@ function Get-NormalizedImageContentHash([string]$Path, [int]$Width, [int]$Height
     return Get-BytesSha256 (Convert-ImageFileToPngBytes $Path $Width $Height)
 }
 
+function Test-LocalIconFile([string]$Path, [int]$Width, [int]$Height) {
+    if (!(Test-Path $Path)) {
+        return [pscustomobject]@{
+            Exists = $false
+            Valid = $false
+            Hash = $null
+            Error = "missing"
+        }
+    }
+
+    try {
+        $size = Get-ImageSize $Path
+        $isPng = Test-PngFile $Path
+        return [pscustomobject]@{
+            Exists = $true
+            Valid = $isPng -and $size.Width -eq $Width -and $size.Height -eq $Height
+            Hash = if ($isPng -and $size.Width -eq $Width -and $size.Height -eq $Height) {
+                Get-FileSha256 $Path
+            }
+            else {
+                Get-NormalizedImageContentHash $Path $Width $Height
+            }
+            Error = $null
+        }
+    }
+    catch {
+        return [pscustomobject]@{
+            Exists = $true
+            Valid = $false
+            Hash = $null
+            Error = $_.Exception.Message
+        }
+    }
+}
+
+function Get-RemoteIconContentHashes($Skills, [int]$Width, [int]$Height, [int]$ThrottleLimit) {
+    $urls = @($Skills |
+        ForEach-Object { Get-SkillIconSourceUrl $_ } |
+        Where-Object { ![string]::IsNullOrWhiteSpace($_) } |
+        Sort-Object -Unique)
+    $hashes = @{}
+    if ($urls.Count -eq 0) {
+        return $hashes
+    }
+
+    Write-Host "Checking remote icon content for $($urls.Count) unique URL(s) with throttle $ThrottleLimit"
+    $timeoutSec = $IconDownloadTimeoutSec
+    $downloads = @($urls | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
+        $url = [string]$_
+        $client = [System.Net.Http.HttpClient]::new()
+        $client.Timeout = [TimeSpan]::FromSeconds($using:timeoutSec)
+        try {
+            $bytes = $client.GetByteArrayAsync($url).GetAwaiter().GetResult()
+            [pscustomobject]@{
+                Url = $url
+                Bytes = [byte[]]$bytes
+                Error = $null
+            }
+        }
+        catch {
+            [pscustomobject]@{
+                Url = $url
+                Bytes = $null
+                Error = $_.Exception.Message
+            }
+        }
+        finally {
+            $client.Dispose()
+        }
+    })
+
+    foreach ($download in $downloads) {
+        if (![string]::IsNullOrWhiteSpace([string]$download.Error)) {
+            throw "Failed to download remote icon '$($download.Url)': $($download.Error)"
+        }
+
+        $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("peek-image-" + [Guid]::NewGuid().ToString("N"))
+        try {
+            [System.IO.File]::WriteAllBytes($tempPath, [byte[]]$download.Bytes)
+            $hashes[[string]$download.Url] = Get-NormalizedImageContentHash $tempPath $Width $Height
+        }
+        finally {
+            if (Test-Path $tempPath) {
+                Remove-Item -LiteralPath $tempPath -Force
+            }
+        }
+    }
+
+    return $hashes
+}
+
 function Save-ImageAsPng([string]$InputPath, [string]$OutputPath, [int]$Width, [int]$Height) {
     $bytes = Convert-ImageFileToPngBytes $InputPath $Width $Height
     $directory = Split-Path -Parent $OutputPath
@@ -453,20 +547,6 @@ function Save-RemoteImageAsPng([string]$Url, [string]$OutputPath, [int]$Width, [
         else {
             Save-ImageAsPng $tempPath $OutputPath $Width $Height
         }
-    }
-    finally {
-        if (Test-Path $tempPath) {
-            Remove-Item -LiteralPath $tempPath -Force
-        }
-    }
-}
-
-function Get-RemoteImageContentHash([string]$Url, [int]$Width, [int]$Height) {
-    $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("peek-image-" + [Guid]::NewGuid().ToString("N"))
-    try {
-        $bytes = $HttpClient.GetByteArrayAsync($Url).GetAwaiter().GetResult()
-        [System.IO.File]::WriteAllBytes($tempPath, $bytes)
-        return Get-NormalizedImageContentHash $tempPath $Width $Height
     }
     finally {
         if (Test-Path $tempPath) {
@@ -934,20 +1014,32 @@ function Test-SkillDatabase([string]$Path, [bool]$RequireTranslations, [bool]$Re
         throw "Skill database validation failed with $($errors.Count) error(s)."
     }
 
-    Write-Host "Validation passed: $($skills.Count) skills, all icons present, all skill icons 128x128."
+    if ($RequireIconFiles) {
+        Write-Host "Validation passed: $($skills.Count) skills, all icons present, all skill icons 128x128."
+    }
+    else {
+        Write-Host "Structural validation passed: $($skills.Count) skills."
+    }
 }
 
-function Test-WikirocoFreshness([string]$Path) {
+function Test-WikirocoFreshness([string]$Path, [bool]$CheckIconContent) {
     Test-SkillDatabase $Path (-not $AllowMissingTranslations)
 
     $existingData = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
     $existingSkills = @($existingData.skills)
     $existingById = Get-SkillIndex $existingSkills
     $snapshot = Get-WikirocoSkillSnapshot
+    $remoteIconHashes = if ($CheckIconContent) {
+        Get-RemoteIconContentHashes $snapshot.Skills 128 128 $IconCheckThrottle
+    }
+    else {
+        @{}
+    }
 
     $newSkills = [System.Collections.Generic.List[object]]::new()
     $changedSkills = [System.Collections.Generic.List[object]]::new()
-    $iconChangedSkills = [System.Collections.Generic.List[object]]::new()
+    $iconUrlChangedSkills = [System.Collections.Generic.List[object]]::new()
+    $iconContentChangedSkills = [System.Collections.Generic.List[object]]::new()
     $removedSkills = [System.Collections.Generic.List[object]]::new()
 
     foreach ($skill in @($snapshot.Skills)) {
@@ -964,13 +1056,13 @@ function Test-WikirocoFreshness([string]$Path) {
         $existingIconUrl = Get-SkillIconSourceUrl $existing
         $remoteIconUrl = Get-SkillIconSourceUrl $skill
         if ($existingIconUrl -ne $remoteIconUrl) {
-            $iconChangedSkills.Add($skill)
+            $iconUrlChangedSkills.Add($skill)
         }
-        else {
+        elseif ($CheckIconContent) {
             $existingIconHash = [string](Get-JsonProperty (Get-SkillIcon $existing) "content_hash" "")
-            $remoteIconHash = Get-RemoteImageContentHash $remoteIconUrl 128 128
+            $remoteIconHash = [string]$remoteIconHashes[$remoteIconUrl]
             if ($existingIconHash -ne $remoteIconHash) {
-                $iconChangedSkills.Add($skill)
+                $iconContentChangedSkills.Add($skill)
             }
         }
     }
@@ -988,7 +1080,8 @@ function Test-WikirocoFreshness([string]$Path) {
     $needsUpdate = $countChanged -or
         $newSkills.Count -gt 0 -or
         $changedSkills.Count -gt 0 -or
-        $iconChangedSkills.Count -gt 0 -or
+        $iconUrlChangedSkills.Count -gt 0 -or
+        $iconContentChangedSkills.Count -gt 0 -or
         $removedSkills.Count -gt 0
 
     $fetchedAtValue = Get-JsonProperty $existingSource "fetched_at" ""
@@ -1004,12 +1097,19 @@ function Test-WikirocoFreshness([string]$Path) {
     Write-Host "Remote items: $($snapshot.Skills.Count)"
     Write-Host "New: $($newSkills.Count)"
     Write-Host "Changed: $($changedSkills.Count)"
-    Write-Host "Icon changed: $($iconChangedSkills.Count)"
+    Write-Host "Icon URL changed: $($iconUrlChangedSkills.Count)"
+    if ($CheckIconContent) {
+        Write-Host "Icon content changed: $($iconContentChangedSkills.Count)"
+    }
+    else {
+        Write-Host "Icon content changed: skipped (use -DeepIcons)"
+    }
     Write-Host "Removed: $($removedSkills.Count)"
 
     Write-SkillNameSample "New skills" $newSkills
     Write-SkillNameSample "Changed skills" $changedSkills
-    Write-SkillNameSample "Icon changes" $iconChangedSkills
+    Write-SkillNameSample "Icon URL changes" $iconUrlChangedSkills
+    Write-SkillNameSample "Icon content changes" $iconContentChangedSkills
     Write-SkillNameSample "Removed skills" $removedSkills
 
     if ($needsUpdate) {
@@ -1025,13 +1125,17 @@ if ($ValidateOnly -and $CheckFreshness) {
     throw "Use either -ValidateOnly or -CheckFreshness, not both."
 }
 
+if ($ValidateOnly -and $DeepIcons) {
+    throw "Use -DeepIcons with -CheckFreshness or the update path, not -ValidateOnly."
+}
+
 if ($ValidateOnly) {
     Test-SkillDatabase $DataPath (-not $AllowMissingTranslations)
     return
 }
 
 if ($CheckFreshness) {
-    if (Test-WikirocoFreshness $DataPath) {
+    if (Test-WikirocoFreshness $DataPath $DeepIcons) {
         return
     }
 
@@ -1108,6 +1212,13 @@ if ($TranslateChanged -and $translationQueue.Count -gt 0) {
 New-Item -ItemType Directory -Force -Path $SkillIconDir, $ElementIconDir, $SkillMetaIconDir | Out-Null
 Update-RocomwikiIconResources $RefreshIcons
 
+$remoteIconHashes = if ($DeepIcons) {
+    Get-RemoteIconContentHashes $newSkills 128 128 $IconCheckThrottle
+}
+else {
+    @{}
+}
+
 foreach ($skill in @($newSkills)) {
     $id = [string]$skill.id
     $iconPath = Join-Path $RepoRoot (Get-SkillIconPath $skill)
@@ -1120,35 +1231,21 @@ foreach ($skill in @($newSkills)) {
 
     $oldIconUrl = if ($null -eq $existing) { "" } else { Get-SkillIconSourceUrl $existing }
     $oldIconHash = if ($null -eq $existing) { "" } else { [string](Get-JsonProperty (Get-SkillIcon $existing) "content_hash" "") }
-    $remoteIconHash = $null
+    $localIconState = Test-LocalIconFile $iconPath 128 128
+    $localIconHash = [string]$localIconState.Hash
+    $remoteIconHash = if ($DeepIcons) { [string]$remoteIconHashes[$iconUrl] } else { $null }
     $shouldDownloadIcon = $RefreshIcons -or
-        !(Test-Path $iconPath) -or
-        (![string]::IsNullOrWhiteSpace($oldIconUrl) -and $oldIconUrl -ne $iconUrl)
-    if (!$shouldDownloadIcon) {
-        $remoteIconHash = Get-RemoteImageContentHash $iconUrl 128 128
-        $shouldDownloadIcon = $oldIconHash -ne $remoteIconHash
-        if (!$shouldDownloadIcon) {
-            try {
-                $localIconHash = Get-NormalizedImageContentHash $iconPath 128 128
-                $shouldDownloadIcon = $localIconHash -ne $remoteIconHash
-            }
-            catch {
-                $shouldDownloadIcon = $true
-            }
-        }
-    }
+        !$localIconState.Exists -or
+        !$localIconState.Valid -or
+        (![string]::IsNullOrWhiteSpace($oldIconUrl) -and $oldIconUrl -ne $iconUrl) -or
+        (![string]::IsNullOrWhiteSpace($oldIconHash) -and ![string]::IsNullOrWhiteSpace($localIconHash) -and $oldIconHash -ne $localIconHash) -or
+        ($DeepIcons -and $remoteIconHash -ne $localIconHash)
 
     if ($shouldDownloadIcon) {
         Save-RemoteImageAsPng $iconUrl $iconPath 128 128
     }
-    elseif (Test-Path $iconPath) {
-        $size = Get-ImageSize $iconPath
-        if ($size.Width -ne 128 -or $size.Height -ne 128) {
-            Save-ImageAsPng $iconPath $iconPath 128 128
-        }
-    }
 
-    $skill.icon.content_hash = if ($null -ne $remoteIconHash -and !$shouldDownloadIcon) {
+    $skill.icon.content_hash = if ($DeepIcons -and !$shouldDownloadIcon) {
         $remoteIconHash
     }
     else {
