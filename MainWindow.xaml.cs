@@ -1384,17 +1384,40 @@ internal sealed partial class MainWindow : Window
         string targetLanguage,
         Thickness margin,
         double fontSize,
-        double lineHeight) =>
-        new()
+        double lineHeight)
+    {
+        var description = GetSkillDescriptionText(skill, targetLanguage, out var isPlaceholder);
+        return new TextBlock
         {
-            Text = SkillDatabase.GetLocalizedDescription(skill, targetLanguage),
+            Text = description,
             Foreground = new SolidColorBrush(Color.FromRgb(238, 238, 238)),
+            Opacity = isPlaceholder ? 0.5 : 1.0,
             FontSize = fontSize,
             FontWeight = FontWeights.Medium,
+            FontStyle = isPlaceholder ? FontStyles.Italic : FontStyles.Normal,
             LineHeight = lineHeight,
             Margin = margin,
             TextWrapping = TextWrapping.Wrap
         };
+    }
+
+    private static string GetSkillDescriptionText(
+        SkillEntry skill,
+        string targetLanguage,
+        out bool isPlaceholder)
+    {
+        var description = SkillDatabase.GetLocalizedDescription(skill, targetLanguage).Trim();
+        if (!string.IsNullOrWhiteSpace(description))
+        {
+            isPlaceholder = false;
+            return description;
+        }
+
+        isPlaceholder = true;
+        return string.Equals(AppConfig.NormalizeTargetLanguage(targetLanguage), "Vietnamese", StringComparison.Ordinal)
+            ? "Kỹ năng này không có mô tả."
+            : "This skill doesn't have a description.";
+    }
 
     private static TextDecorationCollection CreateDottedUnderline()
     {

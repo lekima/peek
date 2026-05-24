@@ -45,7 +45,6 @@ internal sealed partial class SettingsWindow : Window
     private void ClearData_Click(object sender, RoutedEventArgs e)
     {
         AppDataMaintenance.ClearSensitiveData();
-        AppLogger.Info("Sensitive local data cleared from settings.");
         MessageBox.Show(
             this,
             "Troubleshooting data has been cleared.",
