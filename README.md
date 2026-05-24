@@ -24,7 +24,7 @@ Settings are available from the move-button right-click menu.
 
 - `Gemini API key`: stored encrypted for the current Windows user with DPAPI.
 - `Target language`: free text, with `English` as the default.
-- `Target game`: free text, with `洛克王国世界` as the default. This is used as translation context and prepended to Bilibili searches.
+- `Target game`: free text, blank by default. When set, it is used as translation context and prepended to Bilibili searches.
 - `Keep troubleshooting data`: off by default; when enabled, raw captures and model text are retained locally for troubleshooting.
 - `Clear data`: removes local logs and saved captures.
 

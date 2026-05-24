@@ -9,7 +9,7 @@ namespace Peek;
 internal sealed class AppConfig
 {
     public const string BilibiliSearchUrlPrefix = "https://search.bilibili.com/all?keyword=";
-    public const string DefaultTargetGame = "洛克王国世界";
+    public const string DefaultTargetGame = "";
     public const string DefaultModel = "gemini-3.1-flash-lite";
 
     public string ApiKey { get; set; } = string.Empty;
