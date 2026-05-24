@@ -36,20 +36,22 @@ Runtime data is stored under the current Windows user's local app data folder, n
 
 Use `Clear data` in settings, or delete the local app data folder, to reset logs and saved captures.
 
-## Bundled Data
+## Data
 
 - Skill data comes from `https://wikiroco.com/api/skills`.
-- Skill records are bundled in `Resources/Data/skills.json`.
+- Skill records are bundled in the app from `Resources/Data/skills.json`.
 - Skill icons are bundled in `Resources/Skills` and normalized to `128x128`.
 - Elf data comes from `https://wikiroco.com/api/pokemon` plus per-elf detail and evolution-chain endpoints.
-- Elf records are bundled in `Resources/Data/elves.json`; each elf skill relation includes the matching bundled `skill_id`, and evolution chains are normalized at the top level.
+- Elf records are stored as source data in `Resources/Data/elves.json`; each elf skill relation includes the matching skill `skill_id`, and evolution chains are normalized at the top level. The elf dataset is not embedded in published app builds until runtime code consumes it.
 - Bundled skill data uses schema v2 with canonical normalized source hashes, icon content hashes, and translations bound to each skill source hash.
 - Element and skill-type icons are bundled as WPF vector resources.
 - Overlay buttons and overlay-frame text use bundled Roboto Condensed Variable from Google Fonts under the SIL Open Font License. Settings use the default Windows UI font.
 
-The app does not refresh bundled Wikiroco data at runtime. Data updates are prepared before release.
+The app does not refresh Wikiroco data at runtime. Data updates are prepared before release.
 
 ## Development
+
+Data update scripts require PowerShell 7.5 or newer.
 
 Run from source:
 
@@ -63,7 +65,7 @@ Validate the bundled skill database:
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\update-skills.ps1 -ValidateOnly
 ```
 
-Validate the bundled elf database and skill links:
+Validate the source elf database and skill links:
 
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\update-elves.ps1 -ValidateOnly
@@ -81,7 +83,7 @@ Run the slower release audit that also checks same-URL upstream icon content cha
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\update-skills.ps1 -CheckFreshness -DeepIcons
 ```
 
-Check whether bundled elf data differs from upstream Wikiroco:
+Check whether source elf data differs from upstream Wikiroco:
 
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\update-elves.ps1 -CheckFreshness
@@ -92,10 +94,11 @@ Build a local Windows x64 release:
 ```powershell
 $out = ".\bin\Release\net8.0-windows10.0.19041.0\win-x64\publish-current"
 dotnet publish .\Peek.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o $out
+New-Item -ItemType Directory -Force -Path .\releases | Out-Null
 Compress-Archive -LiteralPath "$out\Peek.exe" -DestinationPath .\releases\Peek-win-x64.zip -CompressionLevel Optimal -Force
 ```
 
-`releases/Peek-win-x64.zip` is the tracked Windows x64 release artifact. Refresh it after user-facing release changes.
+The zip is a local release artifact. Publish it through CI or GitHub Releases with the source commit SHA and checksum; do not commit generated release archives.
 
 ## Updating Skill Data
 
@@ -149,7 +152,7 @@ The updater:
 - Writes backups under ignored `data/skill-backups`.
 - Validates schema/source metadata, dataset hash, generated IDs, duplicate IDs/names, canonical source hashes, icon paths/content/size, and EN/VI localization coverage.
 
-After updating data, run validation and commit changed source assets such as `Resources/Data/skills.json`, `Resources/Skills`, and icon resources. Refresh `releases/Peek-win-x64.zip` when the update should ship in the bundled app.
+After updating data, run validation and commit changed source assets such as `Resources/Data/skills.json`, `Resources/Skills`, and icon resources. Publish a release artifact through the release process when the update should ship in the bundled app.
 
 ## Updating Elf Data
 
@@ -163,14 +166,14 @@ The updater:
 
 - Pages through the Wikiroco `pokemon` list endpoint.
 - Fetches each elf detail record and evolution chain by Chinese name.
-- Preserves Wikiroco fields such as attributes, egg groups, obtain method, stats, trait, restraints, defensive type chart, images, and evolution chains.
+- Preserves Wikiroco fields such as attributes, egg groups, obtain method, stats, trait, restraints, defensive type chart, image URLs, and evolution chains.
 - Normalizes evolution chains at the top level and links each elf by `evolution_chain_id`.
 - Stores relation-only elf skills with `skill_id`, source/acquisition labels, and sort order; display fields resolve from `Resources/Data/skills.json`.
 - Stores schema v1 source metadata, raw-source-backed per-elf `source_hash`, the exact skill bundle hash, and a dataset hash for change detection.
 - Writes backups under ignored `data/elf-backups`.
 - Validates schema/source metadata, generated IDs, duplicate IDs/names, source hashes, dataset hash, and skill-link coverage.
 
-After updating elf data, run validation and commit `Resources/Data/elves.json` with any updater changes. Refresh `releases/Peek-win-x64.zip` when the update should ship in the bundled app.
+After updating elf data, run validation and commit `Resources/Data/elves.json` with any updater changes. Publish a release artifact through the release process when runtime app code consumes the updated data.
 
 ## Anti-Cheat Notes
 

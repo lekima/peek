@@ -1,4 +1,4 @@
-#requires -Version 7.0
+#requires -Version 7.5
 
 param(
     [switch]$ValidateOnly,
@@ -64,10 +64,112 @@ function Get-JsonProperty($Object, [string]$Name, $Default = $null) {
     return $property.Value
 }
 
+function Read-JsonFile([string]$Path) {
+    return Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json -DateKind String
+}
+
 function Get-Sha256Hex([string]$Text) {
     $bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
     $hash = [System.Security.Cryptography.SHA256]::HashData($bytes)
     return -join ($hash | ForEach-Object { $_.ToString("x2") })
+}
+
+function ConvertTo-CanonicalJson($Value) {
+    if ($null -eq $Value) {
+        return "null"
+    }
+
+    if ($Value -is [string]) {
+        return ConvertTo-Json $Value -Compress
+    }
+
+    if ($Value -is [bool]) {
+        return $(if ($Value) { "true" } else { "false" })
+    }
+
+    if ($Value -is [byte] -or
+        $Value -is [sbyte] -or
+        $Value -is [int16] -or
+        $Value -is [uint16] -or
+        $Value -is [int] -or
+        $Value -is [uint32] -or
+        $Value -is [long] -or
+        $Value -is [uint64] -or
+        $Value -is [float] -or
+        $Value -is [double] -or
+        $Value -is [decimal]) {
+        return [Convert]::ToString($Value, [Globalization.CultureInfo]::InvariantCulture)
+    }
+
+    if ($Value -is [DateTime]) {
+        return ConvertTo-Json ($Value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", [Globalization.CultureInfo]::InvariantCulture)) -Compress
+    }
+
+    if ($Value -is [System.Collections.IDictionary]) {
+        $parts = [System.Collections.Generic.List[string]]::new()
+        foreach ($key in @($Value.Keys | Sort-Object { [string]$_ })) {
+            $parts.Add((ConvertTo-Json ([string]$key) -Compress) + ":" + (ConvertTo-CanonicalJson $Value[$key])) | Out-Null
+        }
+
+        return "{" + ($parts -join ",") + "}"
+    }
+
+    if ($Value -is [System.Collections.IEnumerable] -and $Value -isnot [string]) {
+        $parts = [System.Collections.Generic.List[string]]::new()
+        foreach ($item in $Value) {
+            $parts.Add((ConvertTo-CanonicalJson $item)) | Out-Null
+        }
+
+        return "[" + ($parts -join ",") + "]"
+    }
+
+    $properties = @($Value.PSObject.Properties | Sort-Object Name)
+    if ($properties.Count -gt 0) {
+        $parts = [System.Collections.Generic.List[string]]::new()
+        foreach ($property in $properties) {
+            $parts.Add((ConvertTo-Json ([string]$property.Name) -Compress) + ":" + (ConvertTo-CanonicalJson $property.Value)) | Out-Null
+        }
+
+        return "{" + ($parts -join ",") + "}"
+    }
+
+    return ConvertTo-Json ([string]$Value) -Compress
+}
+
+function Get-CanonicalJsonHash($Value) {
+    return "sha256:" + (Get-Sha256Hex (ConvertTo-CanonicalJson $Value))
+}
+
+function ConvertTo-ComparableData($Data, [string[]]$IgnoredSourceFields) {
+    $source = [ordered]@{}
+    $ignored = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($field in $IgnoredSourceFields) {
+        [void]$ignored.Add($field)
+    }
+
+    $sourceObject = Get-JsonProperty $Data "source"
+    if ($sourceObject -is [System.Collections.IDictionary]) {
+        foreach ($key in @($sourceObject.Keys | Sort-Object { [string]$_ })) {
+            $name = [string]$key
+            if (!$ignored.Contains($name)) {
+                $source[$name] = $sourceObject[$key]
+            }
+        }
+    }
+    else {
+        foreach ($property in @($sourceObject.PSObject.Properties | Sort-Object Name)) {
+            if (!$ignored.Contains($property.Name)) {
+                $source[$property.Name] = $property.Value
+            }
+        }
+    }
+
+    return [ordered]@{
+        schema_version = Get-JsonProperty $Data "schema_version"
+        source = $source
+        elves = @((Get-JsonProperty $Data "elves" @()))
+        evolution_chains = @((Get-JsonProperty $Data "evolution_chains" @()))
+    }
 }
 
 function Normalize-WikirocoText([string]$Text) {
@@ -100,9 +202,9 @@ function ConvertTo-UtcTimestampString($Value) {
     }
 }
 
-function Assert-JsonProperties($Object, [string[]]$AllowedProperties, [string]$Context) {
+function Assert-JsonProperties($Object, [string[]]$AllowedProperties, [string]$Context, [string[]]$RequiredProperties = $null) {
     if ($null -eq $Object) {
-        return
+        throw "$Context is missing."
     }
 
     $allowed = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
@@ -112,7 +214,17 @@ function Assert-JsonProperties($Object, [string[]]$AllowedProperties, [string]$C
 
     foreach ($property in $Object.PSObject.Properties.Name) {
         if (!$allowed.Contains($property)) {
-            throw "Unexpected Wikiroco field '$property' in $Context."
+            throw "Unexpected field '$property' in $Context."
+        }
+    }
+
+    if ($null -eq $RequiredProperties) {
+        $RequiredProperties = $AllowedProperties
+    }
+
+    foreach ($property in $RequiredProperties) {
+        if ($null -eq $Object.PSObject.Properties[$property]) {
+            throw "Required Wikiroco field '$property' is missing in $Context."
         }
     }
 }
@@ -137,7 +249,7 @@ function Get-EvolutionChainId($SourceChainId, $Stages) {
     $fingerprint = [ordered]@{
         stages = $Stages
     }
-    return "wikiroco-evolution-chain-" + (Get-Sha256Hex ($fingerprint | ConvertTo-Json -Depth 50 -Compress)).Substring(0, 12)
+    return "wikiroco-evolution-chain-" + (Get-Sha256Hex (ConvertTo-CanonicalJson $fingerprint)).Substring(0, 12)
 }
 
 function Get-SkillBundleIndex {
@@ -145,7 +257,7 @@ function Get-SkillBundleIndex {
         throw "Bundled skill database is missing: $SkillDataPath"
     }
 
-    $data = Get-Content -LiteralPath $SkillDataPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $data = Read-JsonFile $SkillDataPath
     if ([int](Get-JsonProperty $data "schema_version" 0) -ne 2) {
         throw "Bundled skill database must use schema_version 2."
     }
@@ -159,11 +271,16 @@ function Get-SkillBundleIndex {
     $byName = @{}
     $byId = @{}
     $ids = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
-    foreach ($skill in @($data.skills)) {
+    $skills = @((Get-JsonProperty $data "skills" @()))
+    foreach ($skill in $skills) {
         $id = [string](Get-JsonProperty $skill "id" "")
         $nameZh = Normalize-WikirocoText ([string](Get-JsonProperty $skill "name_zh" ""))
         if ([string]::IsNullOrWhiteSpace($id) -or [string]::IsNullOrWhiteSpace($nameZh)) {
             throw "Bundled skill database contains a skill with a missing id or name."
+        }
+
+        if (!$ids.Add($id)) {
+            throw "Bundled skill database contains duplicate skill id: $id"
         }
 
         if ($byName.ContainsKey($nameZh)) {
@@ -172,17 +289,37 @@ function Get-SkillBundleIndex {
 
         $byName[$nameZh] = $id
         $byId[$id] = $skill
-        [void]$ids.Add($id)
+    }
+
+    $computedDatasetHash = Get-SkillDatasetHash $skills
+    if ($computedDatasetHash -ne $datasetHash) {
+        throw "Bundled skill database source.dataset_hash does not match Resources/Data/skills.json contents."
     }
 
     return [pscustomobject]@{
         ByName = $byName
         ById = $byId
         Ids = $ids
-        Count = @($data.skills).Count
+        Count = $skills.Count
         DatasetHash = $datasetHash
         FetchedAt = ConvertTo-UtcTimestampString (Get-JsonProperty $source "fetched_at" "")
     }
+}
+
+function Get-SkillDatasetHash($Skills) {
+    $source = @($Skills | ForEach-Object {
+        $icon = Get-JsonProperty $_ "icon"
+        [ordered]@{
+            id = [string](Get-JsonProperty $_ "id")
+            source_hash = [string](Get-JsonProperty $_ "source_hash")
+            icon = [ordered]@{
+                source_url = [string](Get-JsonProperty $icon "source_url")
+                content_hash = [string](Get-JsonProperty $icon "content_hash")
+            }
+        }
+    })
+
+    return Get-CanonicalJsonHash $source
 }
 
 function Convert-Attribute($Source, [string]$Context) {
@@ -236,7 +373,7 @@ function Convert-ElementReferenceList($Values, [string]$Context) {
 
 function Convert-Stats($Source) {
     if ($null -eq $Source) {
-        return $null
+        throw "stats is missing."
     }
 
     Assert-JsonProperties $Source @("hp", "atk", "matk", "def_val", "mdef", "spd") "stats"
@@ -253,7 +390,7 @@ function Convert-Stats($Source) {
 
 function Convert-Trait($Source) {
     if ($null -eq $Source) {
-        return $null
+        throw "trait is missing."
     }
 
     Assert-JsonProperties $Source @("name", "desc") "trait"
@@ -266,7 +403,7 @@ function Convert-Trait($Source) {
 
 function Convert-Restrain($Source, [string]$Context) {
     if ($null -eq $Source) {
-        return $null
+        throw "$Context restrain is missing."
     }
 
     Assert-JsonProperties $Source @("strong_against", "weak_against", "resist", "resisted") "$Context restrain"
@@ -281,7 +418,7 @@ function Convert-Restrain($Source, [string]$Context) {
 
 function Convert-DefensiveTypeChart($Source, [string]$Context) {
     if ($null -eq $Source) {
-        return $null
+        throw "$Context defensive type chart is missing."
     }
 
     Assert-JsonProperties $Source @("defender_attrs", "cells") "$Context defensive type chart"
@@ -312,7 +449,7 @@ function Convert-DefensiveTypeChart($Source, [string]$Context) {
 
 function Convert-EvolutionChain($Source, [hashtable]$ElfIdByName, [string]$Context) {
     if ($null -eq $Source) {
-        return $null
+        throw "$Context evolution chain is missing."
     }
 
     Assert-JsonProperties $Source @("chain_id", "stages") "$Context evolution chain"
@@ -326,7 +463,15 @@ function Convert-EvolutionChain($Source, [hashtable]$ElfIdByName, [string]$Conte
             Assert-JsonProperties $item @("name", "image_url") "$Context evolution chain stage item"
 
             $nameZh = Normalize-WikirocoText ([string](Get-JsonProperty $item "name" ""))
-            $linkedElfId = if ($ElfIdByName.ContainsKey($nameZh)) { $ElfIdByName[$nameZh] } else { $null }
+            if ([string]::IsNullOrWhiteSpace($nameZh)) {
+                throw "Missing item name in $Context evolution chain."
+            }
+
+            if (!$ElfIdByName.ContainsKey($nameZh)) {
+                throw "Evolution chain item '$nameZh' in $Context does not match a bundled elf."
+            }
+
+            $linkedElfId = $ElfIdByName[$nameZh]
             $stageItems.Add([ordered]@{
                 elf_id = $linkedElfId
                 name_zh = $nameZh
@@ -424,7 +569,7 @@ function Get-SourcePayloadHash($Detail, $EvolutionChain) {
         evolution_chain = $EvolutionChain
     }
 
-    return "sha256:" + (Get-Sha256Hex ($source | ConvertTo-Json -Depth 100 -Compress))
+    return Get-CanonicalJsonHash $source
 }
 
 function Convert-WikirocoSourceElf($Source, $EvolutionChain, $EvolutionChainId, $SkillIndex) {
@@ -495,22 +640,11 @@ function Convert-WikirocoSourceElf($Source, $EvolutionChain, $EvolutionChainId, 
 
 function Get-DatasetHash($Elves, $EvolutionChains) {
     $source = [ordered]@{
-        elves = @($Elves | ForEach-Object {
-            [ordered]@{
-                id = [string](Get-JsonProperty $_ "id")
-                source_hash = [string](Get-JsonProperty $_ "source_hash")
-            }
-        })
-        evolution_chains = @($EvolutionChains | ForEach-Object {
-            [ordered]@{
-                id = [string](Get-JsonProperty $_ "id")
-                source_chain_id = ConvertTo-NullableInt (Get-JsonProperty $_ "source_chain_id")
-                stages = Get-JsonProperty $_ "stages"
-            }
-        })
+        elves = @($Elves)
+        evolution_chains = @($EvolutionChains)
     }
 
-    return "sha256:" + (Get-Sha256Hex ($source | ConvertTo-Json -Depth 20 -Compress))
+    return Get-CanonicalJsonHash $source
 }
 
 function Get-ElfIndex($Elves) {
@@ -607,6 +741,7 @@ function Invoke-WikirocoJson([string]$Uri, [string]$Context) {
 function Get-WikirocoElfSummaries {
     Write-Host "Fetching elf list from $ElfApiUrl"
     $first = Invoke-WikirocoJson "${ElfApiUrl}?page=1&page_size=$PageSize" "pokemon list page 1"
+    Assert-JsonProperties $first @("total", "page", "page_size", "items") "pokemon list page 1 response"
     $total = [int](Get-JsonProperty $first "total" 0)
     $pageCount = [Math]::Ceiling($total / $PageSize)
     $summaries = [System.Collections.Generic.List[object]]::new()
@@ -618,6 +753,7 @@ function Get-WikirocoElfSummaries {
     if ($pageCount -gt 1) {
         for ($page = 2; $page -le $pageCount; $page++) {
             $result = Invoke-WikirocoJson "${ElfApiUrl}?page=$page&page_size=$PageSize" "pokemon list page $page"
+            Assert-JsonProperties $result @("total", "page", "page_size", "items") "pokemon list page $page response"
             foreach ($item in @($result.items)) {
                 Assert-JsonProperties $item @("id", "no", "name", "image_url", "image_yise_url", "type", "type_name", "form", "form_name", "attributes", "egg_groups") "pokemon list item"
                 $summaries.Add($item) | Out-Null
@@ -629,7 +765,7 @@ function Get-WikirocoElfSummaries {
         throw "Wikiroco API total ($total) does not match paged item count ($($summaries.Count))."
     }
 
-    $duplicateNames = @($summaries | Group-Object name | Where-Object Count -gt 1)
+    $duplicateNames = @($summaries | Group-Object { Normalize-WikirocoText ([string](Get-JsonProperty $_ "name" "")) } | Where-Object Count -gt 1)
     if ($duplicateNames.Count -gt 0) {
         $sample = ($duplicateNames | Select-Object -First 5 | ForEach-Object { $_.Name }) -join ", "
         throw "Wikiroco elf list contains duplicate names: $sample"
@@ -642,8 +778,25 @@ function Get-WikirocoElfSummaries {
 }
 
 function Get-WikirocoElfDetails($Summaries) {
-    Write-Host "Fetching $(@($Summaries).Count) elf detail/evolution records with throttle $DetailThrottle"
-    $results = @($Summaries | ForEach-Object -Parallel {
+    $requests = @($Summaries | ForEach-Object {
+        $id = ConvertTo-NullableInt (Get-JsonProperty $_ "id")
+        $rawName = [string](Get-JsonProperty $_ "name" "")
+        $name = Normalize-WikirocoText $rawName
+        if ($null -eq $id -or [string]::IsNullOrWhiteSpace($rawName) -or [string]::IsNullOrWhiteSpace($name)) {
+            throw "Pokemon list item is missing id or name."
+        }
+
+        [pscustomobject]@{
+            Id = $id
+            Name = $name
+            EncodedName = [Uri]::EscapeDataString($rawName)
+        }
+    })
+
+    Write-Host "Fetching $($requests.Count) elf detail/evolution records with throttle $DetailThrottle"
+    $results = @($requests | ForEach-Object -Parallel {
+        Set-StrictMode -Version Latest
+
         function Invoke-WikirocoJsonWithRetry([string]$Uri, [string]$Context) {
             for ($attempt = 1; $attempt -le ($using:HttpRetryCount + 1); $attempt++) {
                 try {
@@ -674,9 +827,9 @@ function Get-WikirocoElfDetails($Summaries) {
             }
         }
 
-        $requestedId = [int]$_.id
-        $name = [string]$_.name
-        $encoded = [Uri]::EscapeDataString($name)
+        $requestedId = [int]$_.Id
+        $name = [string]$_.Name
+        $encoded = [string]$_.EncodedName
         $detail = Invoke-WikirocoJsonWithRetry "$using:ElfApiUrl/$encoded" "pokemon detail $name"
         $evolution = Invoke-WikirocoJsonWithRetry "$using:ElfApiUrl/evolution-chain/$encoded" "pokemon evolution chain $name"
         [pscustomobject]@{
@@ -687,14 +840,14 @@ function Get-WikirocoElfDetails($Summaries) {
         }
     } -ThrottleLimit $DetailThrottle)
 
-    if ($results.Count -ne @($Summaries).Count) {
-        throw "Expected $(@($Summaries).Count) detail records, got $($results.Count)."
+    if ($results.Count -ne $requests.Count) {
+        throw "Expected $($requests.Count) detail records, got $($results.Count)."
     }
 
     foreach ($result in $results) {
         $actualId = [int](Get-JsonProperty $result.Detail "id" 0)
         $actualName = Normalize-WikirocoText ([string](Get-JsonProperty $result.Detail "name" ""))
-        if ($actualId -ne $result.RequestedId -or $actualName -ne $result.RequestedName) {
+        if ($actualId -ne $result.RequestedId -or $actualName -ne (Normalize-WikirocoText ([string]$result.RequestedName))) {
             throw "Wikiroco detail response mismatch for '$($result.RequestedName)': got id=$actualId name='$actualName'."
         }
     }
@@ -717,9 +870,9 @@ function Get-WikirocoElfSnapshot($SkillIndex) {
         $nameZh = Normalize-WikirocoText ([string](Get-JsonProperty $record.Detail "name" ""))
         $evolutionChain = Convert-EvolutionChain $record.EvolutionChain $elfIdByName $nameZh
         $evolutionChainId = [string](Get-JsonProperty $evolutionChain "id")
-        $chainJson = $evolutionChain | ConvertTo-Json -Depth 50 -Compress
+        $chainJson = ConvertTo-CanonicalJson $evolutionChain
         if ($evolutionChainsById.ContainsKey($evolutionChainId)) {
-            $existingJson = $evolutionChainsById[$evolutionChainId] | ConvertTo-Json -Depth 50 -Compress
+            $existingJson = ConvertTo-CanonicalJson $evolutionChainsById[$evolutionChainId]
             if ($existingJson -ne $chainJson) {
                 throw "Wikiroco returned conflicting evolution chain data for $evolutionChainId."
             }
@@ -749,15 +902,48 @@ function Save-JsonFile([string]$Path, $Value) {
     [System.IO.File]::WriteAllText($Path, $json + "`n", $utf8NoBom)
 }
 
+function Add-ValidationError([System.Collections.Generic.List[string]]$Errors, [string]$Message) {
+    $Errors.Add($Message) | Out-Null
+}
+
+function Test-RequiredStringProperty($Object, [string]$PropertyName, [string]$Context, [System.Collections.Generic.List[string]]$Errors) {
+    if ([string]::IsNullOrWhiteSpace([string](Get-JsonProperty $Object $PropertyName ""))) {
+        Add-ValidationError $Errors "$Context is missing $PropertyName."
+    }
+}
+
+function Test-NonNullIntProperty($Object, [string]$PropertyName, [string]$Context, [System.Collections.Generic.List[string]]$Errors, [int]$Minimum = [int]::MinValue) {
+    $value = ConvertTo-NullableInt (Get-JsonProperty $Object $PropertyName)
+    if ($null -eq $value) {
+        Add-ValidationError $Errors "$Context has invalid $PropertyName."
+    }
+    elseif ($value -lt $Minimum) {
+        Add-ValidationError $Errors "$Context $PropertyName must be at least $Minimum."
+    }
+}
+
+function Test-ElementReferenceObject($Object, [string]$ElementProperty, [string]$NameProperty, [string]$Context, [System.Collections.Generic.List[string]]$Errors) {
+    $nameZh = [string](Get-JsonProperty $Object $NameProperty "")
+    $element = [string](Get-JsonProperty $Object $ElementProperty "")
+    if ([string]::IsNullOrWhiteSpace($nameZh) -or !$ElementMap.ContainsKey($nameZh)) {
+        Add-ValidationError $Errors "$Context has unknown element name: $nameZh"
+    }
+    elseif ($ElementMap[$nameZh] -ne $element) {
+        Add-ValidationError $Errors "$Context element/name mismatch: $element != $nameZh."
+    }
+}
+
 function Test-ElfDatabase([string]$Path) {
     if (!(Test-Path $Path)) {
         throw "Elf database is missing: $Path"
     }
 
     $skillIndex = Get-SkillBundleIndex
-    $data = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
-    $elves = @($data.elves)
-    $evolutionChains = @($data.evolution_chains)
+    $data = Read-JsonFile $Path
+    Assert-JsonProperties $data @("schema_version", "source", "elves", "evolution_chains") "elf database"
+
+    $elves = @((Get-JsonProperty $data "elves" @()))
+    $evolutionChains = @((Get-JsonProperty $data "evolution_chains" @()))
     $errors = [System.Collections.Generic.List[string]]::new()
 
     if ([int](Get-JsonProperty $data "schema_version" 0) -ne 1) {
@@ -765,6 +951,24 @@ function Test-ElfDatabase([string]$Path) {
     }
 
     $source = Get-JsonProperty $data "source"
+    Assert-JsonProperties $source @(
+        "provider",
+        "url",
+        "detail_url_template",
+        "evolution_chain_url_template",
+        "fetched_at",
+        "source_count",
+        "item_count",
+        "skill_bundle_url",
+        "skill_bundle_item_count",
+        "skill_bundle_dataset_hash",
+        "skill_reference_count",
+        "linked_skill_reference_count",
+        "unlinked_skill_reference_count",
+        "evolution_chain_count",
+        "dataset_hash"
+    ) "elf database source"
+
     if ([string](Get-JsonProperty $source "provider" "") -ne "wikiroco") {
         $errors.Add("source.provider must be wikiroco.")
     }
@@ -781,15 +985,25 @@ function Test-ElfDatabase([string]$Path) {
         $errors.Add("source.evolution_chain_url_template must be $ElfApiUrl/evolution-chain/{name_zh}.")
     }
 
-    $fetchedAtValue = Get-JsonProperty $source "fetched_at" ""
-    $fetchedAt = if ($fetchedAtValue -is [DateTime]) {
-        $fetchedAtValue.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", [Globalization.CultureInfo]::InvariantCulture)
+    if ([string](Get-JsonProperty $source "skill_bundle_url" "") -ne "https://wikiroco.com/api/skills") {
+        $errors.Add("source.skill_bundle_url must be https://wikiroco.com/api/skills.")
     }
-    else {
-        [string]$fetchedAtValue
-    }
+
+    $fetchedAt = [string](Get-JsonProperty $source "fetched_at" "")
     if ([string]::IsNullOrWhiteSpace($fetchedAt) -or $fetchedAt -notmatch "^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$") {
         $errors.Add("source.fetched_at must be a UTC timestamp like yyyy-MM-ddTHH:mm:ssZ.")
+    }
+    else {
+        try {
+            [void][DateTimeOffset]::ParseExact(
+                $fetchedAt,
+                "yyyy-MM-dd'T'HH:mm:ss'Z'",
+                [Globalization.CultureInfo]::InvariantCulture,
+                [Globalization.DateTimeStyles]::AssumeUniversal -bor [Globalization.DateTimeStyles]::AdjustToUniversal)
+        }
+        catch {
+            $errors.Add("source.fetched_at must be a valid UTC timestamp.")
+        }
     }
 
     if ($elves.Count -ne [int](Get-JsonProperty $source "item_count" 0)) {
@@ -856,7 +1070,37 @@ function Test-ElfDatabase([string]$Path) {
         $errors.Add("source.skill_bundle_dataset_hash does not match Resources/Data/skills.json.")
     }
 
+    $elfFields = @(
+        "id",
+        "source_key",
+        "wikiroco_id",
+        "no",
+        "name_zh",
+        "image_url",
+        "image_yise_url",
+        "type",
+        "type_name_zh",
+        "form",
+        "form_name_zh",
+        "attributes",
+        "egg_groups_zh",
+        "obtain_method_zh",
+        "stats",
+        "trait",
+        "restrain",
+        "skills",
+        "defensive_type_chart",
+        "evolution_chain_id",
+        "source_hash"
+    )
+    $validDefensiveBuckets = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($bucket in @("neutral", "resist", "super")) {
+        [void]$validDefensiveBuckets.Add($bucket)
+    }
+
     foreach ($elf in $elves) {
+        Assert-JsonProperties $elf $elfFields "elf record"
+
         $id = [string](Get-JsonProperty $elf "id" "")
         $wikirocoId = ConvertTo-NullableInt (Get-JsonProperty $elf "wikiroco_id")
         $nameZh = [string](Get-JsonProperty $elf "name_zh" "")
@@ -876,6 +1120,7 @@ function Test-ElfDatabase([string]$Path) {
         }
 
         $sourceKey = Get-JsonProperty $elf "source_key"
+        Assert-JsonProperties $sourceKey @("provider", "pokemon_id", "name_zh", "no") "source_key for $id"
         if ([string](Get-JsonProperty $sourceKey "provider" "") -ne "wikiroco" -or
             [int](Get-JsonProperty $sourceKey "pokemon_id" 0) -ne $wikirocoId -or
             [string](Get-JsonProperty $sourceKey "name_zh" "") -ne $nameZh -or
@@ -895,9 +1140,56 @@ function Test-ElfDatabase([string]$Path) {
             }
         }
 
+        $statsObject = Get-JsonProperty $elf "stats"
+        Assert-JsonProperties $statsObject @("hp", "atk", "matk", "def_val", "mdef", "spd") "stats for $id"
+        foreach ($statField in @("hp", "atk", "matk", "def_val", "mdef", "spd")) {
+            Test-NonNullIntProperty $statsObject $statField "Elf $id stats" $errors
+        }
+
+        $traitObject = Get-JsonProperty $elf "trait"
+        Assert-JsonProperties $traitObject @("name_zh", "description_zh") "trait for $id"
+        Test-RequiredStringProperty $traitObject "name_zh" "Elf $id trait" $errors
+        Test-RequiredStringProperty $traitObject "description_zh" "Elf $id trait" $errors
+
         foreach ($attribute in @((Get-JsonProperty $elf "attributes" @()))) {
-            if (@($ElementMap.Values) -notcontains [string](Get-JsonProperty $attribute "element" "")) {
-                $errors.Add("Invalid elf attribute on ${id}: $($attribute.element)")
+            Assert-JsonProperties $attribute @("element", "name_zh", "image_url") "attribute for $id"
+            Test-ElementReferenceObject $attribute "element" "name_zh" "Elf $id attribute" $errors
+            Test-RequiredStringProperty $attribute "image_url" "Elf $id attribute" $errors
+        }
+
+        foreach ($eggGroup in @((Get-JsonProperty $elf "egg_groups_zh" @()))) {
+            if ([string]::IsNullOrWhiteSpace([string]$eggGroup)) {
+                $errors.Add("Elf $id has an empty egg group.")
+            }
+        }
+
+        $restrainObject = Get-JsonProperty $elf "restrain"
+        Assert-JsonProperties $restrainObject @("strong_against", "weak_against", "resist", "resisted") "restrain for $id"
+        foreach ($restrainListName in @("strong_against", "weak_against", "resist", "resisted")) {
+            foreach ($elementRef in @((Get-JsonProperty $restrainObject $restrainListName @()))) {
+                Assert-JsonProperties $elementRef @("element", "name_zh") "$restrainListName reference for $id"
+                Test-ElementReferenceObject $elementRef "element" "name_zh" "Elf $id restrain.$restrainListName" $errors
+            }
+        }
+
+        $defensiveChart = Get-JsonProperty $elf "defensive_type_chart"
+        Assert-JsonProperties $defensiveChart @("defender_attributes", "cells") "defensive_type_chart for $id"
+        foreach ($defender in @((Get-JsonProperty $defensiveChart "defender_attributes" @()))) {
+            Assert-JsonProperties $defender @("element", "name_zh") "defensive defender reference for $id"
+            Test-ElementReferenceObject $defender "element" "name_zh" "Elf $id defensive defender" $errors
+        }
+
+        foreach ($cell in @((Get-JsonProperty $defensiveChart "cells" @()))) {
+            Assert-JsonProperties $cell @("attacker_element", "attacker_attr_zh", "multiplier", "label", "bucket") "defensive cell for $id"
+            Test-ElementReferenceObject $cell "attacker_element" "attacker_attr_zh" "Elf $id defensive cell" $errors
+            $bucket = [string](Get-JsonProperty $cell "bucket" "")
+            if (!$validDefensiveBuckets.Contains($bucket)) {
+                $errors.Add("Elf $id defensive cell has invalid bucket: $bucket")
+            }
+
+            $multiplier = [double](Get-JsonProperty $cell "multiplier" 0)
+            if ($multiplier -le 0) {
+                $errors.Add("Elf $id defensive cell has invalid multiplier: $multiplier")
             }
         }
 
@@ -915,12 +1207,16 @@ function Test-ElfDatabase([string]$Path) {
             $errors.Add("Elf $id references unknown evolution_chain_id $evolutionChainId.")
         }
 
-        foreach ($skill in @((Get-JsonProperty $elf "skills" @()))) {
+        $elfSkills = @((Get-JsonProperty $elf "skills" @()))
+        for ($skillIndexInElf = 0; $skillIndexInElf -lt $elfSkills.Count; $skillIndexInElf++) {
+            $skill = $elfSkills[$skillIndexInElf]
+            Assert-JsonProperties $skill @("sort_order", "skill_id", "name_zh", "source", "source_zh") "skill reference for $id"
             $skillId = [string](Get-JsonProperty $skill "skill_id" "")
             $skillName = [string](Get-JsonProperty $skill "name_zh" "")
             $sortOrder = ConvertTo-NullableInt (Get-JsonProperty $skill "sort_order")
-            if ($null -eq $sortOrder -or $sortOrder -lt 1) {
-                $errors.Add("Elf $id has invalid skill sort_order for $skillName.")
+            $expectedSortOrder = $skillIndexInElf + 1
+            if ($null -eq $sortOrder -or $sortOrder -ne $expectedSortOrder) {
+                $errors.Add("Elf $id has invalid skill sort_order for $skillName; expected $expectedSortOrder.")
             }
 
             if ([string]::IsNullOrWhiteSpace($skillName)) {
@@ -962,11 +1258,33 @@ function Test-ElfDatabase([string]$Path) {
     }
 
     foreach ($chain in $evolutionChains) {
+        Assert-JsonProperties $chain @("id", "source_chain_id", "stages") "evolution chain"
+
         $chainId = [string](Get-JsonProperty $chain "id" "")
+        $sourceChainId = Get-JsonProperty $chain "source_chain_id"
+        if ($null -ne $sourceChainId) {
+            try {
+                [void][int]$sourceChainId
+            }
+            catch {
+                $errors.Add("Evolution chain $chainId has invalid source_chain_id.")
+            }
+        }
+
         foreach ($stage in @((Get-JsonProperty $chain "stages" @()))) {
+            Assert-JsonProperties $stage @("sort_order", "next_condition_zh", "pre_condition_zh", "items") "stage for evolution chain $chainId"
+            Test-NonNullIntProperty $stage "sort_order" "Evolution chain $chainId stage" $errors 1
             foreach ($item in @((Get-JsonProperty $stage "items" @()))) {
+                Assert-JsonProperties $item @("elf_id", "name_zh", "image_url") "item for evolution chain $chainId"
+                Test-RequiredStringProperty $item "name_zh" "Evolution chain $chainId item" $errors
+                Test-RequiredStringProperty $item "image_url" "Evolution chain $chainId item" $errors
+
                 $linkedElfId = [string](Get-JsonProperty $item "elf_id" "")
-                if (![string]::IsNullOrWhiteSpace($linkedElfId) -and !$elfIds.Contains($linkedElfId)) {
+                if ([string]::IsNullOrWhiteSpace($linkedElfId)) {
+                    $itemName = [string](Get-JsonProperty $item "name_zh" "")
+                    $errors.Add("Evolution chain $chainId has an unlinked item: $itemName")
+                }
+                elseif (!$elfIds.Contains($linkedElfId)) {
                     $errors.Add("Evolution chain $chainId references unknown elf id $linkedElfId.")
                 }
             }
@@ -984,7 +1302,7 @@ function Test-ElfDatabase([string]$Path) {
 function Test-WikirocoFreshness([string]$Path) {
     Test-ElfDatabase $Path
 
-    $existingData = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
+    $existingData = Read-JsonFile $Path
     $existingElves = @($existingData.elves)
     $existingById = Get-ElfIndex $existingElves
     $existingEvolutionChains = @($existingData.evolution_chains)
@@ -1025,8 +1343,8 @@ function Test-WikirocoFreshness([string]$Path) {
             continue
         }
 
-        $existingJson = $existingEvolutionChainById[$chainId] | ConvertTo-Json -Depth 50 -Compress
-        $snapshotJson = $chain | ConvertTo-Json -Depth 50 -Compress
+        $existingJson = ConvertTo-CanonicalJson $existingEvolutionChainById[$chainId]
+        $snapshotJson = ConvertTo-CanonicalJson $chain
         if ($existingJson -ne $snapshotJson) {
             $changedEvolutionChains.Add($chain) | Out-Null
         }
@@ -1109,12 +1427,10 @@ function Test-ExistingElfDataMatches($Output) {
     }
 
     try {
-        $existingData = Get-Content -LiteralPath $DataPath -Raw -Encoding UTF8 | ConvertFrom-Json
-        $existingSource = Get-JsonProperty $existingData "source"
-        $newSource = Get-JsonProperty $Output "source"
-        return [string](Get-JsonProperty $existingSource "dataset_hash" "") -eq [string](Get-JsonProperty $newSource "dataset_hash" "") -and
-            [string](Get-JsonProperty $existingSource "skill_bundle_dataset_hash" "") -eq [string](Get-JsonProperty $newSource "skill_bundle_dataset_hash" "") -and
-            (ConvertTo-UtcTimestampString (Get-JsonProperty $existingSource "skill_bundle_fetched_at" "")) -eq (ConvertTo-UtcTimestampString (Get-JsonProperty $newSource "skill_bundle_fetched_at" ""))
+        $existingData = Read-JsonFile $DataPath
+        $existingComparable = ConvertTo-ComparableData $existingData @("fetched_at")
+        $newComparable = ConvertTo-ComparableData $Output @("fetched_at")
+        return (ConvertTo-CanonicalJson $existingComparable) -eq (ConvertTo-CanonicalJson $newComparable)
     }
     catch {
         return $false
@@ -1156,7 +1472,6 @@ $output = [ordered]@{
         skill_bundle_url = "https://wikiroco.com/api/skills"
         skill_bundle_item_count = $skillIndex.Count
         skill_bundle_dataset_hash = $skillIndex.DatasetHash
-        skill_bundle_fetched_at = $skillIndex.FetchedAt
         skill_reference_count = $linkStats.Total
         linked_skill_reference_count = $linkStats.Linked
         unlinked_skill_reference_count = $linkStats.Unlinked

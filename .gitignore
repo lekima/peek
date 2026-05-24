@@ -1,6 +1,7 @@
 bin/
 obj/
 data/
+releases/
 !Resources/Data/
 !Resources/Data/skills.json
 Resources/Data/*.bak-*

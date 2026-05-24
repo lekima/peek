@@ -1,3 +1,5 @@
+#requires -Version 7.5
+
 param(
     [switch]$TranslateChanged,
     [switch]$RefreshIcons,
@@ -113,10 +115,98 @@ function Get-JsonProperty($Object, [string]$Name, $Default = $null) {
     return $property.Value
 }
 
+function Read-JsonFile([string]$Path) {
+    return Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json -DateKind String
+}
+
 function Get-Sha256Hex([string]$Text) {
     $bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
     $hash = [System.Security.Cryptography.SHA256]::HashData($bytes)
     return -join ($hash | ForEach-Object { $_.ToString("x2") })
+}
+
+function ConvertTo-CanonicalJson($Value) {
+    if ($null -eq $Value) {
+        return "null"
+    }
+
+    if ($Value -is [string]) {
+        return ConvertTo-Json $Value -Compress
+    }
+
+    if ($Value -is [bool]) {
+        return $(if ($Value) { "true" } else { "false" })
+    }
+
+    if ($Value -is [byte] -or
+        $Value -is [sbyte] -or
+        $Value -is [int16] -or
+        $Value -is [uint16] -or
+        $Value -is [int] -or
+        $Value -is [uint32] -or
+        $Value -is [long] -or
+        $Value -is [uint64] -or
+        $Value -is [float] -or
+        $Value -is [double] -or
+        $Value -is [decimal]) {
+        return [Convert]::ToString($Value, [Globalization.CultureInfo]::InvariantCulture)
+    }
+
+    if ($Value -is [DateTime]) {
+        return ConvertTo-Json ($Value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", [Globalization.CultureInfo]::InvariantCulture)) -Compress
+    }
+
+    if ($Value -is [System.Collections.IDictionary]) {
+        $parts = [System.Collections.Generic.List[string]]::new()
+        foreach ($key in @($Value.Keys | Sort-Object { [string]$_ })) {
+            $parts.Add((ConvertTo-Json ([string]$key) -Compress) + ":" + (ConvertTo-CanonicalJson $Value[$key])) | Out-Null
+        }
+
+        return "{" + ($parts -join ",") + "}"
+    }
+
+    if ($Value -is [System.Collections.IEnumerable] -and $Value -isnot [string]) {
+        $parts = [System.Collections.Generic.List[string]]::new()
+        foreach ($item in $Value) {
+            $parts.Add((ConvertTo-CanonicalJson $item)) | Out-Null
+        }
+
+        return "[" + ($parts -join ",") + "]"
+    }
+
+    $properties = @($Value.PSObject.Properties | Sort-Object Name)
+    if ($properties.Count -gt 0) {
+        $parts = [System.Collections.Generic.List[string]]::new()
+        foreach ($property in $properties) {
+            $parts.Add((ConvertTo-Json ([string]$property.Name) -Compress) + ":" + (ConvertTo-CanonicalJson $property.Value)) | Out-Null
+        }
+
+        return "{" + ($parts -join ",") + "}"
+    }
+
+    return ConvertTo-Json ([string]$Value) -Compress
+}
+
+function Get-CanonicalJsonHash($Value) {
+    return "sha256:" + (Get-Sha256Hex (ConvertTo-CanonicalJson $Value))
+}
+
+function ConvertTo-UtcTimestampString($Value) {
+    if ($Value -is [DateTime]) {
+        return $Value.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", [Globalization.CultureInfo]::InvariantCulture)
+    }
+
+    $text = [string]$Value
+    if ([string]::IsNullOrWhiteSpace($text)) {
+        return ""
+    }
+
+    try {
+        return ([DateTimeOffset]::Parse($text, [Globalization.CultureInfo]::InvariantCulture)).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", [Globalization.CultureInfo]::InvariantCulture)
+    }
+    catch {
+        return $text
+    }
 }
 
 function Get-BytesSha256([byte[]]$Bytes) {
@@ -302,7 +392,7 @@ function Get-DatasetHash($Skills) {
         }
     })
 
-    return "sha256:" + (Get-Sha256Hex ($source | ConvertTo-Json -Depth 10 -Compress))
+    return Get-CanonicalJsonHash $source
 }
 
 function Get-SkillIndex($Skills) {
@@ -375,7 +465,7 @@ function Convert-Localization($Localization, [string]$SourceHash, [string]$Descr
     $name = Normalize-LocalizedText ([string](Get-JsonProperty $Localization "name" ""))
     $description = Normalize-LocalizedText ([string](Get-JsonProperty $Localization "description" ""))
     $translatedFromHash = [string](Get-JsonProperty $Localization "translated_from_hash" "")
-    $updatedAt = [string](Get-JsonProperty $Localization "updated_at" "")
+    $updatedAt = ConvertTo-UtcTimestampString (Get-JsonProperty $Localization "updated_at" "")
     if ([string]::IsNullOrWhiteSpace($name) -or
         $null -eq (Get-JsonProperty $Localization "description") -or
         !(Test-LocalizedDescription $description $DescriptionZh) -or
@@ -856,7 +946,7 @@ function Invoke-GeminiJson(
                 throw "Empty Gemini response."
             }
 
-            return ($text | ConvertFrom-Json)
+            return ($text | ConvertFrom-Json -DateKind String)
         }
         catch {
             if ($attempt -eq 3) {
@@ -1013,7 +1103,7 @@ function Get-TranslationMemory {
         return $null
     }
 
-    return Get-Content -LiteralPath $TranslationMemoryPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    return Read-JsonFile $TranslationMemoryPath
 }
 
 function Ensure-TranslationMemory($Skills, [string]$ApiKey, [string]$Model, [bool]$Force) {
@@ -1148,8 +1238,8 @@ function Set-SkillTranslationsFromRows($Skills, $Rows, [bool]$Force) {
 }
 
 function Test-SkillDatabase([string]$Path, [bool]$RequireTranslations, [bool]$RequireIconFiles = $true) {
-    $data = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
-    $skills = @($data.skills)
+    $data = Read-JsonFile $Path
+    $skills = @((Get-JsonProperty $data "skills" @()))
     $errors = [System.Collections.Generic.List[string]]::new()
 
     if ([int](Get-JsonProperty $data "schema_version" 0) -ne 2) {
@@ -1165,13 +1255,7 @@ function Test-SkillDatabase([string]$Path, [bool]$RequireTranslations, [bool]$Re
         $errors.Add("source.url must be $SkillApiUrl.")
     }
 
-    $fetchedAtValue = Get-JsonProperty $source "fetched_at" ""
-    $fetchedAt = if ($fetchedAtValue -is [DateTime]) {
-        $fetchedAtValue.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", [Globalization.CultureInfo]::InvariantCulture)
-    }
-    else {
-        [string]$fetchedAtValue
-    }
+    $fetchedAt = [string](Get-JsonProperty $source "fetched_at" "")
     if ([string]::IsNullOrWhiteSpace($fetchedAt)) {
         $errors.Add("source.fetched_at is required.")
     }
@@ -1191,8 +1275,8 @@ function Test-SkillDatabase([string]$Path, [bool]$RequireTranslations, [bool]$Re
         }
     }
 
-    if ([int](Get-JsonProperty $source "source_count" 0) -lt $skills.Count) {
-        $errors.Add("source.source_count cannot be less than skills array count.")
+    if ([int](Get-JsonProperty $source "source_count" 0) -ne $skills.Count) {
+        $errors.Add("source.source_count must match skills array count.")
     }
 
     if ($skills.Count -ne [int](Get-JsonProperty $source "item_count" 0)) {
@@ -1241,12 +1325,14 @@ function Test-SkillDatabase([string]$Path, [bool]$RequireTranslations, [bool]$Re
             }
         }
 
-        if (@($ElementMap.Values) -notcontains [string](Get-JsonProperty $skill "element" "")) {
-            $errors.Add("Invalid element: $id $($skill.element)")
+        $element = [string](Get-JsonProperty $skill "element" "")
+        if (@($ElementMap.Values) -notcontains $element) {
+            $errors.Add("Invalid element: $id $element")
         }
 
-        if (@($CategoryMap.Values) -notcontains [string](Get-JsonProperty $skill "category" "")) {
-            $errors.Add("Invalid category: $id $($skill.category)")
+        $category = [string](Get-JsonProperty $skill "category" "")
+        if (@($CategoryMap.Values) -notcontains $category) {
+            $errors.Add("Invalid category: $id $category")
         }
 
         try {
@@ -1308,7 +1394,7 @@ function Test-SkillDatabase([string]$Path, [bool]$RequireTranslations, [bool]$Re
         if ($RequireIconFiles) {
             $icon = Join-Path $RepoRoot (Get-SkillIconPath $skill)
             if (!(Test-Path $icon)) {
-                $errors.Add("Missing skill icon: $($skill.id) -> $(Get-SkillIconPath $skill)")
+                $errors.Add("Missing skill icon: $id -> $(Get-SkillIconPath $skill)")
                 continue
             }
 
@@ -1326,14 +1412,36 @@ function Test-SkillDatabase([string]$Path, [bool]$RequireTranslations, [bool]$Re
             }
         }
 
-        if ($RequireTranslations -and !(Test-LocalizationSet $skill.translations $sourceHash ([string](Get-JsonProperty $skill "description_zh" "")))) {
-            $errors.Add("Missing EN/VI localization: $($skill.id) $($skill.name_zh)")
+        $translations = Get-JsonProperty $skill "translations"
+        if ($RequireTranslations -and !(Test-LocalizationSet $translations $sourceHash ([string](Get-JsonProperty $skill "description_zh" "")))) {
+            $errors.Add("Missing EN/VI localization: $id $nameZh")
         }
 
         if ($RequireTranslations) {
-            $translations = Get-JsonProperty $skill "translations"
             $en = Get-JsonProperty $translations "en"
             $vi = Get-JsonProperty $translations "vi"
+            foreach ($localizationRecord in @(
+                    [pscustomobject]@{ Name = "translations.en.updated_at"; Value = Get-JsonProperty $en "updated_at" "" },
+                    [pscustomobject]@{ Name = "translations.vi.updated_at"; Value = Get-JsonProperty $vi "updated_at" "" }
+                )) {
+                $rawUpdatedAt = [string]$localizationRecord.Value
+                if ([string]::IsNullOrWhiteSpace($rawUpdatedAt) -or $rawUpdatedAt -notmatch "^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$") {
+                    $errors.Add("Invalid $($localizationRecord.Name): $id")
+                }
+                else {
+                    try {
+                        [void][DateTimeOffset]::ParseExact(
+                            $rawUpdatedAt,
+                            "yyyy-MM-dd'T'HH:mm:ss'Z'",
+                            [Globalization.CultureInfo]::InvariantCulture,
+                            [Globalization.DateTimeStyles]::AssumeUniversal -bor [Globalization.DateTimeStyles]::AdjustToUniversal)
+                    }
+                    catch {
+                        $errors.Add("Invalid $($localizationRecord.Name): $id")
+                    }
+                }
+            }
+
             foreach ($field in @(
                     [pscustomobject]@{ Name = "translations.en.name"; Value = [string](Get-JsonProperty $en "name" ""); AllowHan = $false },
                     [pscustomobject]@{ Name = "translations.en.description"; Value = [string](Get-JsonProperty $en "description" ""); AllowHan = $false },
@@ -1378,7 +1486,7 @@ function Test-SkillDatabase([string]$Path, [bool]$RequireTranslations, [bool]$Re
 function Test-WikirocoFreshness([string]$Path, [bool]$CheckIconContent) {
     Test-SkillDatabase $Path (-not $AllowMissingTranslations)
 
-    $existingData = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
+    $existingData = Read-JsonFile $Path
     $existingSkills = @($existingData.skills)
     $existingById = Get-SkillIndex $existingSkills
     $snapshot = Get-WikirocoSkillSnapshot
@@ -1496,6 +1604,46 @@ function Save-SkillDataWithBackup($Output, [bool]$RequireTranslations) {
     Write-Host "Skill database updated: $DataPath"
 }
 
+function ConvertTo-SkillComparableData($Data) {
+    $source = [ordered]@{}
+    $sourceObject = Get-JsonProperty $Data "source"
+    if ($sourceObject -is [System.Collections.IDictionary]) {
+        foreach ($key in @($sourceObject.Keys | Sort-Object { [string]$_ })) {
+            $name = [string]$key
+            if ($name -ne "fetched_at") {
+                $source[$name] = $sourceObject[$key]
+            }
+        }
+    }
+    else {
+        foreach ($property in @($sourceObject.PSObject.Properties | Sort-Object Name)) {
+            if ($property.Name -ne "fetched_at") {
+                $source[$property.Name] = $property.Value
+            }
+        }
+    }
+
+    return [ordered]@{
+        schema_version = Get-JsonProperty $Data "schema_version"
+        source = $source
+        skills = @((Get-JsonProperty $Data "skills" @()))
+    }
+}
+
+function Test-ExistingSkillDataMatches($Output) {
+    if (!(Test-Path $DataPath)) {
+        return $false
+    }
+
+    try {
+        $existingData = Read-JsonFile $DataPath
+        return (ConvertTo-CanonicalJson (ConvertTo-SkillComparableData $existingData)) -eq (ConvertTo-CanonicalJson (ConvertTo-SkillComparableData $Output))
+    }
+    catch {
+        return $false
+    }
+}
+
 if ($ValidateOnly -and $CheckFreshness) {
     throw "Use either -ValidateOnly or -CheckFreshness, not both."
 }
@@ -1523,7 +1671,7 @@ if ($BuildTranslationMemory -and !$TranslateChanged -and !$HarmonizeTranslations
     }
 
     Test-SkillDatabase $DataPath (-not $AllowMissingTranslations)
-    $existingData = Get-Content -LiteralPath $DataPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $existingData = Read-JsonFile $DataPath
     [void](Ensure-TranslationMemory @($existingData.skills) $GeminiApiKey $GeminiModel $true)
     return
 }
@@ -1534,7 +1682,7 @@ if ($HarmonizeTranslations -and !$TranslateChanged) {
     }
 
     Test-SkillDatabase $DataPath $true
-    $existingData = Get-Content -LiteralPath $DataPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $existingData = Read-JsonFile $DataPath
     $existingSkills = @($existingData.skills)
     $translationMemory = Ensure-TranslationMemory $existingSkills $GeminiApiKey $GeminiModel $BuildTranslationMemory
     $totalBatches = [Math]::Ceiling($existingSkills.Count / $HarmonizationBatchSize)
@@ -1558,7 +1706,7 @@ if ($HarmonizeTranslations -and !$TranslateChanged) {
 
 Test-SkillDatabase $DataPath $false $false
 
-$existingData = Get-Content -LiteralPath $DataPath -Raw -Encoding UTF8 | ConvertFrom-Json
+$existingData = Read-JsonFile $DataPath
 $existingById = Get-SkillIndex @($existingData.skills)
 $snapshot = Get-WikirocoSkillSnapshot
 
@@ -1679,6 +1827,11 @@ $output = [ordered]@{
         dataset_hash = Get-DatasetHash $newSkills
     }
     skills = @($newSkills)
+}
+
+if (Test-ExistingSkillDataMatches $output) {
+    Write-Host "Skill database already current; no changes written."
+    return
 }
 
 Save-SkillDataWithBackup $output (-not $AllowMissingTranslations)
