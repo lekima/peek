@@ -82,7 +82,7 @@
 
         <Style TargetType="PasswordBox">
             <Setter Property="Height" Value="32" />
-            <Setter Property="Padding" Value="5,0" />
+            <Setter Property="Padding" Value="4,0" />
             <Setter Property="Background" Value="#FF202020" />
             <Setter Property="Foreground" Value="#FFF2F2F2" />
             <Setter Property="BorderBrush" Value="#FF3C3C3C" />
@@ -115,7 +115,7 @@
 
         <Style TargetType="TextBox">
             <Setter Property="Height" Value="32" />
-            <Setter Property="Padding" Value="5,0" />
+            <Setter Property="Padding" Value="4,0" />
             <Setter Property="Background" Value="#FF202020" />
             <Setter Property="Foreground" Value="#FFF2F2F2" />
             <Setter Property="BorderBrush" Value="#FF3C3C3C" />
