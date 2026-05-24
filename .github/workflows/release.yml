@@ -17,7 +17,7 @@ permissions:
 jobs:
   windows:
     name: Windows x64
-    runs-on: windows-latest
+    runs-on: windows-2025
 
     env:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
