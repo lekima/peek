@@ -139,6 +139,62 @@ function Get-SkillId([string]$NameZh) {
     return "wikiroco-" + (Get-Sha256Hex $NameZh).Substring(0, 12)
 }
 
+function Normalize-WikirocoText([string]$Text) {
+    if ([string]::IsNullOrEmpty($Text)) {
+        return ""
+    }
+
+    $value = [System.Net.WebUtility]::HtmlDecode($Text)
+    $value = $value -replace '<[^>]+>', ''
+    $value = $value -replace '[\u200B\u200C\u200D\uFEFF]', ''
+    $value = $value -replace '[\u0009-\u000D\u0020\u00A0]+', ' '
+    return $value.Trim()
+}
+
+function Normalize-LocalizedText([string]$Text) {
+    if ([string]::IsNullOrEmpty($Text)) {
+        return ""
+    }
+
+    $value = [System.Net.WebUtility]::HtmlDecode($Text)
+    $value = $value -replace '[\u200B\u200C\u200D\uFEFF]', ''
+    $value = $value -replace '[\u0009-\u000D\u0020\u00A0]+', ' '
+    return $value.Trim()
+}
+
+function Get-PlayerTextArtifactIssues([string]$Text, [bool]$AllowHanScript) {
+    $issues = [System.Collections.Generic.List[string]]::new()
+    if ([string]::IsNullOrEmpty($Text)) {
+        return @($issues)
+    }
+
+    if ($Text -match '&(?:[a-zA-Z][a-zA-Z0-9]+|#[0-9]+|#x[0-9A-Fa-f]+);') {
+        $issues.Add("HTML entity")
+    }
+
+    if ($Text -match '<[^>]+>') {
+        $issues.Add("markup tag")
+    }
+
+    if ($Text -match '[\u200B\u200C\u200D\uFEFF]') {
+        $issues.Add("zero-width character")
+    }
+
+    if ($Text -match '(?i)\b(desc_id|placeholder|todo)\b') {
+        $issues.Add("placeholder token")
+    }
+
+    if (!$AllowHanScript -and $Text -match '[\u3400-\u9FFF\uF900-\uFAFF]') {
+        $issues.Add("Han script")
+    }
+
+    return @($issues)
+}
+
+function Test-PlayerTextClean([string]$Text, [bool]$AllowHanScript) {
+    return @(Get-PlayerTextArtifactIssues $Text $AllowHanScript).Count -eq 0
+}
+
 function ConvertTo-SkillSourceFingerprint($Skill) {
     return [ordered]@{
         name_zh = [string](Get-JsonProperty $Skill "name_zh")
@@ -169,9 +225,10 @@ function Get-SkillIconSourceUrl($Skill) {
 }
 
 function Convert-WikirocoSourceSkill($Source) {
-    $nameZh = [string]$Source.name
-    $attrZh = [string]$Source.attr
-    $typeZh = [string]$Source.type
+    $nameZh = Normalize-WikirocoText ([string]$Source.name)
+    $attrZh = Normalize-WikirocoText ([string]$Source.attr)
+    $typeZh = Normalize-WikirocoText ([string]$Source.type)
+    $descriptionZh = Normalize-WikirocoText ([string]$Source.desc)
 
     if ([string]::IsNullOrWhiteSpace($nameZh)) {
         throw "Wikiroco source skill is missing a name."
@@ -203,7 +260,7 @@ function Convert-WikirocoSourceSkill($Source) {
         category = $CategoryMap[$typeZh]
         energy = [int]$Source.consume
         power = [int]$Source.power
-        description_zh = [string]$Source.desc
+        description_zh = $descriptionZh
         source_hash = $null
         icon = [ordered]@{
             path = "Resources/Skills/$id.png"
@@ -306,7 +363,8 @@ function Test-SourceDescriptionAllowsEmpty([string]$DescriptionZh) {
 }
 
 function Test-LocalizedDescription([string]$Description, [string]$DescriptionZh) {
-    return (Test-SourceDescriptionAllowsEmpty $DescriptionZh) -or -not [string]::IsNullOrWhiteSpace($Description)
+    return ((Test-SourceDescriptionAllowsEmpty $DescriptionZh) -or -not [string]::IsNullOrWhiteSpace($Description)) -and
+        (Test-PlayerTextClean $Description $false)
 }
 
 function Convert-Localization($Localization, [string]$SourceHash, [string]$DescriptionZh) {
@@ -314,13 +372,14 @@ function Convert-Localization($Localization, [string]$SourceHash, [string]$Descr
         return $null
     }
 
-    $name = [string](Get-JsonProperty $Localization "name" "")
-    $description = [string](Get-JsonProperty $Localization "description" "")
+    $name = Normalize-LocalizedText ([string](Get-JsonProperty $Localization "name" ""))
+    $description = Normalize-LocalizedText ([string](Get-JsonProperty $Localization "description" ""))
     $translatedFromHash = [string](Get-JsonProperty $Localization "translated_from_hash" "")
     $updatedAt = [string](Get-JsonProperty $Localization "updated_at" "")
     if ([string]::IsNullOrWhiteSpace($name) -or
         $null -eq (Get-JsonProperty $Localization "description") -or
-        !(Test-LocalizedDescription $description $DescriptionZh)) {
+        !(Test-LocalizedDescription $description $DescriptionZh) -or
+        !(Test-PlayerTextClean $name $false)) {
         return $null
     }
 
@@ -357,12 +416,16 @@ function Test-LocalizationSet($Translations, [string]$SourceHash, [string]$Descr
     $vi = Get-JsonProperty $Translations "vi"
     $enDescription = [string](Get-JsonProperty $en "description" "")
     $viDescription = [string](Get-JsonProperty $vi "description" "")
-    return -not [string]::IsNullOrWhiteSpace([string](Get-JsonProperty $en "name" "")) -and
+    $enName = [string](Get-JsonProperty $en "name" "")
+    $viName = [string](Get-JsonProperty $vi "name" "")
+    return -not [string]::IsNullOrWhiteSpace($enName) -and
+        (Test-PlayerTextClean $enName $false) -and
         $null -ne (Get-JsonProperty $en "description") -and
         (Test-LocalizedDescription $enDescription $DescriptionZh) -and
         [string](Get-JsonProperty $en "translated_from_hash" "") -eq $SourceHash -and
         -not [string]::IsNullOrWhiteSpace([string](Get-JsonProperty $en "updated_at" "")) -and
-        -not [string]::IsNullOrWhiteSpace([string](Get-JsonProperty $vi "name" "")) -and
+        -not [string]::IsNullOrWhiteSpace($viName) -and
+        (Test-PlayerTextClean $viName $false) -and
         $null -ne (Get-JsonProperty $vi "description") -and
         (Test-LocalizedDescription $viDescription $DescriptionZh) -and
         [string](Get-JsonProperty $vi "translated_from_hash" "") -eq $SourceHash -and
@@ -809,7 +872,8 @@ function ConvertTo-TranslationMemoryInput($Skills) {
     $items = [System.Collections.Generic.List[object]]::new()
     foreach ($skill in @($Skills)) {
         $sourceHash = [string](Get-JsonProperty $skill "source_hash" "")
-        $descriptionZh = [string](Get-JsonProperty $skill "description_zh" "")
+        $nameZh = Normalize-WikirocoText ([string](Get-JsonProperty $skill "name_zh" ""))
+        $descriptionZh = Normalize-WikirocoText ([string](Get-JsonProperty $skill "description_zh" ""))
         if (!(Test-LocalizationSet (Get-JsonProperty $skill "translations") $sourceHash $descriptionZh)) {
             continue
         }
@@ -819,17 +883,17 @@ function ConvertTo-TranslationMemoryInput($Skills) {
         $vi = Get-JsonProperty $translations "vi"
         $items.Add([ordered]@{
             id = [string](Get-JsonProperty $skill "id")
-            name_zh = [string](Get-JsonProperty $skill "name_zh")
+            name_zh = $nameZh
             description_zh = $descriptionZh
             element = [string](Get-JsonProperty $skill "element")
             category = [string](Get-JsonProperty $skill "category")
             en = [ordered]@{
-                name = [string](Get-JsonProperty $en "name")
-                description = [string](Get-JsonProperty $en "description")
+                name = Normalize-LocalizedText ([string](Get-JsonProperty $en "name"))
+                description = Normalize-LocalizedText ([string](Get-JsonProperty $en "description"))
             }
             vi = [ordered]@{
-                name = [string](Get-JsonProperty $vi "name")
-                description = [string](Get-JsonProperty $vi "description")
+                name = Normalize-LocalizedText ([string](Get-JsonProperty $vi "name"))
+                description = Normalize-LocalizedText ([string](Get-JsonProperty $vi "description"))
             }
         }) | Out-Null
     }
@@ -841,8 +905,8 @@ function ConvertTo-TranslationWorkItems($Skills) {
     return @($Skills | ForEach-Object {
         [ordered]@{
             id = [string](Get-JsonProperty $_ "id")
-            name_zh = [string](Get-JsonProperty $_ "name_zh")
-            description_zh = [string](Get-JsonProperty $_ "description_zh")
+            name_zh = Normalize-WikirocoText ([string](Get-JsonProperty $_ "name_zh"))
+            description_zh = Normalize-WikirocoText ([string](Get-JsonProperty $_ "description_zh"))
             element = [string](Get-JsonProperty $_ "element")
             category = [string](Get-JsonProperty $_ "category")
         }
@@ -856,17 +920,17 @@ function ConvertTo-HarmonizationWorkItems($Skills) {
         $vi = Get-JsonProperty $translations "vi"
         [ordered]@{
             id = [string](Get-JsonProperty $_ "id")
-            name_zh = [string](Get-JsonProperty $_ "name_zh")
-            description_zh = [string](Get-JsonProperty $_ "description_zh")
+            name_zh = Normalize-WikirocoText ([string](Get-JsonProperty $_ "name_zh"))
+            description_zh = Normalize-WikirocoText ([string](Get-JsonProperty $_ "description_zh"))
             element = [string](Get-JsonProperty $_ "element")
             category = [string](Get-JsonProperty $_ "category")
             en = [ordered]@{
-                name = [string](Get-JsonProperty $en "name")
-                description = [string](Get-JsonProperty $en "description")
+                name = Normalize-LocalizedText ([string](Get-JsonProperty $en "name"))
+                description = Normalize-LocalizedText ([string](Get-JsonProperty $en "description"))
             }
             vi = [ordered]@{
-                name = [string](Get-JsonProperty $vi "name")
-                description = [string](Get-JsonProperty $vi "description")
+                name = Normalize-LocalizedText ([string](Get-JsonProperty $vi "name"))
+                description = Normalize-LocalizedText ([string](Get-JsonProperty $vi "description"))
             }
         }
     })
@@ -995,8 +1059,10 @@ function Test-TranslationRows($Rows, $Items, [string]$Context) {
         $sourceDescription = [string](Get-JsonProperty $expectedItems[$id] "description_zh" "")
         foreach ($locale in @("en", "vi")) {
             $localization = Get-JsonProperty $row $locale
-            $description = [string](Get-JsonProperty $localization "description" "")
-            if ([string]::IsNullOrWhiteSpace([string](Get-JsonProperty $localization "name" "")) -or
+            $name = Normalize-LocalizedText ([string](Get-JsonProperty $localization "name" ""))
+            $description = Normalize-LocalizedText ([string](Get-JsonProperty $localization "description" ""))
+            if ([string]::IsNullOrWhiteSpace($name) -or
+                !(Test-PlayerTextClean $name $false) -or
                 $null -eq (Get-JsonProperty $localization "description") -or
                 !(Test-LocalizedDescription $description $sourceDescription)) {
                 throw "Gemini returned invalid $locale localization for '$id'."
@@ -1054,13 +1120,17 @@ function Set-SkillTranslationsFromRows($Skills, $Rows, [bool]$Force) {
         $row = $rowById[$id]
         $newEn = Get-JsonProperty $row "en"
         $newVi = Get-JsonProperty $row "vi"
+        $newEnName = Normalize-LocalizedText ([string](Get-JsonProperty $newEn "name"))
+        $newEnDescription = Normalize-LocalizedText ([string](Get-JsonProperty $newEn "description"))
+        $newViName = Normalize-LocalizedText ([string](Get-JsonProperty $newVi "name"))
+        $newViDescription = Normalize-LocalizedText ([string](Get-JsonProperty $newVi "description"))
         $translations = Get-JsonProperty $skill "translations"
         $currentEn = Get-JsonProperty $translations "en"
         $currentVi = Get-JsonProperty $translations "vi"
-        $changed = [string](Get-JsonProperty $currentEn "name" "") -ne [string](Get-JsonProperty $newEn "name" "") -or
-            [string](Get-JsonProperty $currentEn "description" "") -ne [string](Get-JsonProperty $newEn "description" "") -or
-            [string](Get-JsonProperty $currentVi "name" "") -ne [string](Get-JsonProperty $newVi "name" "") -or
-            [string](Get-JsonProperty $currentVi "description" "") -ne [string](Get-JsonProperty $newVi "description" "")
+        $changed = [string](Get-JsonProperty $currentEn "name" "") -ne $newEnName -or
+            [string](Get-JsonProperty $currentEn "description" "") -ne $newEnDescription -or
+            [string](Get-JsonProperty $currentVi "name" "") -ne $newViName -or
+            [string](Get-JsonProperty $currentVi "description" "") -ne $newViDescription
 
         if (!$Force -and !$changed) {
             continue
@@ -1068,8 +1138,8 @@ function Set-SkillTranslationsFromRows($Skills, $Rows, [bool]$Force) {
 
         $sourceHash = [string](Get-JsonProperty $skill "source_hash")
         $skill.translations = [ordered]@{
-            en = New-Localization ([string](Get-JsonProperty $newEn "name")) ([string](Get-JsonProperty $newEn "description")) $sourceHash $updatedAt
-            vi = New-Localization ([string](Get-JsonProperty $newVi "name")) ([string](Get-JsonProperty $newVi "description")) $sourceHash $updatedAt
+            en = New-Localization $newEnName $newEnDescription $sourceHash $updatedAt
+            vi = New-Localization $newViName $newViDescription $sourceHash $updatedAt
         }
         $updatedCount++
     }
@@ -1159,6 +1229,18 @@ function Test-SkillDatabase([string]$Path, [bool]$RequireTranslations, [bool]$Re
             $errors.Add("Skill is missing name_zh: $id")
         }
 
+        if ($RequireTranslations) {
+            foreach ($field in @(
+                    [pscustomobject]@{ Name = "name_zh"; Value = $nameZh; AllowHan = $true },
+                    [pscustomobject]@{ Name = "description_zh"; Value = [string](Get-JsonProperty $skill "description_zh" ""); AllowHan = $true }
+                )) {
+                $issues = @(Get-PlayerTextArtifactIssues $field.Value $field.AllowHan)
+                if ($issues.Count -gt 0) {
+                    $errors.Add("Text artifact in $($field.Name): $id $($issues -join ', ')")
+                }
+            }
+        }
+
         if (@($ElementMap.Values) -notcontains [string](Get-JsonProperty $skill "element" "")) {
             $errors.Add("Invalid element: $id $($skill.element)")
         }
@@ -1246,6 +1328,23 @@ function Test-SkillDatabase([string]$Path, [bool]$RequireTranslations, [bool]$Re
 
         if ($RequireTranslations -and !(Test-LocalizationSet $skill.translations $sourceHash ([string](Get-JsonProperty $skill "description_zh" "")))) {
             $errors.Add("Missing EN/VI localization: $($skill.id) $($skill.name_zh)")
+        }
+
+        if ($RequireTranslations) {
+            $translations = Get-JsonProperty $skill "translations"
+            $en = Get-JsonProperty $translations "en"
+            $vi = Get-JsonProperty $translations "vi"
+            foreach ($field in @(
+                    [pscustomobject]@{ Name = "translations.en.name"; Value = [string](Get-JsonProperty $en "name" ""); AllowHan = $false },
+                    [pscustomobject]@{ Name = "translations.en.description"; Value = [string](Get-JsonProperty $en "description" ""); AllowHan = $false },
+                    [pscustomobject]@{ Name = "translations.vi.name"; Value = [string](Get-JsonProperty $vi "name" ""); AllowHan = $false },
+                    [pscustomobject]@{ Name = "translations.vi.description"; Value = [string](Get-JsonProperty $vi "description" ""); AllowHan = $false }
+                )) {
+                $issues = @(Get-PlayerTextArtifactIssues $field.Value $field.AllowHan)
+                if ($issues.Count -gt 0) {
+                    $errors.Add("Text artifact in $($field.Name): $id $($issues -join ', ')")
+                }
+            }
         }
     }
 

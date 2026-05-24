@@ -3,10 +3,10 @@
   "source": {
     "provider": "wikiroco",
     "url": "https://wikiroco.com/api/skills",
-    "fetched_at": "2026-05-24T07:42:44Z",
+    "fetched_at": "2026-05-24T13:51:49Z",
     "source_count": 490,
     "item_count": 490,
-    "dataset_hash": "sha256:b5788449736336ffce66252d7d4d5ebdbbdd9e256f81ff427b3c309736a2142e"
+    "dataset_hash": "sha256:c063e1fb7b6bb38f1843aa212db4093758d21567bd45769e50f2ffed94f651a0"
   },
   "skills": [
     {
@@ -1279,8 +1279,8 @@
       "category": "status",
       "energy": 1,
       "power": 0,
-      "description_zh": "敌方​下​回合回复的​能量​-5，​冷​却​2回合。",
-      "source_hash": "sha256:01e41ac6af80e19f642e07ac35c488afaf7a0886fa632059d2a3e7dcd2dbc53f",
+      "description_zh": "敌方下回合回复的能量-5，冷却2回合。",
+      "source_hash": "sha256:ea4fa6b597eb920d44f64a7cde7d40da2a728012d0896002acd0b748a3b651ce",
       "icon": {
         "path": "Resources/Skills/wikiroco-7b2f42b357d0.png",
         "source_url": "https://wikiroco-1309114022.cos.ap-guangzhou.myqcloud.com/skill_icon/de098048b2524be292a113a65c68706d.png",
@@ -1293,14 +1293,14 @@
         "en": {
           "name": "Dream Entry",
           "description": "Enemy energy recovered next turn -5, cooldown 2 turns.",
-          "translated_from_hash": "sha256:01e41ac6af80e19f642e07ac35c488afaf7a0886fa632059d2a3e7dcd2dbc53f",
-          "updated_at": "05/24/2026 06:00:19"
+          "translated_from_hash": "sha256:ea4fa6b597eb920d44f64a7cde7d40da2a728012d0896002acd0b748a3b651ce",
+          "updated_at": "2026-05-24T13:53:26Z"
         },
         "vi": {
           "name": "Nhập Mộng",
           "description": "Năng lượng địch hồi phục ở lượt sau -5, hồi chiêu 2 lượt.",
-          "translated_from_hash": "sha256:01e41ac6af80e19f642e07ac35c488afaf7a0886fa632059d2a3e7dcd2dbc53f",
-          "updated_at": "05/24/2026 06:00:19"
+          "translated_from_hash": "sha256:ea4fa6b597eb920d44f64a7cde7d40da2a728012d0896002acd0b748a3b651ce",
+          "updated_at": "2026-05-24T13:53:26Z"
         }
       }
     },
@@ -1871,8 +1871,8 @@
       "category": "status",
       "energy": 1,
       "power": 0,
-      "description_zh": "主动：​本技​能​被​动永久额​外​+20​威力，​被动：​两​侧​技​能​威力​+10，传动1。",
-      "source_hash": "sha256:811f1f769cbba559edef502a271b1f71af09d8beb200dd401115b23921b050a1",
+      "description_zh": "主动：本技能被动永久额外+20威力，被动：两侧技能威力+10，传动1。",
+      "source_hash": "sha256:7f82328c2479e03a8e071d538667545fa1d3a4cf01f5be061ca8342b40a92339",
       "icon": {
         "path": "Resources/Skills/wikiroco-131c9136746d.png",
         "source_url": "https://wikiroco-1309114022.cos.ap-guangzhou.myqcloud.com/skill_icon/ce72a5da6e574748a3e61b91f2cd6dc3.png",
@@ -1885,14 +1885,14 @@
         "en": {
           "name": "Pressure Relief Valve",
           "description": "Active: This skill is permanently +20 power, Passive: Adjacent skills power +10, transmission 1.",
-          "translated_from_hash": "sha256:811f1f769cbba559edef502a271b1f71af09d8beb200dd401115b23921b050a1",
-          "updated_at": "05/24/2026 06:00:19"
+          "translated_from_hash": "sha256:7f82328c2479e03a8e071d538667545fa1d3a4cf01f5be061ca8342b40a92339",
+          "updated_at": "2026-05-24T13:53:26Z"
         },
         "vi": {
           "name": "Van Giảm Áp",
           "description": "Chủ động: Kỹ năng này vĩnh viễn +20 uy lực, Bị động: kỹ năng hai bên +10 uy lực, truyền động 1.",
-          "translated_from_hash": "sha256:811f1f769cbba559edef502a271b1f71af09d8beb200dd401115b23921b050a1",
-          "updated_at": "05/24/2026 06:00:19"
+          "translated_from_hash": "sha256:7f82328c2479e03a8e071d538667545fa1d3a4cf01f5be061ca8342b40a92339",
+          "updated_at": "2026-05-24T13:53:26Z"
         }
       }
     },
@@ -2648,8 +2648,8 @@
       "category": "status",
       "energy": 1,
       "power": 0,
-      "description_zh": "自己获得​随机​16层属性增益​，巧变：​幻系​技​能​。",
-      "source_hash": "sha256:2e24d397d5ad280b04637893e1d912bf2c137cfb382f25b00512e4bb87271d3b",
+      "description_zh": "自己获得随机16层属性增益，巧变：幻系技能。",
+      "source_hash": "sha256:27d7ad4d06b8ea8243285eb4687d0d7d2dc95029293de0e00fdd2c18b357ac94",
       "icon": {
         "path": "Resources/Skills/wikiroco-0932748b4bb0.png",
         "source_url": "https://wikiroco-1309114022.cos.ap-guangzhou.myqcloud.com/skill_icon/2e888875b78d48fa8ff4a9664d526348.png",
@@ -2662,14 +2662,14 @@
         "en": {
           "name": "Superposition",
           "description": "Gain 16 random attribute buffs, morph: illusion skills.",
-          "translated_from_hash": "sha256:2e24d397d5ad280b04637893e1d912bf2c137cfb382f25b00512e4bb87271d3b",
-          "updated_at": "05/24/2026 07:39:28"
+          "translated_from_hash": "sha256:27d7ad4d06b8ea8243285eb4687d0d7d2dc95029293de0e00fdd2c18b357ac94",
+          "updated_at": "2026-05-24T13:53:26Z"
         },
         "vi": {
           "name": "Trạng Thái Chồng Chập",
           "description": "Nhận 16 buff thuộc tính ngẫu nhiên, Morph: kỹ năng hệ Ảo.",
-          "translated_from_hash": "sha256:2e24d397d5ad280b04637893e1d912bf2c137cfb382f25b00512e4bb87271d3b",
-          "updated_at": "05/24/2026 07:39:28"
+          "translated_from_hash": "sha256:27d7ad4d06b8ea8243285eb4687d0d7d2dc95029293de0e00fdd2c18b357ac94",
+          "updated_at": "2026-05-24T13:53:26Z"
         }
       }
     },
@@ -2759,8 +2759,8 @@
       "category": "special",
       "energy": 3,
       "power": 140,
-      "description_zh": "造成​魔法​伤害，巧变：​魔攻技​能。",
-      "source_hash": "sha256:32abe93ec316a35b7ee40e3483a2b3ea27a5308309b232c6cdaa26c083fd8946",
+      "description_zh": "造成魔法伤害，巧变：魔攻技能。",
+      "source_hash": "sha256:9ad81c66b02465aa7c276aa350caf6c313a8e34d793f488081da3c2495dd463f",
       "icon": {
         "path": "Resources/Skills/wikiroco-c525c4e07744.png",
         "source_url": "https://wikiroco-1309114022.cos.ap-guangzhou.myqcloud.com/skill_icon/db27636a71c54060abf46c9df49fdbbd.png",
@@ -2773,14 +2773,14 @@
         "en": {
           "name": "Synchronization",
           "description": "Deal magic damage, morph: magic attack skill.",
-          "translated_from_hash": "sha256:32abe93ec316a35b7ee40e3483a2b3ea27a5308309b232c6cdaa26c083fd8946",
-          "updated_at": "05/24/2026 07:39:28"
+          "translated_from_hash": "sha256:9ad81c66b02465aa7c276aa350caf6c313a8e34d793f488081da3c2495dd463f",
+          "updated_at": "2026-05-24T13:53:26Z"
         },
         "vi": {
           "name": "Đồng Tần",
           "description": "Gây sát thương phép, Morph: kỹ năng tấn công phép.",
-          "translated_from_hash": "sha256:32abe93ec316a35b7ee40e3483a2b3ea27a5308309b232c6cdaa26c083fd8946",
-          "updated_at": "05/24/2026 07:39:28"
+          "translated_from_hash": "sha256:9ad81c66b02465aa7c276aa350caf6c313a8e34d793f488081da3c2495dd463f",
+          "updated_at": "2026-05-24T13:53:26Z"
         }
       }
     },
@@ -3869,8 +3869,8 @@
       "category": "physical",
       "energy": 4,
       "power": 20,
-      "description_zh": "造成物伤，敌方​每​有​1层​印记，​本次攻击威力​+20。",
-      "source_hash": "sha256:d92ee046a0cf0c1c4d1bc74d8095bf96599ae9250f1f7dbf658f2551a63320ff",
+      "description_zh": "造成物伤，敌方每有1层印记，本次攻击威力+20。",
+      "source_hash": "sha256:d048d81dfc52e0ecc837c9eb0dd4e5ca740e30b78a1f81c7d7b074ee41aa04e2",
       "icon": {
         "path": "Resources/Skills/wikiroco-b6a44899693c.png",
         "source_url": "https://wikiroco-1309114022.cos.ap-guangzhou.myqcloud.com/skill_icon/df603be3ff4c44809cd92dc2ab6b3c2c.png",
@@ -3883,14 +3883,14 @@
         "en": {
           "name": "Celestial Accretion",
           "description": "Deal physical damage, for every mark on enemy, power +20.",
-          "translated_from_hash": "sha256:d92ee046a0cf0c1c4d1bc74d8095bf96599ae9250f1f7dbf658f2551a63320ff",
-          "updated_at": "05/24/2026 06:00:19"
+          "translated_from_hash": "sha256:d048d81dfc52e0ecc837c9eb0dd4e5ca740e30b78a1f81c7d7b074ee41aa04e2",
+          "updated_at": "2026-05-24T13:53:26Z"
         },
         "vi": {
           "name": "Bồi Tụ Thiên Thể",
           "description": "Gây sát thương vật lý, mỗi tầng ấn ký địch có, uy lực +20.",
-          "translated_from_hash": "sha256:d92ee046a0cf0c1c4d1bc74d8095bf96599ae9250f1f7dbf658f2551a63320ff",
-          "updated_at": "05/24/2026 06:00:19"
+          "translated_from_hash": "sha256:d048d81dfc52e0ecc837c9eb0dd4e5ca740e30b78a1f81c7d7b074ee41aa04e2",
+          "updated_at": "2026-05-24T13:53:26Z"
         }
       }
     },
@@ -4128,8 +4128,8 @@
       "category": "defense",
       "energy": 1,
       "power": 0,
-      "description_zh": "减​伤90%。巧变：龙系状态技能，​应对攻击。",
-      "source_hash": "sha256:8ba745aee847ecc0bda5209553f8c3eef8ccad01d175eef6bbb86bcc1d7a08e4",
+      "description_zh": "减伤90%。巧变：龙系状态技能，应对攻击。",
+      "source_hash": "sha256:f4a112febffb648fe1e59d34472599f9a226e51ecebc450746f4af9fc5d1480f",
       "icon": {
         "path": "Resources/Skills/wikiroco-54ded1089c85.png",
         "source_url": "https://wikiroco-1309114022.cos.ap-guangzhou.myqcloud.com/skill_icon/e23bc9052ac04dbcb3608a67a73c379b.png",
@@ -4142,14 +4142,14 @@
         "en": {
           "name": "Guardian Spell",
           "description": "Damage reduction 90%. Morph: Dragon status skill, counter attack.",
-          "translated_from_hash": "sha256:8ba745aee847ecc0bda5209553f8c3eef8ccad01d175eef6bbb86bcc1d7a08e4",
-          "updated_at": "05/24/2026 07:39:28"
+          "translated_from_hash": "sha256:f4a112febffb648fe1e59d34472599f9a226e51ecebc450746f4af9fc5d1480f",
+          "updated_at": "2026-05-24T13:53:26Z"
         },
         "vi": {
           "name": "Chú Bảo Vệ",
           "description": "Giảm sát thương 90%. Morph: Kỹ năng trạng thái hệ Rồng, ứng đối tấn công.",
-          "translated_from_hash": "sha256:8ba745aee847ecc0bda5209553f8c3eef8ccad01d175eef6bbb86bcc1d7a08e4",
-          "updated_at": "05/24/2026 07:39:28"
+          "translated_from_hash": "sha256:f4a112febffb648fe1e59d34472599f9a226e51ecebc450746f4af9fc5d1480f",
+          "updated_at": "2026-05-24T13:53:26Z"
         }
       }
     },
@@ -4202,8 +4202,8 @@
       "category": "special",
       "energy": 3,
       "power": 80,
-      "description_zh": "造成​魔伤，​敌方​获得​1层​冻结，应对状态：额​外​获得4层​冻结，巧变：​冻结相关​技​能​。",
-      "source_hash": "sha256:d89704511515538283b08c044bdfe7cb490c9770c9f03698e25b58b2d8cbf22e",
+      "description_zh": "造成魔伤，敌方获得1层冻结，应对状态：额外获得4层冻结，巧变：冻结相关技能。",
+      "source_hash": "sha256:daf404977f8e88ef4e6b55f6e5cb2f03afb09064493c1023ccd1147829eca0d5",
       "icon": {
         "path": "Resources/Skills/wikiroco-9f3a6fb717f7.png",
         "source_url": "https://wikiroco-1309114022.cos.ap-guangzhou.myqcloud.com/skill_icon/8466597e07e247b0951bac64aadddac8.png",
@@ -4216,14 +4216,14 @@
         "en": {
           "name": "Cold Wave",
           "description": "Deal magic damage, enemy gains 1 stack of freeze, counter status: additionally 4 stacks of freeze, morph: freeze related skills.",
-          "translated_from_hash": "sha256:d89704511515538283b08c044bdfe7cb490c9770c9f03698e25b58b2d8cbf22e",
-          "updated_at": "05/24/2026 07:39:28"
+          "translated_from_hash": "sha256:daf404977f8e88ef4e6b55f6e5cb2f03afb09064493c1023ccd1147829eca0d5",
+          "updated_at": "2026-05-24T13:53:26Z"
         },
         "vi": {
           "name": "Sóng Lạnh",
           "description": "Gây sát thương phép, địch nhận 1 tầng Đóng Băng, ứng đối trạng thái: thêm 4 tầng Đóng Băng, Morph: kỹ năng liên quan đến Đóng Băng.",
-          "translated_from_hash": "sha256:d89704511515538283b08c044bdfe7cb490c9770c9f03698e25b58b2d8cbf22e",
-          "updated_at": "05/24/2026 07:39:28"
+          "translated_from_hash": "sha256:daf404977f8e88ef4e6b55f6e5cb2f03afb09064493c1023ccd1147829eca0d5",
+          "updated_at": "2026-05-24T13:53:26Z"
         }
       }
     },
@@ -4942,8 +4942,8 @@
       "category": "special",
       "energy": 3,
       "power": 70,
-      "description_zh": "造成魔伤，每​受​到​一​次​抵抗​伤害，​本技​能​威力​永久​+20。",
-      "source_hash": "sha256:5fc57bac0d319261f3572f49abe01dbcd8c8f0d2b9e5794f6e01378b90afc585",
+      "description_zh": "造成魔伤，每受到一次抵抗伤害，本技能威力永久+20。",
+      "source_hash": "sha256:e2cc43a5c58a68d665bfaedc5364f4ea81563c2627ed6a58ae24f99a11585962",
       "icon": {
         "path": "Resources/Skills/wikiroco-1f1845c61bbb.png",
         "source_url": "https://wikiroco-1309114022.cos.ap-guangzhou.myqcloud.com/skill_icon/7fd94ab6030941308a1612653617814c.png",
@@ -4956,14 +4956,14 @@
         "en": {
           "name": "Micro Scout",
           "description": "Deals magic damage. Every time you receive resisted damage, skill power permanently +20.",
-          "translated_from_hash": "sha256:5fc57bac0d319261f3572f49abe01dbcd8c8f0d2b9e5794f6e01378b90afc585",
-          "updated_at": "05/24/2026 06:00:19"
+          "translated_from_hash": "sha256:e2cc43a5c58a68d665bfaedc5364f4ea81563c2627ed6a58ae24f99a11585962",
+          "updated_at": "2026-05-24T13:53:26Z"
         },
         "vi": {
           "name": "Trinh Sát Tí Hon",
           "description": "Gây sát thương phép. Mỗi lần chịu sát thương bị kháng, sức mạnh kỹ năng vĩnh viễn +20.",
-          "translated_from_hash": "sha256:5fc57bac0d319261f3572f49abe01dbcd8c8f0d2b9e5794f6e01378b90afc585",
-          "updated_at": "05/24/2026 06:00:19"
+          "translated_from_hash": "sha256:e2cc43a5c58a68d665bfaedc5364f4ea81563c2627ed6a58ae24f99a11585962",
+          "updated_at": "2026-05-24T13:53:26Z"
         }
       }
     },
@@ -9049,8 +9049,8 @@
       "category": "status",
       "energy": 0,
       "power": 0,
-      "description_zh": "​驱散​自己​的​减益，​自己​每​有​1层减益，​本技​能​能​耗​-1，巧换：​水系​攻击​技​能​。",
-      "source_hash": "sha256:bf78d2d1e1a4708fee53192d69c512bce5c28bd7b878e4e18884a11d4a3fa160",
+      "description_zh": "驱散自己的减益，自己每有1层减益，本技能能耗-1，巧换：水系攻击技能。",
+      "source_hash": "sha256:a8646b133bba8a570a88e331cb8706a4063f9f2c3d5721409f9cc8a4192ee87a",
       "icon": {
         "path": "Resources/Skills/wikiroco-713af2d1e200.png",
         "source_url": "https://wikiroco-1309114022.cos.ap-guangzhou.myqcloud.com/skill_icon/d79a32351e8a4454b3d991c679387c62.png",
@@ -9063,14 +9063,14 @@
         "en": {
           "name": "Cleanse",
           "description": "Dispel self's debuffs. For every 1 debuff, this skill energy cost -1. Morph: Water-type attack skill.",
-          "translated_from_hash": "sha256:bf78d2d1e1a4708fee53192d69c512bce5c28bd7b878e4e18884a11d4a3fa160",
-          "updated_at": "05/24/2026 06:00:19"
+          "translated_from_hash": "sha256:a8646b133bba8a570a88e331cb8706a4063f9f2c3d5721409f9cc8a4192ee87a",
+          "updated_at": "2026-05-24T13:53:26Z"
         },
         "vi": {
           "name": "Tẩy Rửa",
           "description": "Giải trừ debuff của bản thân. Mỗi 1 tầng debuff, năng lượng tiêu hao -1. Biến đổi: Kỹ năng tấn công hệ Nước.",
-          "translated_from_hash": "sha256:bf78d2d1e1a4708fee53192d69c512bce5c28bd7b878e4e18884a11d4a3fa160",
-          "updated_at": "05/24/2026 06:00:19"
+          "translated_from_hash": "sha256:a8646b133bba8a570a88e331cb8706a4063f9f2c3d5721409f9cc8a4192ee87a",
+          "updated_at": "2026-05-24T13:53:26Z"
         }
       }
     },
@@ -10122,8 +10122,8 @@
       "category": "status",
       "energy": 1,
       "power": 0,
-      "description_zh": "驱散​自己​所有印记，​每驱散1层，获得物攻+50%。巧变：​火系​攻击​技​能​。",
-      "source_hash": "sha256:0a8b80948a2b9764276ab487e831b4486168ca4b0f4ed5a362bb53bf5a86a106",
+      "description_zh": "驱散自己所有印记，每驱散1层，获得物攻+50%。巧变：火系攻击技能。",
+      "source_hash": "sha256:8555541c9fabbf4ef56944ed68807dc9b3cfb14a4155e5065951383886b7315a",
       "icon": {
         "path": "Resources/Skills/wikiroco-ecaedede41ac.png",
         "source_url": "https://wikiroco-1309114022.cos.ap-guangzhou.myqcloud.com/skill_icon/bcc1e3189dbb457196bd899928c68138.png",
@@ -10136,14 +10136,14 @@
         "en": {
           "name": "Burn Out",
           "description": "Dispel all self marks. For every 1 stack, Physical Attack +50%. Morph: Fire-type attack skill.",
-          "translated_from_hash": "sha256:0a8b80948a2b9764276ab487e831b4486168ca4b0f4ed5a362bb53bf5a86a106",
-          "updated_at": "05/24/2026 06:00:19"
+          "translated_from_hash": "sha256:8555541c9fabbf4ef56944ed68807dc9b3cfb14a4155e5065951383886b7315a",
+          "updated_at": "2026-05-24T13:53:26Z"
         },
         "vi": {
           "name": "Thiêu Rụi",
           "description": "Giải trừ toàn bộ ấn ký bản thân. Mỗi 1 tầng được giải trừ, Tấn công vật lý +50%. Biến đổi: Kỹ năng tấn công hệ Lửa.",
-          "translated_from_hash": "sha256:0a8b80948a2b9764276ab487e831b4486168ca4b0f4ed5a362bb53bf5a86a106",
-          "updated_at": "05/24/2026 06:00:19"
+          "translated_from_hash": "sha256:8555541c9fabbf4ef56944ed68807dc9b3cfb14a4155e5065951383886b7315a",
+          "updated_at": "2026-05-24T13:53:26Z"
         }
       }
     },
@@ -10838,15 +10838,15 @@
       "translations": {
         "en": {
           "name": "Gale Flurry",
-          "description": "Release used swift skills. Half of their total energy cost added to this skill cost, +1 cost each use.",
+          "description": "Release used Swift skills. Half of their total energy cost added to this skill cost, +1 cost each use.",
           "translated_from_hash": "sha256:57318d8fc660d70a7394703c41afb510277c499ab59ac068dc97d2a4f2710882",
-          "updated_at": "05/24/2026 06:00:19"
+          "updated_at": "2026-05-24T13:53:26Z"
         },
         "vi": {
           "name": "Liên Kích Gió",
-          "description": "Giải phóng các kỹ năng Swift đã dùng. Nửa tổng năng lượng của chúng được cộng vào kỹ năng này, mỗi lần dùng tiêu hao +1.",
+          "description": "Giải phóng các kỹ năng Tiên thủ đã dùng. Nửa tổng năng lượng của chúng được cộng vào kỹ năng này, mỗi lần dùng tiêu hao +1.",
           "translated_from_hash": "sha256:57318d8fc660d70a7394703c41afb510277c499ab59ac068dc97d2a4f2710882",
-          "updated_at": "05/24/2026 06:00:19"
+          "updated_at": "2026-05-24T13:53:26Z"
         }
       }
     },
@@ -10973,8 +10973,8 @@
       "category": "defense",
       "energy": 1,
       "power": 0,
-      "description_zh": "减​伤50%，​本技​能​位​于​1号​位​或​3号​位​时，​额​外减​伤40%，应对攻击，传动1。​",
-      "source_hash": "sha256:c3e4b6fee1fb54bafae03048617c7d0a2c12ea5443a957c410c5718870c84946",
+      "description_zh": "减伤50%，本技能位于1号位或3号位时，额外减伤40%，应对攻击，传动1。",
+      "source_hash": "sha256:8577b26c92c138c0bf5ac6739dcf7386274b3704ba74a1eabd9a4d217552ff9f",
       "icon": {
         "path": "Resources/Skills/wikiroco-c82e89359a04.png",
         "source_url": "https://wikiroco-1309114022.cos.ap-guangzhou.myqcloud.com/skill_icon/7f5dbe5b89b84bf490454f1780259359.png",
@@ -10987,14 +10987,14 @@
         "en": {
           "name": "Phase Shift",
           "description": "Damage reduction 50%. If in slot 1 or 3, extra damage reduction 40%. Counter attack, transmission 1.",
-          "translated_from_hash": "sha256:c3e4b6fee1fb54bafae03048617c7d0a2c12ea5443a957c410c5718870c84946",
-          "updated_at": "05/24/2026 07:40:12"
+          "translated_from_hash": "sha256:8577b26c92c138c0bf5ac6739dcf7386274b3704ba74a1eabd9a4d217552ff9f",
+          "updated_at": "2026-05-24T13:53:26Z"
         },
         "vi": {
           "name": "Dịch Chuyển Pha",
           "description": "Giảm sát thương 50%. Khi ở vị trí 1 hoặc 3, giảm thêm 40% sát thương. Ứng đối tấn công, truyền động 1.",
-          "translated_from_hash": "sha256:c3e4b6fee1fb54bafae03048617c7d0a2c12ea5443a957c410c5718870c84946",
-          "updated_at": "05/24/2026 07:40:12"
+          "translated_from_hash": "sha256:8577b26c92c138c0bf5ac6739dcf7386274b3704ba74a1eabd9a4d217552ff9f",
+          "updated_at": "2026-05-24T13:53:26Z"
         }
       }
     },
@@ -12170,15 +12170,15 @@
       "translations": {
         "en": {
           "name": "Plumage Acceleration",
-          "description": "Self gains skill power +20, swift.",
+          "description": "Self gains skill power +20, Swift.",
           "translated_from_hash": "sha256:d90b0bced14ddcbe57b9ecacc5bb257f8d360422fdaddbf9c9ead045869c400b",
-          "updated_at": "05/24/2026 06:00:19"
+          "updated_at": "2026-05-24T13:53:26Z"
         },
         "vi": {
           "name": "Tăng Tốc Vũ Hóa",
-          "description": "Bản thân nhận uy lực kỹ năng +20, nhanh nhẹn.",
+          "description": "Bản thân nhận uy lực kỹ năng +20, Tiên thủ.",
           "translated_from_hash": "sha256:d90b0bced14ddcbe57b9ecacc5bb257f8d360422fdaddbf9c9ead045869c400b",
-          "updated_at": "05/24/2026 06:00:19"
+          "updated_at": "2026-05-24T13:53:26Z"
         }
       }
     },
@@ -12281,15 +12281,15 @@
       "translations": {
         "en": {
           "name": "Wing Strike",
-          "description": "Deals magic damage, swift.",
+          "description": "Deals magic damage, Swift.",
           "translated_from_hash": "sha256:3764afea4f9ba5f11516c65aa68ef99ac2479cca2d3cb79d4fb5fcb281380d85",
-          "updated_at": "05/24/2026 06:00:19"
+          "updated_at": "2026-05-24T13:53:26Z"
         },
         "vi": {
           "name": "Cánh Đánh",
-          "description": "Gây sát thương phép, nhanh nhẹn.",
+          "description": "Gây sát thương phép, Tiên thủ.",
           "translated_from_hash": "sha256:3764afea4f9ba5f11516c65aa68ef99ac2479cca2d3cb79d4fb5fcb281380d85",
-          "updated_at": "05/24/2026 06:00:19"
+          "updated_at": "2026-05-24T13:53:26Z"
         }
       }
     },
@@ -12749,8 +12749,8 @@
       "category": "special",
       "energy": 3,
       "power": 80,
-      "description_zh": "造成魔伤，对​混血​精灵​造成​伤害​+50%。",
-      "source_hash": "sha256:77982c0d22b85f45b37d1351bd333da03ef8c59c8c6889817be513ba63dfb3f3",
+      "description_zh": "造成魔伤，对混血精灵造成伤害+50%。",
+      "source_hash": "sha256:708108cd767d5c20f5a44120dd76676baeaa2cf9c99508f52b09f6bc748eb26d",
       "icon": {
         "path": "Resources/Skills/wikiroco-927ac3ddbbd5.png",
         "source_url": "https://wikiroco-1309114022.cos.ap-guangzhou.myqcloud.com/skill_icon/3a3f69e074574f6aadbdfef94e529892.png",
@@ -12763,14 +12763,14 @@
         "en": {
           "name": "Dispersion",
           "description": "Deals magic damage, damage +50% against hybrid spirits.",
-          "translated_from_hash": "sha256:77982c0d22b85f45b37d1351bd333da03ef8c59c8c6889817be513ba63dfb3f3",
-          "updated_at": "05/24/2026 06:00:19"
+          "translated_from_hash": "sha256:708108cd767d5c20f5a44120dd76676baeaa2cf9c99508f52b09f6bc748eb26d",
+          "updated_at": "2026-05-24T13:53:26Z"
         },
         "vi": {
           "name": "Phân Tán",
           "description": "Gây sát thương phép, gây sát thương +50% lên Spirit lai.",
-          "translated_from_hash": "sha256:77982c0d22b85f45b37d1351bd333da03ef8c59c8c6889817be513ba63dfb3f3",
-          "updated_at": "05/24/2026 06:00:19"
+          "translated_from_hash": "sha256:708108cd767d5c20f5a44120dd76676baeaa2cf9c99508f52b09f6bc748eb26d",
+          "updated_at": "2026-05-24T13:53:26Z"
         }
       }
     },
@@ -13119,8 +13119,8 @@
       "category": "status",
       "energy": 4,
       "power": 0,
-      "description_zh": "自己获得1层&lt;desc_id=1030&gt;蓄势印记。",
-      "source_hash": "sha256:2bfee2cb94f12710980b70c8e0192c92a42c1f370fe7a456720f596413e32d83",
+      "description_zh": "自己获得1层蓄势印记。",
+      "source_hash": "sha256:5f2e6ed24fb23ac6008c7599e9e70a1751103ab0614ed4b3a16f2b842ed58459",
       "icon": {
         "path": "Resources/Skills/wikiroco-62bbd903f61b.png",
         "source_url": "https://wikiroco-1309114022.cos.ap-guangzhou.myqcloud.com/skill/icon/9cf7ebb4347c4347b1287e1cc55f8bd1.png",
@@ -13132,15 +13132,15 @@
       "translations": {
         "en": {
           "name": "Ready to Go",
-          "description": "Self gains 1 layer of <desc_id=1030> Accumulation Mark.",
-          "translated_from_hash": "sha256:2bfee2cb94f12710980b70c8e0192c92a42c1f370fe7a456720f596413e32d83",
-          "updated_at": "05/24/2026 06:00:19"
+          "description": "Self gains 1 layer of Charge Mark.",
+          "translated_from_hash": "sha256:5f2e6ed24fb23ac6008c7599e9e70a1751103ab0614ed4b3a16f2b842ed58459",
+          "updated_at": "2026-05-24T13:53:26Z"
         },
         "vi": {
           "name": "Sẵn Sàng",
-          "description": "Bản thân nhận 1 tầng Dấu ấn tích lũy.",
-          "translated_from_hash": "sha256:2bfee2cb94f12710980b70c8e0192c92a42c1f370fe7a456720f596413e32d83",
-          "updated_at": "05/24/2026 06:00:19"
+          "description": "Bản thân nhận 1 tầng Dấu Ấn Tích Tụ.",
+          "translated_from_hash": "sha256:5f2e6ed24fb23ac6008c7599e9e70a1751103ab0614ed4b3a16f2b842ed58459",
+          "updated_at": "2026-05-24T13:53:26Z"
         }
       }
     },
@@ -14007,8 +14007,8 @@
       "category": "physical",
       "energy": 4,
       "power": 100,
-      "description_zh": "造​成​物伤，​驱散​敌方​的​冻结，​每​驱​散​1层，​本次​攻击​威力​+30，巧变：​冰系​技​能​。",
-      "source_hash": "sha256:d72734ddd41e08358f9d64e67e44a67dd93a756d83b13b20f8669c1d402f4f69",
+      "description_zh": "造成物伤，驱散敌方的冻结，每驱散1层，本次攻击威力+30，巧变：冰系技能。",
+      "source_hash": "sha256:234647590ab50c674dabbb1b29c07034caffcd4822d99079c72fca710510df0e",
       "icon": {
         "path": "Resources/Skills/wikiroco-33f59bbd271e.png",
         "source_url": "https://wikiroco-1309114022.cos.ap-guangzhou.myqcloud.com/skill_icon/20e820f9011d409b85c8e93457d6d691.png",
@@ -14021,14 +14021,14 @@
         "en": {
           "name": "Thaw",
           "description": "Deals physical damage, dispels enemy Freeze. +30 power per layer dispelled. Morph: Ice skill.",
-          "translated_from_hash": "sha256:d72734ddd41e08358f9d64e67e44a67dd93a756d83b13b20f8669c1d402f4f69",
-          "updated_at": "05/24/2026 07:40:40"
+          "translated_from_hash": "sha256:234647590ab50c674dabbb1b29c07034caffcd4822d99079c72fca710510df0e",
+          "updated_at": "2026-05-24T13:53:26Z"
         },
         "vi": {
           "name": "Giải Đóng Băng",
           "description": "Gây sát thương vật lý, giải trừ trạng thái Đóng Băng của địch. Mỗi lớp được giải trừ tăng uy lực +30. Chuyển đổi: Kỹ năng hệ Băng.",
-          "translated_from_hash": "sha256:d72734ddd41e08358f9d64e67e44a67dd93a756d83b13b20f8669c1d402f4f69",
-          "updated_at": "05/24/2026 07:40:40"
+          "translated_from_hash": "sha256:234647590ab50c674dabbb1b29c07034caffcd4822d99079c72fca710510df0e",
+          "updated_at": "2026-05-24T13:53:26Z"
         }
       }
     },
@@ -14710,8 +14710,8 @@
       "category": "status",
       "energy": 2,
       "power": 0,
-      "description_zh": "自己回合结束时返场，​携带的攻击​技​能​​下回合获得1个已触发过的迸发效果，应对防御：​改为​获得​所有​触​发过​的迸发效果。",
-      "source_hash": "sha256:b726629b766606ce52d15330f04ea687abf9aa219a33d811cee9bac6db2257e3",
+      "description_zh": "自己回合结束时返场，携带的攻击技能下回合获得1个已触发过的迸发效果，应对防御：改为获得所有触发过的迸发效果。",
+      "source_hash": "sha256:0ae337b377533b9544be18941fc3667ff0f480add285e5b82e1514c6170308f6",
       "icon": {
         "path": "Resources/Skills/wikiroco-26f15d5c86d5.png",
         "source_url": "https://wikiroco-1309114022.cos.ap-guangzhou.myqcloud.com/skill_icon/3f0a7834a71a415cba2f1a5cff63975d.png",
@@ -14724,14 +14724,14 @@
         "en": {
           "name": "Thunder Tread",
           "description": "Switch out at end of turn. Carried attack skills gain 1 triggered burst effect next turn. Counter Defense: Gain all previously triggered burst effects instead.",
-          "translated_from_hash": "sha256:b726629b766606ce52d15330f04ea687abf9aa219a33d811cee9bac6db2257e3",
-          "updated_at": "05/24/2026 07:40:40"
+          "translated_from_hash": "sha256:0ae337b377533b9544be18941fc3667ff0f480add285e5b82e1514c6170308f6",
+          "updated_at": "2026-05-24T13:53:26Z"
         },
         "vi": {
           "name": "Dậm Sấm",
           "description": "Kết thúc lượt rút lui. Các kỹ năng tấn công mang theo sẽ nhận 1 hiệu ứng Bùng nổ đã kích hoạt ở lượt sau. Ứng đối phòng thủ: Đổi thành nhận tất cả hiệu ứng Bùng nổ đã từng kích hoạt.",
-          "translated_from_hash": "sha256:b726629b766606ce52d15330f04ea687abf9aa219a33d811cee9bac6db2257e3",
-          "updated_at": "05/24/2026 07:40:40"
+          "translated_from_hash": "sha256:0ae337b377533b9544be18941fc3667ff0f480add285e5b82e1514c6170308f6",
+          "updated_at": "2026-05-24T13:53:26Z"
         }
       }
     },
@@ -15339,8 +15339,8 @@
       "category": "status",
       "energy": 1,
       "power": 0,
-      "description_zh": "携带​的​攻击​技​能​获得附加中毒3​，应对防御：​改为​获得附加中毒6。",
-      "source_hash": "sha256:c3b76044c4b1c702f35999c4bfa56fe1a1b72e48d1c10b2a53d923c1dbb5a7cd",
+      "description_zh": "携带的攻击技能获得附加中毒3，应对防御：改为获得附加中毒6。",
+      "source_hash": "sha256:aef01dcdf7099966214a426c98d696dd50f39f173ea6f51528ffee383ff97a1b",
       "icon": {
         "path": "Resources/Skills/wikiroco-9bb86247023c.png",
         "source_url": "https://wikiroco-1309114022.cos.ap-guangzhou.myqcloud.com/skill_icon/e6c4b43c4af14d89ae543e45e2b40ad2.png",
@@ -15353,14 +15353,14 @@
         "en": {
           "name": "Heavy Metal Dust",
           "description": "Carried attack skills gain +3 poison. Counter Defense: Gain +6 poison instead.",
-          "translated_from_hash": "sha256:c3b76044c4b1c702f35999c4bfa56fe1a1b72e48d1c10b2a53d923c1dbb5a7cd",
-          "updated_at": "05/24/2026 07:40:40"
+          "translated_from_hash": "sha256:aef01dcdf7099966214a426c98d696dd50f39f173ea6f51528ffee383ff97a1b",
+          "updated_at": "2026-05-24T13:53:26Z"
         },
         "vi": {
           "name": "Bụi Kim Loại Nặng",
           "description": "Các kỹ năng tấn công mang theo nhận thêm Trúng độc 3. Ứng đối phòng thủ: Đổi thành nhận Trúng độc 6.",
-          "translated_from_hash": "sha256:c3b76044c4b1c702f35999c4bfa56fe1a1b72e48d1c10b2a53d923c1dbb5a7cd",
-          "updated_at": "05/24/2026 07:40:40"
+          "translated_from_hash": "sha256:aef01dcdf7099966214a426c98d696dd50f39f173ea6f51528ffee383ff97a1b",
+          "updated_at": "2026-05-24T13:53:26Z"
         }
       }
     },
@@ -15598,8 +15598,8 @@
       "category": "special",
       "energy": 3,
       "power": 85,
-      "description_zh": "造成​魔伤，应对状态：​本​次​伤害翻倍。",
-      "source_hash": "sha256:822639d8d20d806898221dd77c1f6bd3096690ff0d79a3da84a8d32e4d863832",
+      "description_zh": "造成魔伤，应对状态：本次伤害翻倍。",
+      "source_hash": "sha256:3d0f94892638dce2a041ec0287d9cfdc44a3dc0a3bb893f608793f0b367f1524",
       "icon": {
         "path": "Resources/Skills/wikiroco-353ed4c929cc.png",
         "source_url": "https://wikiroco-1309114022.cos.ap-guangzhou.myqcloud.com/skill_icon/0bdb1763cabc405588ec65968b328501.png",
@@ -15612,14 +15612,14 @@
         "en": {
           "name": "Caltrops",
           "description": "Deals Magic damage. Counter status: Doubles the damage.",
-          "translated_from_hash": "sha256:822639d8d20d806898221dd77c1f6bd3096690ff0d79a3da84a8d32e4d863832",
-          "updated_at": "05/24/2026 07:40:56"
+          "translated_from_hash": "sha256:3d0f94892638dce2a041ec0287d9cfdc44a3dc0a3bb893f608793f0b367f1524",
+          "updated_at": "2026-05-24T13:53:26Z"
         },
         "vi": {
           "name": "Chông Sắt",
           "description": "Gây sát thương phép. Ứng đối trạng thái: Sát thương gấp đôi.",
-          "translated_from_hash": "sha256:822639d8d20d806898221dd77c1f6bd3096690ff0d79a3da84a8d32e4d863832",
-          "updated_at": "05/24/2026 07:40:56"
+          "translated_from_hash": "sha256:3d0f94892638dce2a041ec0287d9cfdc44a3dc0a3bb893f608793f0b367f1524",
+          "updated_at": "2026-05-24T13:53:26Z"
         }
       }
     },
@@ -16869,15 +16869,15 @@
       "translations": {
         "en": {
           "name": "Wind Wall",
-          "description": "Damage reduction 50%, swift, counter attack.",
+          "description": "Damage reduction 50%, Swift, counter attack.",
           "translated_from_hash": "sha256:5a285f9dd907984e22b2f3405646151e565becf9388cc1846bfb2364327fc2fd",
-          "updated_at": "05/24/2026 07:40:56"
+          "updated_at": "2026-05-24T13:53:26Z"
         },
         "vi": {
           "name": "Tường Gió",
-          "description": "Giảm sát thương 50%, 迅捷 (Swift), Ứng đối tấn công.",
+          "description": "Giảm sát thương 50%, Tiên thủ, Ứng đối tấn công.",
           "translated_from_hash": "sha256:5a285f9dd907984e22b2f3405646151e565becf9388cc1846bfb2364327fc2fd",
-          "updated_at": "05/24/2026 07:40:56"
+          "updated_at": "2026-05-24T13:53:26Z"
         }
       }
     },
@@ -17130,13 +17130,13 @@
           "name": "Feather Flight",
           "description": "Swift, dispel 1 enemy buff.",
           "translated_from_hash": "sha256:fdc3ce3be75072decdbace854ee0605b5e90040ac9d4a4354b2127e55e5d4674",
-          "updated_at": "05/24/2026 07:40:56"
+          "updated_at": "2026-05-24T13:53:26Z"
         },
         "vi": {
           "name": "Lông Vũ",
-          "description": "迅捷 (Swift), giải trừ 1 trạng thái có lợi của kẻ địch.",
+          "description": "Tiên thủ, giải trừ 1 trạng thái có lợi của kẻ địch.",
           "translated_from_hash": "sha256:fdc3ce3be75072decdbace854ee0605b5e90040ac9d4a4354b2127e55e5d4674",
-          "updated_at": "05/24/2026 07:40:56"
+          "updated_at": "2026-05-24T13:53:26Z"
         }
       }
     },
@@ -17870,13 +17870,13 @@
           "name": "Tornado",
           "description": "Deals physical damage, Swift. Counter status: Skill power becomes 1.5x.",
           "translated_from_hash": "sha256:323f960a0f7761b017193394d148eb77ad622ecdbb1d4da737aaba6dd2b81e56",
-          "updated_at": "05/24/2026 07:41:00"
+          "updated_at": "2026-05-24T13:53:26Z"
         },
         "vi": {
           "name": "Lốc xoáy",
           "description": "Gây sát thương vật lý, Tiên thủ. Ứng đối trạng thái: Uy lực kỹ năng này trở thành 1.5 lần.",
           "translated_from_hash": "sha256:323f960a0f7761b017193394d148eb77ad622ecdbb1d4da737aaba6dd2b81e56",
-          "updated_at": "05/24/2026 07:41:00"
+          "updated_at": "2026-05-24T13:53:26Z"
         }
       }
     },
